@@ -56,6 +56,7 @@ graph LR
 | `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 274行 |
 | `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 196行 |
 | `nextdesign-cpp14-unit-build` | Next Design の詳細設計から組込みC++14の実装とGoogleTest一式をTDDで構築。RED確認・レビューゲート・トレーサビリティを機械検査する | 260行 |
+| `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
 
 ## セットアップ（新しい環境で）
 
