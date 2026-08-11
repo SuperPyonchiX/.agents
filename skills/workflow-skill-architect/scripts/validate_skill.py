@@ -11,7 +11,8 @@ WARN のみなら合格（0）だが、内容は表示する。
 
 1. **仕様適合** — frontmatter の許可キー、name の kebab-case と長さ、
    description の山括弧禁止と長さ。Agent Skill の公式仕様に基づく。
-2. **構造** — name とディレクトリ名の一致、リンク切れ、孤児ファイル、行数。
+2. **構造** — name とディレクトリ名の一致、リンク切れ、同梱ファイル
+   （references/ templates/ examples/ assets/）の孤児、行数。
    references/review-checklist.md に基づく、このスキル固有の設計上の検査。
 
 依存は標準ライブラリのみ。Claude Code 以外の環境（Codex 等）へこのスキルを
@@ -52,6 +53,9 @@ TOC_REQUIRED_LINES = 300
 SKILL_MD_MAX_LINES = 500
 # description がこの文字数未満なら、発火の手がかりとして短すぎるとみなす
 DESCRIPTION_MIN_CHARS = 60
+# 孤児検査の対象ディレクトリ（再帰的に走査する）。SKILL.md からも references/ からも
+# 参照されない同梱ファイルは、読ませる導線がないので置いていないのと変わらない。
+ORPHAN_SCAN_DIRS = ("references", "templates", "examples", "assets")
 
 # --- ここから Agent Skill の公式仕様に由来する定数 ---
 # frontmatter に置いてよいキー。これ以外があるとスキルの読み込みが弾かれる。
@@ -255,18 +259,23 @@ def check_links(skill_dir, md_files, rep):
                 rep.error(rel, f"参照先が存在しない: {path}")
 
 
-def check_orphans(skill_dir, skill_md_text, rep):
-    ref_dir = skill_dir / "references"
-    if not ref_dir.is_dir():
-        return
-    for f in sorted(ref_dir.glob("*.md")):
-        needle = f"references/{f.name}"
-        if needle not in skill_md_text:
-            rep.warn(
-                f"references/{f.name}",
-                "SKILL.md から一度も参照されていない。"
-                "読むタイミングを SKILL.md に書くか、不要なら削除すること",
-            )
+def check_orphans(skill_dir, all_text, rep):
+    for dir_name in ORPHAN_SCAN_DIRS:
+        target = skill_dir / dir_name
+        if not target.is_dir():
+            continue
+        for f in sorted(target.rglob("*")):
+            if not f.is_file() or f.name.startswith("."):
+                continue
+            # 同名ファイルが別ディレクトリにある場合の取り違えを避けるため、
+            # ファイル名ではなく skill ディレクトリからの相対パスで照合する。
+            rel = f.relative_to(skill_dir).as_posix()
+            if rel not in all_text:
+                rep.warn(
+                    rel,
+                    "SKILL.md からも参照ファイルからも一度も参照されていない。"
+                    "読むタイミングを SKILL.md に書くか、不要なら削除すること",
+                )
 
 
 def check_lengths(skill_dir, rep):
@@ -335,7 +344,7 @@ def main(argv):
 
     check_frontmatter(skill_dir, skill_md_text, rep)
     check_links(skill_dir, md_files, rep)
-    check_orphans(skill_dir, skill_md_text, rep)
+    check_orphans(skill_dir, all_text, rep)
     check_lengths(skill_dir, rep)
     check_scripts_documented(skill_dir, all_text, rep)
 
