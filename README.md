@@ -55,6 +55,7 @@ graph LR
 | `markdown-explanation-doc` | 説明資料・ナレッジベース記事の作成。mermaid図解と折りたたみ補足で構造化する | 282行 |
 | `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 274行 |
 | `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 196行 |
+| `nextdesign-cpp14-unit-build` | Next Design の詳細設計（HTMLエクスポート）から組込みC++14の実装とGoogleTest一式を構築。設計とのトレーサビリティを機械検査する | 213行 |
 
 ## セットアップ（新しい環境で）
 
