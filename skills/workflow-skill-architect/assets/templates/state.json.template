@@ -1,0 +1,14 @@
+{
+  "workflow": "<スキル名>",
+  "started_at": "<ISO8601>",
+  "updated_at": "<ISO8601>",
+  "nodes": {
+    "<node-name>": {
+      "status": "pending",
+      "artifacts": [],
+      "attempts": 0,
+      "error": null
+    }
+  },
+  "_status_values": ["pending", "running", "done", "failed", "skipped"]
+}
