@@ -1,0 +1,51 @@
+{
+  "_comment": "R0 で作る。work/review-scope.json として保存する。< > のプレースホルダをすべて実値に置き換えること。",
+
+  "mode": "diff",
+  "_mode": "diff = git 差分をレビューする / path = 指定されたファイル・ディレクトリをレビューする",
+
+  "diff_base": "main",
+  "_diff_base": "mode が diff のときの比較元。path のときは null にする",
+
+  "policy": {
+    "exceptions": "forbidden",
+    "dynamic_memory": "init_only",
+    "virtual_rtti": "allowed"
+  },
+  "_policy": [
+    "exceptions:     forbidden | allowed | unknown   例外を使ってよいか",
+    "dynamic_memory: forbidden | init_only | allowed | unknown   動的メモリ確保を使ってよいか",
+    "virtual_rtti:   forbidden | allowed | unknown   仮想関数・RTTI を使ってよいか",
+    "unknown のまま R1 に進まない。読み取れなければユーザーに確認する"
+  ],
+
+  "static_analysis": {
+    "tool": "clang-tidy",
+    "log": "build/tidy.log"
+  },
+  "_static_analysis": "ツールが無い場合は { \"tool\": null, \"log\": null } とする。R4 の報告で「ツールなし」と明記すること",
+
+  "files": [
+    {
+      "path": "src/motor_controller.cpp",
+      "changed_lines": [[42, 58], [120, 121]],
+      "status": "pending"
+    },
+    {
+      "path": "include/motor_controller.h",
+      "changed_lines": [[15, 22]],
+      "status": "pending"
+    }
+  ],
+  "_files": [
+    "path:          リポジトリルートからの相対パス",
+    "changed_lines: [開始行, 終了行] の配列。mode が path のときは [] にする",
+    "               git diff --unified=0 <base>...HEAD の @@ から取る",
+    "status:        pending | running | done。R2 のファイル単位ループで更新する",
+    "               対象が5ファイル以下なら status は省略してよい（state を持たない）"
+  ],
+
+  "notes": [
+    "<R0 で読み取れなかった点、ユーザーに確認した点をここに残す>"
+  ]
+}
