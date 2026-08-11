@@ -1,0 +1,53 @@
+{
+  "_comment": "T0 で作る。work/triage-scope.json として保存する。< > のプレースホルダをすべて実値に置き換えること。",
+
+  "project": "MotorCtrl",
+  "standard": "AUTOSAR C++14",
+  "_standard": "適用する規約。AUTOSAR C++14 / MISRA C++ 2008 / MISRA C++ 2023 など。逸脱の判断基準になる",
+
+  "tools": [
+    { "name": "Helix QAC", "version": "2024.2" },
+    { "name": "CodeSonar", "version": "8.1" }
+  ],
+  "_tools": [
+    "指摘の出所。source に tool 列が無い場合、ここが1件だけならそれを補って使う",
+    "version は判定DBの再適用の妥当性を判断するのに使う。バージョンが上がったら再適用を見直す"
+  ],
+
+  "source_root": "src",
+  "_source_root": "指摘の file 列がこのディレクトリからの相対パスであるとみなす。T3 でソースを読むときに使う",
+
+  "decisions_db": "../.static-analysis-decisions/decisions.json",
+  "_decisions_db": [
+    "判定DBの場所。過去の判定をフィンガープリントで保持する、このスキル最大の資産",
+    "work/ の外、プロジェクトで永続化される場所に置くこと。work/ に置くと毎回消えて蓄積しない",
+    "初回は存在しなくてよい。cluster_findings.py --save-decisions が作る"
+  ],
+
+  "policy": {
+    "exceptions": "forbidden",
+    "dynamic_memory": "init_only",
+    "virtual_rtti": "allowed"
+  },
+  "_policy": [
+    "exceptions:     forbidden | allowed | unknown   例外を使ってよいか",
+    "dynamic_memory: forbidden | init_only | allowed | unknown   動的メモリ確保を使ってよいか",
+    "virtual_rtti:   forbidden | allowed | unknown   仮想関数・RTTI を使ってよいか",
+    "標準ライブラリや動的メモリに関する指摘の判定（fix か deviate か）がここで決まる",
+    "unknown のまま T3 に進まない。読み取れなければユーザーに確認する"
+  ],
+
+  "external_paths": [
+    "src/vendor/",
+    "src/generated/"
+  ],
+  "_external_paths": [
+    "変更できない外部提供コード・自動生成コードのパス接頭辞",
+    "ここに該当する指摘は DV-EXT の逸脱候補になる。空配列でもよい",
+    "同一クラスタが external と自社コードにまたがる場合、判定が割れるのでクラスタを分けること"
+  ],
+
+  "notes": [
+    "<T0 で読み取れなかった点、ユーザーに確認した点をここに残す>"
+  ]
+}

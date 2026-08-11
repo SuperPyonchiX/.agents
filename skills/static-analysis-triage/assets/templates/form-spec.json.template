@@ -1,0 +1,75 @@
+{
+  "_comment": "T0 で作る。work/form-spec.json として保存する。列名は read_findings.py --inspect の出力からコピーすること。手で打ち直すと全角空白や改行の違いで一致しなくなる。",
+
+  "source": {
+    "workbook": "input/誤検知・逸脱申請書.xlsx",
+    "sheet": "指摘一覧",
+    "header_row": 3,
+    "id_column": "No.",
+    "columns": {
+      "rule_id": "ルールID",
+      "file": "ファイル名",
+      "message": "指摘内容",
+      "line": "行番号",
+      "tool": "ツール",
+      "severity": "重大度",
+      "function": "関数名",
+      "code": "該当コード"
+    }
+  },
+  "_source": [
+    "workbook:   入力の申請書。原本。スクリプトはこれを書き換えない",
+    "sheet:      指摘一覧が入っているシート名",
+    "header_row: ヘッダ行の行番号（1始まり）。データはこの次の行から",
+    "id_column:  申請書の通番列。書き戻し時の突き合わせに使う。無ければ null（行番号で突き合わせる）",
+    "columns:    論理項目 → 実際の列名。rule_id / file / message の3つは必須",
+    "            line / tool / severity / function / code は任意。不要なら null にする",
+    "            code があるとクラスタリングの精度が大きく上がる"
+  ],
+
+  "application_form": {
+    "columns": {
+      "verdict": "判定",
+      "code": "分類コード",
+      "rationale": "根拠",
+      "alternative": "代替措置"
+    },
+    "verdict_labels": {
+      "fix": "修正",
+      "deviate": "逸脱",
+      "false_positive": "誤検知",
+      "deferred": "保留"
+    }
+  },
+  "_application_form": [
+    "columns:        判定結果の書き戻し先の列名。source と同じシート・同じ行に書く",
+    "                存在しない列を指定すると write_forms.py は終了コード 1 で止まる",
+    "                列を追加してよい様式でない場合は、既存の記入欄の列名を指定する",
+    "verdict_labels: verdict を申請書に書くときの表記。社内様式の表記に合わせる"
+  ],
+
+  "deviation_record": {
+    "template": "input/逸脱記録書_雛形.xlsx",
+    "sheet": "逸脱記録",
+    "header_row": 2,
+    "start_row": 3,
+    "columns": {
+      "seq": "No.",
+      "rule_id": "逸脱ルール",
+      "file": "対象ファイル",
+      "line": "行番号",
+      "code": "逸脱理由区分",
+      "rationale": "逸脱理由",
+      "alternative": "代替措置",
+      "message": "指摘内容"
+    }
+  },
+  "_deviation_record": [
+    "verdict が deviate の指摘だけを書き出す。deviate が0件なら生成されない",
+    "template:  社内様式の雛形。省略（null）すると新規ブックとして生成する",
+    "sheet:     書き込み先シート名",
+    "header_row: ヘッダ行の行番号（1始まり）",
+    "start_row: データを書き始める行番号。雛形に記入例がある場合はその次の行を指定する",
+    "columns:   論理項目 → 列名。seq は連番。不要な項目は null にする"
+  ]
+}
