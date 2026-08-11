@@ -1,0 +1,40 @@
+{
+  "_comment": "E0 で作る。work/extension-spec.json として保存し、進捗もここに持つ。state 専用のファイルを作らない。",
+
+  "ndVersion": "",
+  "_ndVersion": "ユーザーに尋ねて得たバージョン。例: V3.2。空のまま先に進まない",
+
+  "docBase": "",
+  "_docBase": "references/doc-map.md の表で決めたドキュメント基点 URL",
+
+  "scriptLanguage": "csharp",
+  "_scriptLanguage": "本スキルは csharp のみを扱う",
+
+  "extensionName": "",
+  "_extensionName": "拡張機能名。ディレクトリ名と manifest.json の name に使う",
+
+  "extensionDir": "",
+  "_extensionDir": "作業中の拡張機能ディレクトリのパス",
+
+  "deployTarget": "",
+  "_deployTarget": "user | machine。user は %LOCALAPPDATA%、machine は C:\\ProgramData",
+
+  "lifecycle": "",
+  "_lifecycle": "application | project。迷ったら project",
+
+  "requirements": [],
+  "_requirements": "何を入力に何を出力するか。1項目1行で具体的に書く",
+
+  "extensionPoints": {
+    "ribbon": false,
+    "commands": false,
+    "events": false
+  },
+  "_extensionPoints": "E1 で決めた使用する拡張ポイント",
+
+  "phase": "E0",
+  "_phase": "E0 | E1 | E2 | E3 | E4 | E5。フェーズを終えるたびに更新する",
+
+  "verifyRounds": [],
+  "_verifyRounds": "E4 の周回ログ。{ round, symptom, hypothesis, change, result } を周回ごとに追記する"
+}

@@ -1,0 +1,43 @@
+{
+  "name": "MyExtension",
+  "displayName": "My Extension",
+  "description": "拡張機能の説明",
+  "version": "1.0.0",
+  "publisher": "組織名",
+  "main": "main.cs",
+  "lifecycle": "project",
+
+  "extensionPoints": {
+    "ribbon": {
+      "tabs": [
+        {
+          "id": "MyExtension.MainTab",
+          "label": "My Extension",
+          "groups": [
+            {
+              "id": "MyExtension.MainGroup",
+              "label": "グループ名",
+              "controls": [
+                {
+                  "id": "MyExtension.RunButton",
+                  "type": "Button",
+                  "label": "実行",
+                  "description": "処理の説明がツールチップに出る",
+                  "imageLarge": "resources/run32.png",
+                  "command": "MyExtension.Command.Run"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+
+    "commands": [
+      {
+        "id": "MyExtension.Command.Run",
+        "execFunc": "Run"
+      }
+    ]
+  }
+}

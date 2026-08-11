@@ -1,0 +1,82 @@
+// Next Design エクステンション エントリポイント（C# スクリプト）
+//
+// 制約:
+//   - manifest.json の main に指定できるファイルは1つだけ。全ハンドラをここに書く
+//   - クラス宣言は書かない。トップレベルにメソッドを並べる
+//   - using は自動で補われない。使った型の using を必ず書く
+//     （application ライフサイクルで using が不足すると Next Design が起動しなくなる）
+//   - デバッガは使えない。Output.WriteLine が唯一の手がかりになる
+//   - 変更は Next Design を再起動するまで反映されない
+
+using NextDesign.Core;
+using NextDesign.Desktop;
+using NextDesign.Extension;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+// 出力ウィンドウのカテゴリ。拡張機能名で固定すると自分のログを絞り込める
+const string LogCategory = "MyExtension";
+
+//----------------------------------------------------------------------
+// コマンドハンドラ
+// manifest.json の commands[].execFunc と関数名を完全一致させる
+//----------------------------------------------------------------------
+
+public void Run(ICommandContext context, ICommandParams parameters)
+{
+    try
+    {
+        Output.WriteLine(LogCategory, "処理を開始します");
+
+        var project = App.Workspace.CurrentProject;
+        if (project == null)
+        {
+            App.Window.UI.ShowInformationDialog(
+                "プロジェクトを開いてから実行してください", "My Extension");
+            return;
+        }
+
+        // ここに処理を書く
+
+        Output.WriteLine(LogCategory, "処理が完了しました");
+        App.Window.UI.ShowInformationDialog("処理が完了しました", "My Extension");
+    }
+    catch (Exception e)
+    {
+        // 握りつぶさない。握りつぶすと「押しても無反応」にしか見えず原因に辿り着けない
+        Output.WriteLine(LogCategory, string.Format("エラー: {0}", e.Message));
+        App.Window.UI.ShowInformationDialog(e.Message, "My Extension - エラー");
+    }
+}
+
+//----------------------------------------------------------------------
+// イベントハンドラ（使う場合のみ。manifest.json の events と対応させる）
+//----------------------------------------------------------------------
+
+// public void ProjectOnBeforeSave(IEventContext context, IEventParams eventParams)
+// {
+//     try
+//     {
+//         Output.WriteLine(LogCategory, "保存前の処理");
+//     }
+//     catch (Exception e)
+//     {
+//         Output.WriteLine(LogCategory, string.Format("エラー: {0}", e.Message));
+//     }
+// }
+
+//----------------------------------------------------------------------
+// 補助メソッド
+// ファイルを分割できないので、共通処理もここに並べる
+//----------------------------------------------------------------------
+
+private void Log(string message)
+{
+    Output.WriteLine(LogCategory, message);
+}
+
+// モデルを辿る処理を書くときは、使うメンバーが実在するかを
+// 該当バージョンの API リファレンスで必ず確認すること。
+// 存在しないメンバーを書いても、エラーが出るのはボタンを押した瞬間で、
+// 原因の切り分けに時間を取られる。
