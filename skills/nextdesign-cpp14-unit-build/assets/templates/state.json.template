@@ -1,0 +1,19 @@
+{
+  "workflow": "nextdesign-cpp14-unit-build",
+  "source": "<取り込んだ HTML のパス>",
+  "started_at": "<ISO 8601>",
+  "updated_at": "<ISO 8601>",
+  "current_phase": "<phase0-intake | phase1-design | phase2-testdesign | phase3-coding | phase4-testimpl | phase5-testrun | phase6-trace>",
+  "classes": {
+    "<ClassName>": {
+      "phase1": { "status": "done", "artifacts": ["include/motor_controller.h", "src/motor_controller.cpp"] },
+      "phase2": { "status": "done", "artifacts": ["work/test-design.md"] },
+      "phase3": { "status": "running", "artifacts": [] },
+      "phase4": { "status": "pending", "artifacts": [] },
+      "phase5": { "status": "pending", "artifacts": [], "attempts": 0 }
+    },
+    "<ClassName2>": {
+      "phase1": { "status": "failed", "artifacts": [], "attempts": 2, "error": "戻り値型が unknown のまま解決できない" }
+    }
+  }
+}
