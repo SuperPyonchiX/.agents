@@ -9,7 +9,7 @@
     1  ERROR あり
     2  引数誤り
 
-検査するのは次の3点だけ。フェーズ1のゲートで使う。
+検査するのは次の3点だけ。P1 のゲートで使う。
 
   - 全関数宣言に Doxygen コメントと @brief があること
   - 引数の数だけ @param があり、名前が一致していること
@@ -77,7 +77,7 @@ class Report:
         print()
         print(f"ERROR {len(self.errors)} 件 / WARN {len(self.warns)} 件 / SKIP {len(self.skips)} 件")
         if self.errors:
-            print("不合格。ERROR を解消するまでフェーズ2に進まないこと。")
+            print("不合格。ERROR を解消するまで P2 に進まないこと。")
         else:
             print("合格。@pre / @post の妥当性は references/function-design.md で目視確認すること。")
         return 1 if self.errors else 0

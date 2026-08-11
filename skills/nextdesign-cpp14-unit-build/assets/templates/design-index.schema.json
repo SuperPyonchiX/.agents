@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "design-index",
-  "description": "Next Design の詳細設計を、以降の全工程が参照する唯一の形に正規化したもの。フェーズ0で work/design-index.json として作る。",
+  "description": "Next Design の詳細設計を、以降の全工程が参照する唯一の形に正規化したもの。P0 で work/design-index.json として作る。入力形式（HTML / CSV / PlantUML / Markdown / 画像）が何であれ、出力はこの形に揃える。",
   "type": "object",
   "required": ["source", "classes", "open_questions"],
   "properties": {
     "source": {
       "type": "string",
-      "description": "取り込み元の HTML ファイルパス"
+      "description": "取り込み元のファイルパス。複数形式を統合した場合はカンマ区切りで全部書く"
     },
     "generated_at": {
       "type": "string",
@@ -73,6 +73,10 @@
                 "visibility": { "enum": ["public", "protected", "private"] },
                 "is_const": { "type": "boolean" },
                 "is_virtual": { "type": "boolean" },
+                "is_pure_virtual": {
+                  "type": "boolean",
+                  "description": "純粋仮想（インタフェース）。true の関数は実装を持たないため、テスト観点表の対象外になる"
+                },
                 "brief": { "type": "string" },
                 "preconditions": {
                   "type": "array",
@@ -103,7 +107,7 @@
                 "multiplicity": { "type": "string", "description": "1 / 0..1 / 0..* など" },
                 "mockable": {
                   "type": "boolean",
-                  "description": "フェーズ4でモック化する対象か"
+                  "description": "P3 でモック化する対象か"
                 }
               }
             }
@@ -137,7 +141,7 @@
     },
     "open_questions": {
       "type": "array",
-      "description": "読み取れなかった点、矛盾していた点。空でない状態でフェーズ1に進んではいけない",
+      "description": "読み取れなかった点、矛盾していた点。空でない状態で P1 に進んではいけない",
       "items": {
         "type": "object",
         "required": ["where", "question"],

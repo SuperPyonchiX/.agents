@@ -1,19 +1,20 @@
 {
   "workflow": "nextdesign-cpp14-unit-build",
-  "source": "<取り込んだ HTML のパス>",
+  "source": "<取り込んだ設計のパス。複数形式ならカンマ区切りで全部>",
   "started_at": "<ISO 8601>",
   "updated_at": "<ISO 8601>",
-  "current_phase": "<phase0-intake | phase1-design | phase2-testdesign | phase3-coding | phase4-testimpl | phase5-testrun | phase6-trace>",
+  "coverage_target": { "c0": 100, "c1": 100, "tool": "<gcovr / なし>" },
   "classes": {
     "<ClassName>": {
-      "phase1": { "status": "done", "artifacts": ["include/motor_controller.h", "src/motor_controller.cpp"] },
-      "phase2": { "status": "done", "artifacts": ["work/test-design.md"] },
-      "phase3": { "status": "running", "artifacts": [] },
-      "phase4": { "status": "pending", "artifacts": [] },
-      "phase5": { "status": "pending", "artifacts": [], "attempts": 0 }
+      "p1_design":   { "status": "done",    "artifacts": ["include/motor_controller.h", "src/motor_controller.cpp"], "review": "closed" },
+      "p2_testdesign": { "status": "done",  "artifacts": ["work/test-design.md"], "review": "closed" },
+      "p3_testimpl": { "status": "done",    "artifacts": ["test/test_motor_controller.cpp", "work/red-evidence.txt"], "review": "closed" },
+      "p4_impl":     { "status": "running", "artifacts": [], "attempts": 1 },
+      "p5_refactor": { "status": "pending", "artifacts": [], "review": "pending" }
     },
     "<ClassName2>": {
-      "phase1": { "status": "failed", "artifacts": [], "attempts": 2, "error": "戻り値型が unknown のまま解決できない" }
+      "p1_design": { "status": "failed", "artifacts": [], "attempts": 2, "error": "戻り値型が unknown のまま解決できない" }
     }
-  }
+  },
+  "p6_quality": { "status": "pending", "coverage_c0": null, "coverage_c1": null, "open_reviews": 0 }
 }
