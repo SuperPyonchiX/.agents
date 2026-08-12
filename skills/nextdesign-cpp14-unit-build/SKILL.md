@@ -1,6 +1,8 @@
 ---
 name: nextdesign-cpp14-unit-build
 description: Next Design の詳細設計を入力に、組込み C++14（AUTOSAR C++14 / CERT C++ 準拠）の実装と GoogleTest 単体テストをテスト駆動開発で構築する工程スキル。各工程にレビューゲートを置き、設計にある関数が漏れなく実装・テストされたことを機械検査する。入力は HTML・Excel/CSV・PlantUML・Markdown・画像のいずれでも受け付ける。「Next Design の設計からコードを作って」「詳細設計をC++に落として」「クラス図から実装と単体テストを作って」「関数設計と単体テスト設計をやって」「詳細設計書をもとにテスト駆動で実装して」といった話が設計からのコード生成について出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。既存コードのレビューは cpp14-code-review、Next Design 自体の拡張は nextdesign-script-extension の担当なので、そちらを使う。設計から新規に作るのがこちら。
+metadata:
+  web-description: Next Design の詳細設計から組込みC++14の実装とGoogleTest単体テストをテスト駆動で作る。各工程にレビューゲートを置き、設計の関数が漏れなく実装・テストされたことを機械検査する。「設計からコードを作って」「詳細設計をC++に落として」と言われたら使う。
 ---
 
 # Next Design → 組込み C++14 SW 構築（TDD）
