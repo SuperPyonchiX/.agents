@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# pack_skill.py が生成する claude.ai 配布用 zip（生成物なのでコミットしない）
+dist/

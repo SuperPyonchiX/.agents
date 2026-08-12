@@ -36,6 +36,8 @@ graph LR
 ├── README.md                  ← このファイル（人間向け運用手順）
 ├── AGENTS.md                  ← エージェント向け規約（実体）
 ├── CLAUDE.md                  ← AGENTS.md への参照のみ
+├── tools/
+│   └── pack_skill.py          ← claude.ai（WEB版）へアップロードする zip を作る
 └── skills/
     └── <skill-name>/
         ├── SKILL.md           ← 必須。frontmatter + 手順本文
@@ -97,12 +99,65 @@ ls -la ~/.claude/skills     # → skills -> .../.agents/skills と出れば成�
 
 Claude Code を起動し、スキル一覧に3件が出ることを確認する。すでに起動していた場合は再起動が必要。
 
+## WEB版 Claude（claude.ai）へ反映する
+
+claude.ai はローカルのファイルを読まない。**スキルフォルダを zip にしてアップロードする**のが唯一の経路である。シンボリックリンクによる自動反映は効かないので、スキルを直したら手作業で上げ直す。
+
+```
+skills/<name>/            ← 実体（長い description）。CLI 系はここを直接読む
+      │
+      │ python tools/pack_skill.py --all
+      ▼
+dist/<name>.zip           ← description を短縮版に差し替えた複製
+      │
+      │ 手動アップロード
+      ▼
+claude.ai > Customize > Skills
+```
+
+### 初回だけやること
+
+**Settings > Capabilities で「Code execution and file creation」を ON にする。** これが無いと Skills 機能自体が使えない。Free / Pro / Max はここ、Team / Enterprise は Organization settings 側で Owner が有効化する。
+
+### 反映手順
+
+```bash
+python tools/pack_skill.py --all          # dist/*.zip が出る
+python tools/pack_skill.py skills/<name>  # 1件だけならこちら
+```
+
+`dist/` の zip を claude.ai の **Customize > Skills > 「+」> Upload a skill** から上げる。
+
+**更新するときは、旧スキルを削除してから再アップロードする。** 同名を上げ直したときの挙動が保証されていない。
+
+### 制約
+
+- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火精度を優先して 287〜474 文字あり、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
+
+  ```yaml
+  ---
+  name: markdown-procedure-doc
+  description: 社内業務手順書をMarkdownで作成するスキル。…（CLI 用。長いまま）
+  metadata:
+    web-description: 社内業務手順書をMarkdownで作る。「手順書を作って」と言われたら使う。…（200文字以内）
+  ---
+  ```
+
+  `metadata.web-description` が無いスキルは**パッケージ時に終了コード1で止まる**。長い description のまま上げてしまう事故を防ぐため。
+- **`scripts/` は claude.ai のサンドボックスでも動く。** ただし `static-analysis-triage` の `openpyxl` のような外部依存は実行時にインストールが必要になるため、WEB では動かないことがある。標準ライブラリだけのスクリプトはそのまま動く。
+- **アップロードしたスキルは個人アカウント内でのみ有効。** チーム全体へ配るには Team / Enterprise で Owner が組織向けに配置する必要がある。
+
+### 出力先
+
+`dist/` は生成物なので `.gitignore` 済み。zip をコミットしない。
+
 ## スキルを追加する
 
 1. **設計する** — `workflow-skill-architect` スキルを使う。「〇〇するスキルを作りたい」と言えば発火する。ループの終了条件、フェーズの依存関係、状態管理、データ受け渡しを最初に決めるのがこのスキルの仕事。
 2. **`skills/<name>/SKILL.md` を作る** — ハマりどころは次の2つだけ。
    - **`name` はディレクトリ名と完全一致させる。** ずれるとエラーも出ずに読み込まれない。
    - **`description` には「何をするか」と「いつ使うか」の両方を書く。** これがエージェントがスキルを使うか判断する唯一の材料。「レビューの手順」だけでは発火せず、「レビュー依頼のときに使用する」まで書いてはじめて拾われる。
+   - **`metadata.web-description` に200文字以内の短縮版を添える。** claude.ai 用。無いと `pack_skill.py` が止まる（前節参照）。
 3. **検証する** — 後述の `validate_skill.py` を通す。
 4. **発火を確認する** — 新規セッションを立て、想定する言い回しで実際に呼ばれるか試す。既存セッションでは読み込まれない。
 5. **コミットする** — 1スキル1コミット。
