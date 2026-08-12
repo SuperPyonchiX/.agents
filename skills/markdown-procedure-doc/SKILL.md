@@ -1,6 +1,6 @@
 ---
 name: markdown-procedure-doc
-description: 社内業務手順書をMarkdownで作成するスキル。Mermaid図解（フローチャート、構成図、シーケンス図など）による概要説明、折りたたみ補足、トラブルシューティングを含む構造化された手順書を対話的に生成する。「手順書を作って」「作業手順をまとめて」「〇〇のやり方をドキュメント化して」「セットアップ方法をまとめて」と依頼されたら、明示的に「手順書」という語がなくても使うこと。ただし読者に理解させることが目的の概念・仕組みの説明資料は markdown-explanation-doc の担当なので、そちらを使う。Use this when asked to create step-by-step procedure documents, work instructions, runbooks, setup guides, operational manuals, or any Markdown document that lets a reader reproduce a task by following it. For conceptual explanations the reader only needs to understand, use markdown-explanation-doc instead.
+description: 社内業務手順書をMarkdownで作成するスキル。ヒアリングしながら対話的に組み立て、mermaid図解・折りたたみ補足・トラブルシューティングを含む構造化された手順書を出力する。「手順書を作って」「作業手順をまとめて」「〇〇のやり方をドキュメント化して」「セットアップ方法をまとめて」「運用マニュアルが欲しい」と依頼されたら、明示的に「手順書」という語がなくても使うこと。ただし読者に理解させることが目的の概念・仕組みの説明資料は markdown-explanation-doc、自分が行ったAI活用の記録は ai-usage-knowhow-doc の担当なので、そちらを使う。読者に作業を再現させるのがこちら。Use this when asked to create procedure documents, work instructions, runbooks, setup guides, or operational manuals that let a reader reproduce a task by following them. For conceptual explanations, use markdown-explanation-doc instead.
 ---
 
 # Markdown 業務手順書作成スキル

@@ -1,6 +1,6 @@
 ---
 name: workflow-skill-architect
-description: エージェント用スキル（Agent Skill / SKILL.md）を、ワークフロー構造から設計して作成・改善するためのスキル。ループ設計、グラフ（DAG）分解、進捗・状態管理、エージェント間のデータ受け渡し契約、複雑さに応じたファイル分割まで含めて設計する。「スキルを作りたい」「SKILL.mdを書いて」「このワークフローをスキル化して」「サブエージェントの分担を設計して」「多段階の処理を自動化するスキルが欲しい」といった依頼、あるいは複数ステップ・反復・並列処理を伴う作業を再利用可能な形にしたいという話が出たら、明示的に「スキル」という言葉がなくても必ずこのスキルを使うこと。skill-creator とは競合せず補完関係にあるので、両方に該当する場合は両方使うこと（構造設計はこちら、評価とパッケージングは skill-creator）。Use alongside skill-creator, not instead of it: this skill owns workflow architecture (loop engineering, graph/DAG decomposition, state and progress tracking, inter-agent data contracts) while skill-creator owns evaluation and packaging.
+description: エージェント用スキル（Agent Skill / SKILL.md）を、ワークフロー構造から設計して作成・改善するスキル。ループの終了条件、グラフ（DAG）分解、状態管理、データ受け渡し契約、ファイル分割まで含めて設計する。「スキルを作りたい」「SKILL.mdを書いて」「このワークフローをスキル化して」「スキルの description を直したい」「サブエージェントの分担を設計して」「多段階の処理を自動化するスキルが欲しい」といった話がエージェントのスキルについて出たら、明示的に「スキル」という言葉がなくても必ずこのスキルを使うこと。skill-creator とは競合せず補完関係にあるので、両方に該当する場合は両方使うこと（構造設計はこちら、評価とパッケージングは skill-creator）。Use alongside skill-creator, not instead of it: this skill owns workflow architecture (loop engineering, DAG decomposition, state tracking, data contracts) while skill-creator owns evaluation and packaging.
 ---
 
 # Workflow Skill Architect

@@ -1,6 +1,6 @@
 ---
 name: nextdesign-script-extension
-description: Next Design の拡張機能（エクステンション）を C# スクリプト方式で作る工程スキル。最初に必ず Next Design のバージョンを尋ね、そのバージョンに対応する公式ドキュメントを参照先として確定させたうえで、要件から拡張ポイント（リボン・コマンド・イベント）を決め、manifest.json とエントリポイント main.cs を書き、extensions フォルダへ配置して実機で動作確認するまでを行う。マニフェストの誤りは Next Design 自体を無言で起動不能にするため、validate_manifest.py が終了コード 0 になり、かつユーザーの環境で実際に動いたことを確認するまで完了としない。「Next Design の拡張機能を作りたい」「エクステンションを書いて」「リボンにボタンを追加したい」「manifest.json を書いて」「保存時に自動でチェックする仕組みが欲しい」「作ったエクステンションが動かない」といった話が出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。Next Design の設計データから C++ の実装と単体テストを作る工程は nextdesign-cpp14-unit-build の担当なので、そちらを使う。Next Design 自体を拡張するのがこちら。Use this when building or debugging a Next Design extension written as a C# script (manifest.json + main.cs). For generating C++ code from a Next Design design, use nextdesign-cpp14-unit-build instead.
+description: Next Design の拡張機能（エクステンション）を C# スクリプト方式（manifest.json + main.cs）で作る工程スキル。最初に必ず Next Design のバージョンを尋ねて参照する公式ドキュメントを確定させ、要件から拡張ポイント（リボン・コマンド・イベント）を決めて実装し、配置前に manifest を機械検査したうえで実機で動作確認するまでを行う。「Next Design の拡張機能を作りたい」「エクステンションを書いて」「リボンにボタンを追加したい」「manifest.json を書いて」「保存時に自動でチェックする仕組みが欲しい」「作ったエクステンションが動かない」といった話が Next Design の拡張について出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。Next Design の設計データから C++ の実装と単体テストを作る工程は nextdesign-cpp14-unit-build の担当なので、そちらを使う。Next Design 自体を拡張するのがこちら。Use this when building or debugging a Next Design extension written as a C# script (manifest.json + main.cs).
 ---
 
 # Next Design スクリプト拡張機能の開発

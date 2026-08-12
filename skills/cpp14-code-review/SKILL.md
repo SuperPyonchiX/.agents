@@ -1,6 +1,6 @@
 ---
 name: cpp14-code-review
-description: 組込み C++14（AUTOSAR C++14 / CERT C++ 準拠）の既存コードをレビューする工程スキル。git 差分またはファイル・ディレクトリ指定を対象に、規約違反の候補を Python スキャナで機械抽出し、clang-tidy / PC-lint / Coverity の出力があれば統合したうえで、機械では拾えない観点（設計意図との一致、エラー処理、責務分割、割込み・並行安全性、リソースとスタック、テスト十分性）を目視で当て、指摘を ID 付き台帳に記録して全件クローズするまで完了としない。「このコードをレビューして」「差分を見て」「レビュー観点で指摘して」「AUTOSAR 準拠か確認して」「コーディング規約違反がないか見て」「プルリクを確認して」「レビュー指摘をまとめて」といった話が C / C++ のコードについて出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。設計書からコードと単体テストを新規に作る工程は nextdesign-cpp14-unit-build の担当なので、そちらを使う。既存コードを見るのがこちら。Use this when reviewing existing embedded C++14 code or a git diff against AUTOSAR C++14 / CERT C++ rules, producing an ID-tracked finding log. For generating new code and unit tests from a design, use nextdesign-cpp14-unit-build instead.
+description: 組込み C++14（AUTOSAR C++14 / CERT C++ 準拠）の既存コードをレビューする工程スキル。git 差分またはファイル・ディレクトリを対象に、規約違反の候補をスキャナで機械抽出し、機械では拾えない観点を目視で当て、指摘を ID 付き台帳に記録して全件クローズするまで完了としない。「このコードをレビューして」「差分を見て」「レビュー観点で指摘して」「AUTOSAR 準拠か確認して」「コーディング規約違反がないか見て」「プルリクを確認して」「レビュー指摘をまとめて」といった話が C / C++ のコードについて出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。設計書からコードと単体テストを新規に作る工程は nextdesign-cpp14-unit-build、静的解析指摘の仕分けは static-analysis-triage の担当なので、そちらを使う。既存コードを読んで指摘を出すのがこちら。Use this when reviewing existing embedded C++14 code or a git diff against AUTOSAR C++14 / CERT C++ rules, producing an ID-tracked finding log.
 ---
 
 # 組込み C++14 コードレビュー
