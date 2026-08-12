@@ -1,6 +1,6 @@
 ---
 name: markdown-explanation-doc
-description: Markdown形式で説明資料やナレッジベース記事を作成するスキル。テーマを構造的に整理し、mermaid図解と折りたたみ補足で階層化した資料を書く。技術・非技術を問わず対応する。「〜について説明資料を作って」「〜の仕組みをまとめて」「〜をわかりやすく整理して」「〜の背景を資料にして」と依頼されたら、明示的に「説明資料」という語がなくても使うこと。ただし読者に作業を再現させることが目的の手順書は markdown-procedure-doc、自分が行ったAI活用の記録は ai-usage-knowhow-doc の担当なので、そちらを使う。読者に理解させるのがこちら。Use this when asked to create explanation documents, knowledge base articles, concept overviews, or system explanations that convey concepts, mechanisms, or background to readers. For step-by-step instructions the reader must execute, use markdown-procedure-doc instead.
+description: Markdown形式で説明資料やナレッジベース記事を作成するスキル。テーマを構造的に整理し、mermaid図解と折りたたみ補足で階層化した資料を書く。技術・非技術を問わず対応する。「〜について説明資料を作って」「〜の仕組みをまとめて」「〜をわかりやすく整理して」「〜の背景を資料にして」と依頼されたら、明示的に「説明資料」という語がなくても使うこと。ただし読者に作業を再現させることが目的の手順書は markdown-procedure-doc、自分が行ったAI活用の記録は ai-usage-knowhow-doc の担当なので、そちらを使う。読者に理解させるのがこちら。
 ---
 
 # Markdown 説明資料作成スキル
