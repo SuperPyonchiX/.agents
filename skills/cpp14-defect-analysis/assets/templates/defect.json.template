@@ -1,0 +1,72 @@
+{
+  "_comment": "D0 でコピーして work/defect.json として使う。値の <...> は埋めたら山括弧ごと消す。埋まらない項目は unknown のまま残し、推測で埋めない。",
+
+  "defect_id": "<DF-001>",
+  "title": "<一行で現象を言い切る。原因ではなく現象を書く>",
+  "reported_by": "<報告者。自分で見つけたなら self>",
+  "created_at": "<2026-08-29T10:00:00+09:00>",
+  "updated_at": "<同上。フェーズを進めるたびに更新する>",
+  "phase": "D0",
+
+  "symptom": {
+    "expected": "<期待動作。観測可能な形で。「正しく動く」は不可>",
+    "actual": "<実動作。観測した値・ログ・挙動をそのまま>",
+    "first_observed": "<いつから出ているか。日付 / コミット / リリース番号。最初からなら from-the-beginning、不明なら unknown>",
+    "frequency": "<always / intermittent(発生率を併記) / conditional(条件を併記) / unknown>",
+    "reproducible": "unknown"
+  },
+
+  "environment": {
+    "target": "<MCU / SoC の型番、ボードリビジョン>",
+    "toolchain": "<コンパイラとバージョン。例: arm-none-eabi-gcc 12.2.1>",
+    "optimization": "<-O0 / -O1 / -O2 / -Os / -Og>",
+    "build_config": "<Debug / Release / 独自構成名。差があるなら両方の挙動を書く>",
+    "os_rtos": "<ベアメタル / RTOS名とバージョン>",
+    "notes": "<ハードウェア固有の条件、温度、電源、接続機器など。なければ空文字>"
+  },
+
+  "repro": {
+    "steps": [
+      "<1. 他人が同じ結果を出せる粒度で書く>",
+      "<2. ...>"
+    ],
+    "confirmed_at": null,
+    "attempts": [
+      { "how": "<試した再現手順>", "result": "<再現した / しなかった。観測をそのまま>" }
+    ],
+    "minimal_case": null
+  },
+
+  "suspect_range": {
+    "method": "<bisect / log / code-reading / none>",
+    "commits": [],
+    "files": [],
+    "non_code_changes": [],
+    "notes": "<none の場合はなぜ絞れなかったかを書く>"
+  },
+
+  "root_cause": {
+    "status": "unknown",
+    "hypothesis_id": null,
+    "summary": "<「Aが B のとき C になるため、D という現象が出る」の形で因果まで書く>",
+    "explains_all_symptoms": false,
+    "unexplained": [],
+    "evidence": []
+  },
+
+  "fix": {
+    "kind": "<permanent / workaround。workaround なら root_cause.status を confirmed にしない>",
+    "test_added": [],
+    "red_confirmed": false,
+    "description": "<何をどう直したか>",
+    "commits": []
+  },
+
+  "horizontal": {
+    "patterns": [
+      { "pattern": "<references/defect-patterns.md の grep パターン>", "hits": 0, "affected": [] }
+    ],
+    "filed_issues": [],
+    "done": false
+  }
+}
