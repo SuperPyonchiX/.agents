@@ -16,6 +16,7 @@ A1（機械検査）で実行する。1スキル単位の検証（validate_skill
     4. 発火競合          description のトリガー文言と特徴語が重なるスキルのペアを候補として出す
     5. 棲み分け宣言      競合候補が互いの description で名指しの振り分けをしているか
     6. README 突合       --readme を渡すと収録スキル表と実体、および表中の行数を突き合わせる
+                         .gitignore で除外されたスキルは、表に無くても不備として扱わない
 
 終了コード:
     0  ERROR なし（WARN のみの場合も 0）
@@ -299,7 +300,34 @@ def run_validator(validator, skills_dir, names):
 # README 突合
 # --------------------------------------------------------------------------
 
-def check_readme(readme_path, skills, rep):
+def git_ignored(skills_dir, names):
+    """.gitignore で除外されているスキル名の集合を返す。
+
+    除外されたスキルは README の収録表に載らないのが正しい（ライセンスの都合で
+    リポジトリに含めないもの等）。git が無い、リポジトリでない場合は空集合を返す。
+    """
+    # -C で skills_dir に入るので、渡すのはスキル名だけ。ここでパスを連結すると
+    # skills/skills/<name> を問い合わせることになり、常に「除外なし」になる。
+    # -z（NUL 区切り）は必須。Windows の text モードは書き込み時に \n を \r\n へ
+    # 変換するため、改行区切りだと git が行を認識できず常に空を返す。
+    payload = "\0".join(sorted(names)) + "\0"
+    try:
+        proc = subprocess.run(["git", "-C", skills_dir, "check-ignore", "--stdin", "-z"],
+                              input=payload, capture_output=True, text=True,
+                              encoding="utf-8", errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return set()
+    if proc.returncode not in (0, 1):  # 0=除外あり / 1=除外なし。それ以外は判定不能
+        return set()
+    ignored = set()
+    for entry in (proc.stdout or "").split("\0"):
+        name = os.path.basename(entry.strip().rstrip("/\\"))
+        if name in names:
+            ignored.add(name)
+    return ignored
+
+
+def check_readme(readme_path, skills_dir, skills, rep):
     try:
         with open(readme_path, "r", encoding="utf-8") as f:
             lines = f.read().splitlines()
@@ -317,7 +345,8 @@ def check_readme(readme_path, skills, rep):
         listed[name] = int(lm.group(1)) if lm else None
 
     actual = {s["name"]: s["lines"] for s in skills}
-    missing_in_readme = sorted(set(actual) - set(listed))
+    ignored = git_ignored(skills_dir, set(actual))
+    missing_in_readme = sorted(set(actual) - set(listed) - ignored)
     missing_in_repo = sorted(set(listed) - set(actual))
     line_mismatch = []
     for name, n in listed.items():
@@ -336,6 +365,7 @@ def check_readme(readme_path, skills, rep):
 
     return {
         "listed": len(listed),
+        "git_ignored": sorted(ignored),
         "missing_in_readme": missing_in_readme,
         "missing_in_repo": missing_in_repo,
         "line_mismatch": line_mismatch,
@@ -364,6 +394,9 @@ def dump(report, rep):
                      ",".join(declared) if declared else "なし"))
     else:
         print("競合候補 0 組")
+    ignored = (report.get("readme") or {}).get("git_ignored") or []
+    if ignored:
+        print("  .gitignore で除外（README の収録表に載せない）: %s" % ", ".join(ignored))
     print("ERROR %d 件 / WARN %d 件" % (len(rep.errors), len(rep.warns)))
     if rep.errors:
         print("不合格。ERROR を残したままコミットしないこと。")
@@ -401,7 +434,7 @@ def main(argv):
         "conflicts": find_conflicts(skills, rep),
         "validation": run_validator(args.validator, args.skills_dir,
                                     [s["name"] for s in skills]) if args.validator else None,
-        "readme": check_readme(args.readme, skills, rep) if args.readme else None,
+        "readme": check_readme(args.readme, args.skills_dir, skills, rep) if args.readme else None,
     }
     if report["validation"]:
         for name, r in report["validation"].items():

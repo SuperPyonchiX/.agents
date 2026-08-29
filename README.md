@@ -38,6 +38,8 @@ graph LR
 ├── CLAUDE.md                  ← AGENTS.md への参照のみ
 ├── tools/
 │   └── pack_skill.py          ← claude.ai（WEB版）へアップロードする zip を作る
+├── vendor/
+│   └── NOTICE.md              ← 外部から取り込んだスキルの出典・ライセンス・改変の記録
 └── skills/
     └── <skill-name>/
         ├── SKILL.md           ← 必須。frontmatter + 手順本文
@@ -45,7 +47,8 @@ graph LR
         ├── scripts/           ← 決定論的な処理。毎回同じ結果が必要なもの
         ├── assets/            ← 出力テンプレート
         ├── templates/         ← 同上（assets の別名として使っているスキルあり）
-        └── examples/          ← 出力例
+        ├── examples/          ← 出力例
+        └── LICENSE            ← 外部から取り込んだスキルのみ。元のライセンス全文
 ```
 
 `SKILL.md` 以外はすべて任意。ただし **SKILL.md から参照されないファイルは置かない**（検証スクリプトが孤児ファイルとして警告する）。
@@ -54,15 +57,24 @@ graph LR
 
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
-| `markdown-explanation-doc` | 説明資料・ナレッジベース記事の作成。mermaid図解と折りたたみ補足で構造化する | 282行 |
-| `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 274行 |
-| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 196行 |
-| `nextdesign-cpp14-unit-build` | Next Design の詳細設計から組込みC++14の実装とGoogleTest一式をTDDで構築。RED確認・レビューゲート・トレーサビリティを機械検査する | 260行 |
-| `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
-| `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 252行 |
-| `nextdesign-script-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）で作る。最初に必ずバージョンを尋ねて参照ドキュメントを確定させ、配置前に manifest を機械検査してから実機で動作確認する | 277行 |
-| `ai-usage-knowhow-doc` | 生成AIで意図どおりの成果物が出せたとき、その出し方を60〜100行のMarkdownで残し索引に追記する。会話履歴から実際のやり取りを再構成し、再現に必要な手順と理由つきの「効いたポイント」に絞る | 176行 |
+| `markdown-explanation-doc` | 説明資料・ナレッジベース記事の作成。mermaid図解と折りたたみ補足で構造化する | 356行 |
+| `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 367行 |
+| `ai-usage-knowhow-doc` | 生成AIで意図どおりの成果物が出せたとき、その出し方を60〜100行のMarkdownで残し索引に追記する。会話履歴から実際のやり取りを再構成し、再現に必要な手順と理由つきの「効いたポイント」に絞る | 182行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。20パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 338行 |
+| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから書き込む | 116行 |
+| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 114行 |
+| `nextdesign-cpp14-unit-build` | Next Design の詳細設計から組込みC++14の実装とGoogleTest一式をTDDで構築。RED確認・レビューゲート・トレーサビリティを機械検査する | 262行 |
+| `nextdesign-script-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）で作る。最初に必ずバージョンを尋ねて参照ドキュメントを確定させ、配置前に manifest を機械検査してから実機で動作確認する | 277行 |
+| `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 219行 |
+| `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 287行 |
+| `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 254行 |
+| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 198行 |
+| `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する | 207行 |
+| `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 132行 |
+
+**表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
+
+`skills/obsidian/` はこの表に載っていない。ライセンスが付与されていない配布物で、リポジトリには含めていない（後述の「外部から取り込んだスキル」を参照）。
 
 ## セットアップ（新しい環境で）
 
@@ -98,7 +110,7 @@ ln -s ~/.agents/skills ~/.claude/skills
 ls -la ~/.claude/skills     # → skills -> .../.agents/skills と出れば成功
 ```
 
-Claude Code を起動し、スキル一覧に3件が出ることを確認する。すでに起動していた場合は再起動が必要。
+Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。すでに起動していた場合は再起動が必要。
 
 ## WEB版 Claude（claude.ai）へ反映する
 
