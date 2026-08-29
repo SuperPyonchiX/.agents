@@ -10,7 +10,7 @@ metadata:
 ## 役割分担
 - Claude Code＝司令塔（判断・指示・アウトプットに集中する）
 - NotebookLM＝調査エンジン（大量資料の読み込み・要約・成果物生成。処理はGoogle側）
-- 結果は必ずファイルで残す（「リサーチ」フォルダに日付＋テーマ名で保存）
+- 結果は必ずファイルで残す（保存先と手順はフェーズ6）
 
 ## 使う/使わないの判断基準
 - 資料が3件以上、または合計1万字を超えそうな読み込み・要約・比較 → NotebookLMに外注する
@@ -104,7 +104,25 @@ nlm download quiz <notebook-id> <artifact-id> --format markdown
 生成直後は必ず `nlm studio status` で completed を確認してから download する。
 
 ### 6. 結果を残す
-「リサーチ」フォルダに `YYYY-MM-DD_テーマ名.md` で保存し、出典は消さない。結論・根拠・出典の3点を最低限含める。
+
+**保存先は Obsidian vault の `リサーチ/` フォルダ。** カレントディレクトリの `リサーチ/` ではない。ファイル名は `YYYY-MM-DD_テーマ名.md`。
+
+書き方は obsidian スキルの「リッチ表示ルール」に従う（人が読むページ扱い）。frontmatter（type / summary / updated / tags / cssclasses）、H1直下の顔callout、ピル行を付ける。構成の正本は obsidian スキルの references/design-guide.md と templates/ なので、**書き始める前にそちらを読む**。
+
+内容は**結論・根拠・出典の3点**を最低限含める。NotebookLM が返した出典は消さない。
+
+保存は obsidian CLI 経由で行う。本文が長いので、いったん作業ファイルに書いてから流し込む。
+
+```
+（下書きを draft.md に書く）
+obsidian create path="リサーチ/YYYY-MM-DD_テーマ名.md" content="$(cat draft.md)" overwrite
+```
+
+`content=` は本文中の `\n` `\t` という2文字を実改行・実タブに変換する。バックスラッシュを含むコードブロックを載せる回だけは CLI で書くと壊れるので、vault 内のパスへ直接書き、`obsidian file path="..."` で反映を確認する。
+
+**完了条件**: `obsidian read path="リサーチ/YYYY-MM-DD_テーマ名.md"` で読み戻し、obsidian スキルの references/page-review.md の手順で検証して PASS になったこと。FIX なら指摘どおり直して読み戻す。**上限3周**。3周しても PASS にならなければ、残った指摘をそのままユーザーに提示して判断を仰ぐ。「保存した」で終わらせない。
+
+**フォールバック**: CLI が `Vault not found.` を返す、または10秒以上無応答なら、**Obsidian を勝手に起動しない**。同じファイル名でカレントディレクトリに保存し、「vault に入れられなかったのでカレントに置いた」と明示して報告する。黙って切り替えない。
 
 ## 注意（守らないと事故る）
 - 機密・個人情報はソース化しない（Googleに送られる）
