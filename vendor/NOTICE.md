@@ -48,7 +48,19 @@
 - デイリーノートの位置を実測値（`01_日記/YYYY-MM-DD.md`）に修正
 - `metadata.web-description` を追加
 
-**再取得**: 配布元の動画特典から入手し直す。取得後に上の改変を当て直す必要がある。
+**vault 側のセットアップ（2026-08-29 実施済み）**: このスキルは vault 内の設定にも依存する。
+新しい環境では `_SETUP.md` の Phase 6・7 をやり直すこと。
+
+| 項目 | 状態 |
+|---|---|
+| `.obsidian/snippets/rich-vault.css` | `assets/rich-vault.css` からコピー済み |
+| `.obsidian/appearance.json` の `enabledCssSnippets` | `["rich-vault"]` |
+| コアプラグイン | `daily-notes` / `bases` / `file-recovery` いずれも有効 |
+
+**`_SETUP.md` と `_CONFIG.md` は削除しない。** Phase 10 は setup 後の削除を指示しているが、
+このスキルは git に含めていないため、消すと新しい環境で再構築する手がかりが無くなる。
+
+**再取得**: 配布元の動画特典から入手し直す。取得後に上の改変を当て直し、vault 側のセットアップも行う。
 **コミットしたくなったら**: 先に配布者へ再配布の可否を確認する。許諾が取れたら、その旨とライセンス表記を
 `skills/obsidian/LICENSE` に置き、`.gitignore` から外して SKILL.md の frontmatter に `license:` を足す。
 
