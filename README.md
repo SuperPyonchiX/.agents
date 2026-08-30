@@ -61,7 +61,8 @@ graph LR
 | `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 367行 |
 | `ai-usage-knowhow-doc` | 生成AIで意図どおりの成果物が出せたとき、その出し方を60〜100行のMarkdownで残し索引に追記する。会話履歴から実際のやり取りを再構成し、再現に必要な手順と理由つきの「効いたポイント」に絞る | 182行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。20パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 338行 |
-| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから書き込む | 116行 |
+| `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 86行 |
+| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 130行 |
 | `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 133行 |
 | `nextdesign-cpp14-unit-build` | Next Design の詳細設計から組込みC++14の実装とGoogleTest一式をTDDで構築。RED確認・レビューゲート・トレーサビリティを機械検査する | 262行 |
 | `nextdesign-script-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）で作る。最初に必ずバージョンを尋ねて参照ドキュメントを確定させ、配置前に manifest を機械検査してから実機で動作確認する | 277行 |
@@ -72,6 +73,7 @@ graph LR
 | `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する | 207行 |
 | `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 132行 |
 | `second-opinion` | 意見が割れそうなテーマで ChatGPT にも同じ質問を投げ、Claude 自身の見解と突き合わせる。機密チェックとリトライ上限を手順に組み込み、結果をリサーチフォルダに残す | 98行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 249行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
