@@ -79,7 +79,6 @@ graph LR
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
 | `defect-report-doc` | 不具合の解析結果を標準章立て（現象・原因・処置・流出原因・再発防止・水平展開）の報告書 Markdown にまとめる。分からない項目は推測せずヒアリングする。cpp14-defect-analysis の後工程 | 70行 |
 | `claude-md-audit` | CLAUDE.md / AGENTS.md を監査してスリム化する。導出可能な情報・曖昧な指示・手順書に育った節・重複を台帳化し、1件ずつ判定を得てから適用する | 72行 |
-| `cpp-architecture-audit` | C/C++ コードベースの構造監査。include 依存をスクリプトで機械抽出し、循環依存・神モジュール・密結合を台帳化して、検証方法つきのリファクタリング計画に落とす | 71行 |
 | `ai-adoption-advisor` | チームのリポジトリへの AI エージェント導入を診断し、AGENTS.md 草案・スキル候補・運用ルールの提案書にまとめる。4ツール横断前提でツール非依存の提案を主とする | 63行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
