@@ -9,11 +9,15 @@
     1  ERROR あり
     2  引数誤り
 
-検査するのは次の3点だけ。P1 のゲートで使う。
+検査するのは次の4点だけ。P1 のゲートで使う。
 
   - 全関数宣言に Doxygen コメントと @brief があること
   - 引数の数だけ @param があり、名前が一致していること
   - 戻り値型が void 以外なら @return または @retval があること
+  - 全関数宣言に @sideeffect があること（副作用なしの場合も「なし」と書く）
+
+@sideeffect は標準の Doxygen タグではない独自タグ。ドキュメント生成するなら
+Doxyfile に ALIASES += sideeffect="\\par 副作用:^^" を定義する。
 
 @pre / @post / @note は**検査しない**（有無を機械判定しても中身の妥当性は測れない）。
 これらは references/function-design.md に従って人の目で確認する。
@@ -49,6 +53,7 @@ PARAM_TAG = re.compile(r"[@\\]param(?:\s*\[[^\]]*\])?\s+([A-Za-z_]\w*)")
 PARAM_TAG_NO_DIR = re.compile(r"[@\\]param\s+[A-Za-z_]")
 BRIEF_TAG = re.compile(r"[@\\]brief\b")
 RETURN_TAG = re.compile(r"[@\\](?:return|returns|retval)\b")
+SIDEEFFECT_TAG = re.compile(r"[@\\]sideeffect\b")
 
 
 class Report:
@@ -266,6 +271,8 @@ def check_declaration(path, line_no, stmt, doc, doc_line, class_names, rep):
     dwhere = f"{path}:{doc_line}"
     if not BRIEF_TAG.search(doc):
         rep.error(dwhere, f"{label} の Doxygen に @brief がない")
+    if not SIDEEFFECT_TAG.search(doc):
+        rep.error(dwhere, f"{label} の Doxygen に @sideeffect がない（副作用なしの場合も「なし」と書く）")
 
     documented = set(PARAM_TAG.findall(doc))
     for p in params:

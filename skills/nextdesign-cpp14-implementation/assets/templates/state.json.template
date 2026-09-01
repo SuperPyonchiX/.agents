@@ -1,0 +1,16 @@
+{
+  "workflow": "nextdesign-cpp14-implementation",
+  "source": "<取り込んだ設計のパス。複数形式ならカンマ区切りで全部>",
+  "started_at": "<ISO 8601>",
+  "updated_at": "<ISO 8601>",
+  "classes": {
+    "<ClassName>": {
+      "p1_design": { "status": "done",    "artifacts": ["include/motor_controller.h", "src/motor_controller.cpp"], "review": "closed" },
+      "p2_impl":   { "status": "running", "artifacts": [], "attempts": 1, "review": "pending" }
+    },
+    "<ClassName2>": {
+      "p1_design": { "status": "failed", "artifacts": [], "attempts": 2, "error": "戻り値型が unknown のまま解決できない" }
+    }
+  },
+  "p3_quality": { "status": "pending", "open_reviews": 0 }
+}

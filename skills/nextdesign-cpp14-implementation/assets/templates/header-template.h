@@ -32,6 +32,8 @@ public:
     /**
      * @brief コンストラクタ。
      * @param[in] dependency 依存先。呼び出し側が本オブジェクトより長く保持すること。
+     * @sideeffect
+     *   全メンバを既定値で初期化する。
      */
     explicit <ClassName>(<IDependency>& dependency) noexcept;
 
@@ -45,11 +47,15 @@ public:
     /**
      * @brief <この関数が何をするか。1行で言い切る>
      *
-     * <補足が要る場合のみ、副作用・反映タイミングをここに書く>
+     * <補足が要る場合のみ、反映タイミングなどをここに書く>
      *
      * @param[in] <arg> <意味と単位>。有効範囲は <下限> 以上 <上限> 以下。
-     * @retval true  <成功した条件>
-     * @retval false <失敗した条件。テストの異常系はここから起こす>
+     * @retval true
+     *   <true が返る成立条件>
+     * @retval false
+     *   <false が返る成立条件。同じ値でも条件が違えば @retval 行を分ける。テストの異常系はここから起こす>
+     * @sideeffect
+     *   <メンバ変数・グローバル状態の変化。無ければ「なし」と書く>
      * @pre <この関数を呼ぶ前に成立していなければならない条件。無ければ「なし」と書く>
      * @post <呼び出し後に保証される状態>
      * @note <規約からの逸脱がある場合、その内容と理由>
@@ -63,7 +69,9 @@ private:
     /**
      * @brief <private 関数の説明。public と同じ密度で書く>
      * @param[in] <arg> <意味>
-     * @return <戻り値の意味>
+     * @return <戻り値の意味。値そのものを返す関数は @retval ではなく @return を使う>
+     * @sideeffect
+     *   <無ければ「なし」と書く>
      */
     std::int32_t <PrivateFunction>(std::int32_t <arg>) const noexcept;
 
