@@ -49,9 +49,11 @@ graph TD
    ```
 
 3. `references/design-input.md` の対応づけ手順に従い、`work/design-index.json` を組み立てる。形式は `assets/templates/design-index.schema.json` に従う。**どの入力形式でも出力はこの1つに揃える**。後続フェーズは入力形式を一切意識しない。
-4. 次をユーザーに提示し、**実装スコープの合意を得る**。
+4. プロジェクトのログAPI（マクロ名・引数形式・レベル定義）を確認する。無い場合は、仮マクロ（`LOG_DEBUG` / `LOG_INFO` / `LOG_ERROR`）を置く方針をここで合意する（方針の詳細は `references/logging-policy.md`）。
+5. 次をユーザーに提示し、**実装スコープの合意を得る**。
    - クラス名・関数シグネチャ・件数の一覧
    - 読み取れなかった箇所、矛盾していた箇所（`open_questions`）
+   - 使用するログAPI（または仮マクロ方針）
 
 **完了条件**: `work/design-index.json` が作られ、`open_questions` が解消され、スコープの合意が取れていること。
 **戻り条件**: 関数シグネチャが1つも取れない場合は、より詳細な形式での再出力をユーザーに依頼して止まる。自力で補完しない。
@@ -75,11 +77,11 @@ graph TD
 
 ### P2: 実装
 
-Doxygen コメントを仕様として、そのとおりに実装する。以下のループを回す。
+`references/logging-policy.md` を読む。Doxygen コメントを仕様として、そのとおりに実装し、ログ方針どおりに DEBUG / INFO / ERROR ログを入れる。以下のループを回す。
 
 ```
 for 周回 in 1..3:
-    実装本体を書く or 直す（Doxygen コメントには触れない）
+    実装本体を書く or 直す（ログ含む。Doxygen コメントには触れない）
     cmake --build <build> を実行する
     if 警告0でビルドが通り、全関数の TODO と static_cast<void> 抑止が消えている:
         break（成功として終了）
@@ -103,7 +105,7 @@ else:
 3. **★コードレビュー**を行う。`references/review-gates.md` の「2. コードレビュー」を当て、指摘を `work/review-log.md` に記録して対応する。
 4. 静的解析ツールが環境にある場合は実行し、結果を記録する。無ければ「ツールなし」と記録する（必須ではない）。
 
-**完了条件**: 警告0でビルドが通り、実装から `TODO` と P1 の `static_cast<void>` 抑止が消え、実装が Doxygen の仕様（@retval の成立条件・@sideeffect）と一致し、コードレビューの指摘が「修正済」または「逸脱承認待ち」として記録されていること。
+**完了条件**: 警告0でビルドが通り、実装から `TODO` と P1 の `static_cast<void>` 抑止が消え、実装が Doxygen の仕様（@retval の成立条件・@sideeffect）と一致し、ログが `references/logging-policy.md` の方針と一致し、コードレビューの指摘が「修正済」または「逸脱承認待ち」として記録されていること。
 **戻り条件**: 実装してみて Doxygen の仕様に不備（成立条件の漏れ・矛盾）が見つかったら、実装を仕様に合わせて曲げず、P1 に戻って仕様を直してから実装し直す。
 
 ### P3: 品質検証と完了報告
@@ -161,6 +163,7 @@ else:
 |---|---|
 | `references/design-input.md` | P0 で入力形式を判別し `work/design-index.json` に正規化するとき |
 | `references/function-design.md` | P1 で Doxygen 付きの宣言と空実装を書くとき |
+| `references/logging-policy.md` | P2 で実装にログを入れるとき（P0 のログAPI確認でも方針を参照する） |
 | `references/review-gates.md` | P1・P2・P3 の各★レビューを行うとき（毎回） |
 | `references/autosar-cert-rules.md` | P1・P2 で実装方針を決めるとき、P3 でセルフチェックするとき |
 
