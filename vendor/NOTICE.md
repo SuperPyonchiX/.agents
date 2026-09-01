@@ -64,6 +64,20 @@
 **コミットしたくなったら**: 先に配布者へ再配布の可否を確認する。許諾が取れたら、その旨とライセンス表記を
 `skills/obsidian/LICENSE` に置き、`.gitignore` から外して SKILL.md の frontmatter に `license:` を足す。
 
+### cpp14-rule-reference の規約資料（local/）
+
+| | |
+|---|---|
+| 対象 | `skills/cpp14-rule-reference/local/` に置く AUTOSAR C++14 / CERT C++ の規約資料 |
+| ライセンス | **再配布不可。** AUTOSAR ガイドラインは AUTOSAR の著作物、CERT C++ は SEI/CMU の著作物 |
+| 扱い | `.gitignore` で `local/` を除外。**規約本文・その要約ファイルをコミットしない**（スキル本体はコミットする） |
+| 配置 | `local/autosar/`（AUTOSAR C++14 の PDF またはテキスト抽出）、`local/cert/`、`local/inhouse/`（社内規約・適用プロファイル） |
+
+**再取得**: AUTOSAR C++14 ガイドラインは autosar.org の公開ドキュメント（AP リリースの
+Guidelines for the use of the C++14 language）から入手する。CERT C++ は SEI CERT C++ Coding
+Standard の公開 Wiki を参照するか、SEI 配布の PDF を入手する。社内規約は社内の文書管理から。
+新しい環境では git clone 後に各自で `local/` へ配置し直す（無い間、スキルは止まって配置を依頼する）。
+
 ## ラッパースクリプト（リポジトリ外）
 
 `obsidian` スキルは PATH 上のラッパーに依存する。これはリポジトリの管理対象外なので、環境ごとに作る。
