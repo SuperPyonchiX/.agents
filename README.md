@@ -76,6 +76,11 @@ graph LR
 | `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 249行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に問い詰めて穴を潰す。論点を台帳化し、推奨回答つきの質問で1件ずつ確定させ、確定事項・保留事項を計画書にまとめる。組込みC/C++向けの追加観点を references に同梱 | 101行 |
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
+| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
+| `defect-report-doc` | 不具合の解析結果を標準章立て（現象・原因・処置・流出原因・再発防止・水平展開）の報告書 Markdown にまとめる。分からない項目は推測せずヒアリングする。cpp14-defect-analysis の後工程 | 70行 |
+| `claude-md-audit` | CLAUDE.md / AGENTS.md を監査してスリム化する。導出可能な情報・曖昧な指示・手順書に育った節・重複を台帳化し、1件ずつ判定を得てから適用する | 72行 |
+| `cpp-architecture-audit` | C/C++ コードベースの構造監査。include 依存をスクリプトで機械抽出し、循環依存・神モジュール・密結合を台帳化して、検証方法つきのリファクタリング計画に落とす | 71行 |
+| `ai-adoption-advisor` | チームのリポジトリへの AI エージェント導入を診断し、AGENTS.md 草案・スキル候補・運用ルールの提案書にまとめる。4ツール横断前提でツール非依存の提案を主とする | 63行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
