@@ -65,6 +65,10 @@ nlm research status <notebook-id>
 ```
 `--mode deep` で約5分・40〜80件。既定の fast は約30秒・10件程度。
 
+- **`--auto-import` を付けたら `nlm research import` を手で打たない。** `research status` は auto-import 中でも「import を実行せよ」と表示するが、従うと同じソースが二重登録される。`start` コマンドの終了を待てば取り込まれている
+- research は1ノートブックに同時1本。複数テーマは順に完了を待ってから投げる
+- 二重登録してしまったら `nlm source list` で URL の重複を拾い、`nlm source delete <id> --confirm` を**1件ずつ**回す（複数 ID の一括指定は失敗する）
+
 ### 4. 出典付きで質問する
 ```
 nlm notebook query <notebook-id> "質問"
