@@ -21,7 +21,7 @@
 
 改変したのは frontmatter だけで、本文は上流のまま英語で保持している。
 
-- `description` を日本語に差し替えた。上流は英語のみで、日本語の依頼では発火しないため。あわせて `markdown-explanation-doc` との棲み分けを1文追加
+- `description` を日本語に差し替えた。上流は英語のみで、日本語の依頼では発火しないため。あわせて `markdown-doc` との棲み分けを1文追加（2026-09-03 に統合前の `markdown-explanation-doc` から改名）
 - `metadata.web-description` を追加（claude.ai の 200 文字制限用。このリポジトリ独自の仕組み）
 - `license: MIT` を追加
 

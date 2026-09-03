@@ -1,6 +1,6 @@
 ---
 name: skill-portfolio-audit
-description: Agent Skills の置き場（skills ディレクトリ）を横断して健全性を検査し、是正する工程スキル。全スキルの frontmatter と metadata.web-description を機械検査し、description のトリガー文言と特徴語が重なる発火競合の候補をペアで洗い出し、README の収録スキル表と実体を突き合わせる。競合候補は1組ずつ、対象範囲を狭める・棲み分けを名指しで書く・統合する・問題なしのどれかに判定して報告する。「スキルを棚卸ししたい」「description がぶつかっていないか見て」「全スキルを検査して」「スキルが増えてきたので整理したい」「意図しないスキルが発火する」「配布用の zip が作れない」「README のスキル一覧と実体がずれている」「スキル同士の役割分担を見直したい」といった話が複数スキルの管理について出たら、明示的に「棚卸し」という言及がなくても必ずこのスキルを使うこと。1本のスキルをワークフロー構造から設計・改善する工程は workflow-skill-architect、1本のスキルの評価とパッケージングは skill-creator の担当なので、そちらを使う。置き場の全体を横断して見るのがこちら。
+description: Agent Skills の置き場（skills ディレクトリ）を横断して健全性を検査し、是正する工程スキル。全スキルの frontmatter と web-description を機械検査し、description の重なりから発火競合の候補をペアで洗い出し、README の収録表と実体を突き合わせる。競合候補は1組ずつ、範囲を狭める・棲み分けを書く・統合する・問題なしのどれかに判定する。「スキルを棚卸ししたい」「スキルが増えてきたので整理したい」「意図しないスキルが発火する」「README のスキル一覧と実体がずれている」で使う。1本の設計・改善は workflow-skill-architect。
 metadata:
   web-description: Agent Skills の置き場を横断検査する。web-description 欠落や README との乖離を機械検査し、description の発火競合ペアを洗い出して1組ずつ判定する。「スキルを棚卸ししたい」「description がぶつかってないか見て」と言われたら使う。
 ---

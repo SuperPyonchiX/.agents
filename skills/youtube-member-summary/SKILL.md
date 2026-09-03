@@ -1,6 +1,6 @@
 ---
 name: youtube-member-summary
-description: YouTube動画(メンバー限定を含む)を要約してNotionのデータベース「DB_YouTube要約」に保存するスキル。公開動画はURLをNotebookLMに直接登録し、メンバー限定動画はClaude in Chromeで字幕を抜き出してから登録する。Notionへの書き込みは notion-api スキルのスクリプトで行う。「この動画を要約して」「メンバー限定動画をまとめて」「YouTubeのURLをNotionに要約保存して」「このチャンネルの今月の動画をまとめて」といった話がYouTube動画やチャンネルのURLとともに出たら、明示的な言及がなくても必ずこのスキルを使うこと。Notionに残さず、その場で調べて答えるだけなら notebooklm の担当なので、そちらを使う。要約のNotion保存まで行うのがこちら。
+description: YouTube 動画（メンバー限定を含む）を要約して Notion の「DB_YouTube要約」に保存するスキル。公開動画は URL を NotebookLM に直接登録し、メンバー限定は Claude in Chrome で字幕を抜いてから登録し、notion-api で書き込む。「この動画を要約して」「メンバー限定動画をまとめて」「このチャンネルの今月の動画をまとめて」と YouTube の URL が出たら使う。Notion に残さずその場で答えるだけなら notebooklm。
 metadata:
   web-description: YouTube動画(メンバー限定を含む)を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL登録、メンバー限定はブラウザで字幕を抜いて登録する。「この動画を要約してNotionに保存して」と言われたら使う。
 ---

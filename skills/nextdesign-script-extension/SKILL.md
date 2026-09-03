@@ -1,6 +1,6 @@
 ---
 name: nextdesign-script-extension
-description: Next Design の拡張機能（エクステンション）を C# スクリプト方式（manifest.json + main.cs）で作る工程スキル。最初に必ず Next Design のバージョンを尋ねて参照する公式ドキュメントを確定させ、要件から拡張ポイント（リボン・コマンド・イベント）を決めて実装し、配置前に manifest を機械検査したうえで実機で動作確認するまでを行う。「Next Design の拡張機能を作りたい」「エクステンションを書いて」「リボンにボタンを追加したい」「manifest.json を書いて」「保存時に自動でチェックする仕組みが欲しい」「作ったエクステンションが動かない」といった話が Next Design の拡張について出たら、明示的に「スキル」という言及がなくても必ずこのスキルを使うこと。Next Design の設計データから C++ の実装を構築する工程は nextdesign-cpp14-implementation の担当なので、そちらを使う。Next Design 自体を拡張するのがこちら。
+description: Next Design の拡張機能を C# スクリプト方式（manifest.json + main.cs）で作る工程スキル。最初に必ずバージョンを尋ねて参照ドキュメントを確定し、要件から拡張ポイント（リボン・コマンド・イベント）を決めて実装し、配置前に manifest を機械検査して実機で動作確認する。「Next Design の拡張機能を作りたい」「リボンにボタンを追加したい」「manifest.json を書いて」「保存時に自動チェックする仕組みが欲しい」「作ったエクステンションが動かない」で使う。設計データから C++ を作るのは nextdesign-cpp14-implementation。
 metadata:
   web-description: Next Design の拡張機能をC#スクリプト（manifest.json + main.cs）で作る。最初に必ずバージョンを尋ねて参照ドキュメントを確定させ、配置前に manifest を機械検査する。「拡張機能を作りたい」「リボンにボタンを追加したい」と言われたら使う。
 ---
