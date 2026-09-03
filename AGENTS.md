@@ -21,6 +21,7 @@ skills/<skill-name>/SKILL.md   ← 各スキルの本体
 - frontmatter に置いてよいのは `name` / `description` / `license` / `allowed-tools` / `metadata` / `compatibility` のみ。基本は `name` と `description`、それに claude.ai 用の `metadata.web-description` の3つ。
 - **`name` はディレクトリ名と完全一致させる。** kebab-case、64文字以内。ずれると読み込まれず、エラーも出ない。
 - **`description` には「何をするか」と「いつ使うか」を両方書く。** 発火判断の唯一の材料であり、「いつ使うか」がないと拾われない。1024文字以内、山括弧は使わない。
+- **`description` は 300 文字を目安にする。** 全スキル分が毎セッション読み込まれる固定費になる。「〜といった話が出たら明示的な言及がなくても使う」の類の定型句は書かず「〜で使う」で止める。他スキルへの名指しは、実際に取り違えが起きる相手だけに1文で書く。
 - 本文は500行以内。超えたら `references/` に分割し、SKILL.md からは索引として参照する。
 - **`metadata.web-description` に200文字以内の短縮版 description を必ず置く。** claude.ai（WEB版）は description の上限が200文字で、通常の `description` はそのままでは通らない。WEB配布用 zip は `python tools/pack_skill.py --all` で作り、このスクリプトが zip 内の `description:` を短縮版へ差し替える。実体は書き換えない。未設定のスキルはパッケージ時に終了コード1で止まる。
 - 指示は命令形で書く。完了条件は判定可能な形にする（「確認する」ではなく「一覧を提示し確認を得たこと」）。想定外時の戻り条件と、抜け道を塞ぐ禁止事項も書く。

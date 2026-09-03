@@ -57,9 +57,7 @@ graph LR
 
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
-| `markdown-explanation-doc` | 説明資料・ナレッジベース記事の作成。mermaid図解と折りたたみ補足で構造化する | 356行 |
-| `markdown-procedure-doc` | 業務手順書の作成。ヒアリングしながら対話的に組み立てる | 367行 |
-| `ai-usage-knowhow-doc` | 生成AIで意図どおりの成果物が出せたとき、その出し方を60〜100行のMarkdownで残し索引に追記する。会話履歴から実際のやり取りを再構成し、再現に必要な手順と理由つきの「効いたポイント」に絞る | 182行 |
+| `markdown-doc` | 業務用 Markdown 文書を4種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む | 85行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。20パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 338行 |
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 86行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 130行 |
@@ -77,9 +75,7 @@ graph LR
 | `implementation-plan-grill` | 実装計画・設計案を着工前に問い詰めて穴を潰す。論点を台帳化し、推奨回答つきの質問で1件ずつ確定させ、確定事項・保留事項を計画書にまとめる。組込みC/C++向けの追加観点を references に同梱 | 101行 |
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
-| `defect-report-doc` | 不具合の解析結果を標準章立て（現象・原因・処置・流出原因・再発防止・水平展開）の報告書 Markdown にまとめる。分からない項目は推測せずヒアリングする。cpp14-defect-analysis の後工程 | 70行 |
-| `claude-md-audit` | CLAUDE.md / AGENTS.md を監査してスリム化する。導出可能な情報・曖昧な指示・手順書に育った節・重複を台帳化し、1件ずつ判定を得てから適用する | 72行 |
-| `ai-adoption-advisor` | チームのリポジトリへの AI エージェント導入を診断し、AGENTS.md 草案・スキル候補・運用ルールの提案書にまとめる。4ツール横断前提でツール非依存の提案を主とする | 63行 |
+| `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 126行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
@@ -154,14 +150,14 @@ python tools/pack_skill.py skills/<name>  # 1件だけならこちら
 
 ### 制約
 
-- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火精度を優先して 287〜474 文字あり、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
+- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火文言を含めるため 200〜340 文字あり、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
 
   ```yaml
   ---
-  name: markdown-procedure-doc
-  description: 社内業務手順書をMarkdownで作成するスキル。…（CLI 用。長いまま）
+  name: markdown-doc
+  description: 業務用の Markdown 文書を種別ごとの定型で作るスキル。…（CLI 用。長いまま）
   metadata:
-    web-description: 社内業務手順書をMarkdownで作る。「手順書を作って」と言われたら使う。…（200文字以内）
+    web-description: 業務用 Markdown 文書を種別ごとの定型で作る。…（200文字以内）
   ---
   ```
 
@@ -223,7 +219,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 命名・粒度の規約
 
-- **命名**: kebab-case。`<動詞>-<対象>`（`review-checklist`）か `<対象>-<成果物>`（`markdown-procedure-doc`）。
+- **命名**: kebab-case。`<動詞>-<対象>`（`review-checklist`）か `<対象>-<成果物>`（`markdown-doc`）。
 - **本文の長さ**: SKILL.md は500行以内。超えたら `references/` に分割し、索引として参照する。
 - **粒度**: 1スキル1目的。大きなワークフローは役割ごとの小さなスキルに分解し、進行役スキルは「どの順で何を呼ぶか」だけを持つ。個々の判断基準は各スキルに閉じ込める。こうするとレビュー観点を直したいときに `review-checklist` だけを直せばよくなる。
 - **記述言語**: 日本語。`description` も含めて英語併記はしない。以前は他ツールでの発火精度のため併記していたが、日本語でしか依頼しないなら重複するだけでコンテキストを食う。英語で依頼する運用に変えるか、description を語句一致で絞り込むツールを使い始めたら見直す。
@@ -283,7 +279,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 仕組み（なぜ増やしても重くならないか）
 
-段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。1スキルあたり約100トークンなので、20個置いても2,000トークン程度に収まる。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
+段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。このリポジトリの description は日本語で 200〜340 文字（1本あたり 200〜300 トークン程度）なので、20本で 5,000 トークン前後になる。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
 
 だから**資料が何千行あってもコンテキストのコストはかからない**。本文を500行以内に保ち、長い資料を `references/` に逃がすのが推奨されるのはこのため。
 
