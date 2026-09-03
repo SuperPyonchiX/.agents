@@ -11,9 +11,10 @@ WARN のみなら合格（0）だが、内容は表示する。
 
 1. **仕様適合** — frontmatter の許可キー、name の kebab-case と長さ、
    description の山括弧禁止と長さ。Agent Skill の公式仕様に基づく。
-2. **構造** — name とディレクトリ名の一致、リンク切れ、同梱ファイル
-   （references/ templates/ examples/ assets/）の孤児、行数。
-   references/review-checklist.md に基づく、このスキル固有の設計上の検査。
+2. **構造** — name とディレクトリ名の一致、metadata.web-description の有無と
+   200 文字以内、description の 300 文字目安（超過は WARN）、リンク切れ、
+   同梱ファイル（references/ templates/ examples/ assets/）の孤児、行数。
+   references/review-checklist.md と AGENTS.md に基づく、この置き場固有の検査。
 
 依存は標準ライブラリのみ。Claude Code 以外の環境（Codex 等）へこのスキルを
 そのまま持ち出せるようにするためで、外部パッケージや特定のディレクトリ配置を
@@ -28,7 +29,7 @@ scripts/quick_validate.py が上記 1 と同じ範囲を見る（あちらは Py
 **機械判定できる項目だけ**である。次のような主観的な項目は対象外で、
 目視レビューに残る:
 
-  - description が「やや押しつけがましいくらい」に書けているか
+  - description に想定する依頼文言が具体的に列挙されているか
   - 指示が命令形で書かれているか
   - ループに成功条件・上限・諦め条件がそろっているか
   - 並列枝の担当範囲が重複していないか
@@ -53,6 +54,12 @@ TOC_REQUIRED_LINES = 300
 SKILL_MD_MAX_LINES = 500
 # description がこの文字数未満なら、発火の手がかりとして短すぎるとみなす
 DESCRIPTION_MIN_CHARS = 60
+# description がこの文字数を超えたら WARN。全スキル分が毎セッション読み込まれる
+# 固定費になるため、300 文字を目安にする（AGENTS.md「SKILL.md の規約」）
+DESCRIPTION_GUIDE_CHARS = 300
+# claude.ai（WEB版）の description 上限。metadata.web-description はこの長さ以内で必須
+# （tools/pack_skill.py と skill-portfolio-audit の audit_skills.py と同じ判定条件）
+WEB_DESCRIPTION_MAX_CHARS = 200
 # 孤児検査の対象ディレクトリ（再帰的に走査する）。SKILL.md からも references/ からも
 # 参照されない同梱ファイルは、読ませる導線がないので置いていないのと変わらない。
 ORPHAN_SCAN_DIRS = ("references", "templates", "examples", "assets")
@@ -124,9 +131,10 @@ class Report:
 def parse_frontmatter(text):
     """--- で囲まれた frontmatter を素朴に行パースする。
 
-    PyYAML に依存しないため、`key: value` の 1 行形式のみを解釈する。
-    スキルの frontmatter は name と description しか持たないのでこれで足りる。
-    戻り値は (フィールド辞書, エラー文字列 or None)。
+    PyYAML に依存しないため、`key: value` の 1 行形式と、`metadata:` 直下の
+    1 段ネスト（`  web-description: ...`）だけを解釈する。
+    戻り値は (フィールド辞書, エラー文字列 or None)。`metadata` の値はネストした
+    キーの辞書になる。
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
@@ -138,14 +146,24 @@ def parse_frontmatter(text):
 
     fields = {}
     key = None
+    subkey = None
     for line in lines[1:end]:
         m = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", line)
+        n = re.match(r"^\s+([A-Za-z_][\w-]*):\s*(.*)$", line)
         if m:
             key = m.group(1)
-            fields[key] = m.group(2).strip()
+            subkey = None
+            fields[key] = {} if key == "metadata" else m.group(2).strip()
+        elif n and key == "metadata":
+            subkey = n.group(1)
+            fields[key][subkey] = n.group(2).strip()
         elif key and line.strip():
             # 折り返された値の続き
-            fields[key] += " " + line.strip()
+            if key == "metadata":
+                if subkey:
+                    fields[key][subkey] += " " + line.strip()
+            else:
+                fields[key] += " " + line.strip()
     return fields, None
 
 
@@ -240,6 +258,35 @@ def check_frontmatter(skill_dir, skill_md_text, rep):
                 "SKILL.md",
                 f"description が {len(desc)} 文字と短い。"
                 "「何をするか」と「いつ使うか」の両方が書かれているか確認すること",
+            )
+        elif len(desc) > DESCRIPTION_GUIDE_CHARS:
+            rep.warn(
+                "SKILL.md",
+                f"description が {len(desc)} 文字。目安は {DESCRIPTION_GUIDE_CHARS} 文字。"
+                "毎セッション読み込まれる固定費になるので、定型句と不要な名指しを削ること",
+            )
+
+    # --- claude.ai 配布用の短縮 description（このリポジトリ固有の規約）---
+    meta = fields.get("metadata")
+    web = meta.get("web-description") if isinstance(meta, dict) else None
+    if not web:
+        rep.error(
+            "SKILL.md",
+            "frontmatter に `metadata.web-description` がない。"
+            f"claude.ai 用に {WEB_DESCRIPTION_MAX_CHARS} 文字以内の短縮版を置くこと"
+            "（無いと pack_skill.py が終了コード 1 で止まる）",
+        )
+    else:
+        if len(web) > WEB_DESCRIPTION_MAX_CHARS:
+            rep.error(
+                "SKILL.md",
+                f"metadata.web-description が {len(web)} 文字。"
+                f"上限は {WEB_DESCRIPTION_MAX_CHARS} 文字",
+            )
+        if "<" in web or ">" in web:
+            rep.error(
+                "SKILL.md",
+                "metadata.web-description に山括弧（< >）を含めてはいけない",
             )
 
     compat = fields.get("compatibility")
