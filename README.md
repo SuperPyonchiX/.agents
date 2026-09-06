@@ -59,7 +59,7 @@ graph LR
 | --- | --- | --- |
 | `markdown-doc` | 業務用 Markdown 文書を4種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む | 85行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 365行 |
-| `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 86行 |
+| `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 93行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 130行 |
 | `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 136行 |
 | `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
@@ -71,7 +71,7 @@ graph LR
 | `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する | 209行 |
 | `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 132行 |
 | `second-opinion` | 意見が割れそうなテーマで ChatGPT にも同じ質問を投げ、Claude 自身の見解と突き合わせる。機密チェックとリトライ上限を手順に組み込み、結果をリサーチフォルダに残す | 98行 |
-| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 249行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 262行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う | 84行 |
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |

@@ -157,16 +157,29 @@ DB「DB_YouTube要約」は作成済み。データソースID: `52e0eace-9cf1-4
 
 1. 本文 Markdown を組む: 冒頭に元動画URLの引用行 → 要約全文(手順4の3構成をそのまま、`##`/`###` 見出しに整形) → 末尾に「NotebookLM: <ノートブック名>」。**「専門用語・前提知識の補足」も省略せず入れる**。`summaries/<videoId>.md` に置く。
 2. プロパティ JSON を組む: `タイトル`(title) / `URL`(url) / `チャンネル`(select) / `カテゴリ`(select) / `公開日`(date) / `追加日`(date)。
-3. 変換して投稿する。
+3. アイコンの絵文字を1つ決める(下の「アイコンの付け方」)。`--icon` は必須。
+4. 変換して投稿する。
 
    ```bash
    python skills/notion-api/scripts/md2blocks.py --file summaries/<videoId>.md --out blocks_<videoId>.json
    python skills/notion-api/scripts/notion_page.py create \
      --data-source-id 52e0eace-9cf1-436d-9f0d-5456b98e8703 \
-     --properties props_<videoId>.json --blocks blocks_<videoId>.json
+     --properties props_<videoId>.json --blocks blocks_<videoId>.json \
+     --icon "<決めた絵文字>"
    ```
 
    2000字分割・100ブロック超の追送はスクリプトが吸収する。一括処理ではこの2コマンドをドライバスクリプトから回す。
+5. 投稿後、`notion_query.py query --compact` の `icon` フィールドで、作ったページにアイコンが入っていることを確認する。抜けていたら `notion_page.py set-icon --page-id <id> --icon <絵文字>` で入れる。
+
+#### アイコンの付け方
+
+**アイコンなしのページを作らない。** 一覧で中身を見分ける手がかりがアイコンとタイトルしかなく、後から一括で付け直すのは手間がかかる。
+
+選び方は**動画1本ごとの中身に寄せる**。カテゴリで機械的に決めない。同じ絵文字が並ぶと見分けがつかず、アイコンなしと変わらない。
+
+- 主題そのものを表す絵文字を優先する。例: 円高・円安 💴 / 下落相場 📉 / 上昇相場 📈 / 為替介入・中央銀行 🏛️ / 米株安 🐻 / 大口・機関投資家 🐋 / 損切り・資金管理 ⚖️ / メンタル 🧠 / 体験談・ゲスト回 🎙️ / ライン・チャートパターン 📐
+- 主題が絞れないときだけカテゴリの既定値に落とす: 相場解説 📊 / ファンダメンタルズ 🏛️ / テクニカル 📈 / 大口・市場構造 🐋 / エントリー・手法 🎯 / 資金管理 ⚖️ / メンタル・習慣 🧠 / 体験談・コラボ 🎙️
+- 一括処理でも同じ。判定表にアイコン列を持たせ、`cat.tsv` と並べて `icon.tsv` に持ち、ドライバから `--icon` に渡す。
 
 二重投入の防止と復旧:
 
