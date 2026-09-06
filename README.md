@@ -76,6 +76,7 @@ graph LR
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
 | `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 126行 |
+| `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する | 164行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
