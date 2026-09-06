@@ -32,8 +32,8 @@ Notion を REST API で操作するための基盤。ワークフローは持た
 | スクリプト | 用途 |
 | --- | --- |
 | `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収 |
-| `scripts/notion_page.py` | `create`（ページ作成。100ブロック超は自動追送）/ `archive`（ゴミ箱送り） |
-| `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ）/ `blocks`（本文読み戻し） |
+| `scripts/notion_page.py` | `create`（ページ作成。100ブロック超は自動追送）/ `set-icon`（既存ページのアイコン設定）/ `archive`（ゴミ箱送り） |
+| `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ。`--compact` は `icon` も返す）/ `blocks`（本文読み戻し） |
 
 終了コードは3本とも共通: **0=成功 / 1=APIエラー（レスポンス本文を stderr に表示）/
 2=引数・トークン・入力の不備**（md2blocks.py は API を呼ばないので 0 か 2 のみ）。
@@ -49,9 +49,16 @@ python scripts/md2blocks.py --file body.md --out blocks.json
 python scripts/notion_page.py create --data-source-id <uuid> \
   --properties props.json --blocks blocks.json --icon "📜"
 
-# 登録済み一覧の確認（値だけに間引く）
+# アイコンの付け忘れを後から直す
+python scripts/notion_page.py set-icon --page-id <page-id> --icon "📜"
+
+# 登録済み一覧の確認（値だけに間引く。icon 列でアイコン漏れも見える）
 python scripts/notion_query.py query --data-source-id <uuid> --compact
 ```
+
+**`create` の `--icon` は省略しない。** 省略できてしまうが、アイコンなしのページは
+一覧で内容を見分けられず、後からまとめて付け直すのは手間がかかる。内容に合う絵文字を
+毎回1つ選ぶ。同じ絵文字を全ページに使い回すのもアイコンなしと変わらないので避ける。
 
 `--properties` `--blocks` `--filter` は JSON リテラルでもファイルパスでもよい。
 長い JSON は一時ファイルに書いてパスを渡す（コマンドラインに長文を載せない）。
@@ -63,9 +70,9 @@ python scripts/notion_query.py query --data-source-id <uuid> --compact
    推測でプロパティ JSON を組んではならない
 2. **ペイロード作成** — プロパティ値の JSON は `references/api-guide.md` の形に従う。
    本文があれば `md2blocks.py` で変換する
-3. **書き込み** — `notion_page.py create`。出力の `url` を控える
+3. **書き込み** — `notion_page.py create`。`--icon` を必ず添える。出力の `url` を控える
 4. **読み戻し** — 内容が重要な書き込みは `notion_query.py query --compact` や
-   `blocks` で読み戻して確認する
+   `blocks` で読み戻して確認する。`--compact` の `icon` が null のページはアイコン漏れ
 
 一括投入では、投入済み記録を持ち、二重投入を防ぐ。作法は `references/api-guide.md` の
 「重複排除の作法」を読む。

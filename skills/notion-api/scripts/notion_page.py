@@ -3,9 +3,12 @@
 使い方:
     python notion_page.py create --data-source-id <ds-id> --properties <JSON|ファイル> \
         [--blocks <JSON|ファイル>] [--icon <絵文字>]
+    python notion_page.py set-icon --page-id <page-id> --icon <絵文字>
     python notion_page.py archive --page-id <page-id>
 
 - --properties / --blocks は JSON リテラルでもファイルパスでもよい（{ や [ で始まれば JSON と解釈）
+- create の --icon は省略できるが、省略するとアイコンなしのページになる。一覧での見分けが
+  つかなくなるので、内容に合う絵文字を必ず渡すこと。付け忘れたページは set-icon で後から直せる
 - blocks が100個を超える場合は自動で分割追送する（APIの1リクエスト100ブロック制限を吸収）
 - archive はゴミ箱送り（復元可能）。完全削除は実装していない
 - トークンは環境変数 NOTION_TOKEN。プロパティ値の形は references/api-guide.md を参照
@@ -38,13 +41,20 @@ def cmd_create(args):
     print(json.dumps({"id": page["id"], "url": page.get("url")}, ensure_ascii=False))
 
 
+def cmd_set_icon(args):
+    page = request("PATCH", "/v1/pages/{}".format(args.page_id),
+                   {"icon": {"type": "emoji", "emoji": args.icon}})
+    icon = page.get("icon") or {}
+    print(json.dumps({"id": page["id"], "icon": icon.get("emoji")}, ensure_ascii=False))
+
+
 def cmd_archive(args):
     page = request("PATCH", "/v1/pages/{}".format(args.page_id), {"archived": True})
     print(json.dumps({"id": page["id"], "archived": page.get("archived")}, ensure_ascii=False))
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Notion ページの作成・アーカイブ")
+    parser = argparse.ArgumentParser(description="Notion ページの作成・アイコン設定・アーカイブ")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_create = sub.add_parser("create", help="データソースにページを1件作成する")
@@ -52,8 +62,13 @@ def main():
     p_create.add_argument("--properties", required=True,
                           help="プロパティの JSON（リテラルまたはファイルパス）")
     p_create.add_argument("--blocks", help="本文ブロック配列の JSON（md2blocks.py の出力）")
-    p_create.add_argument("--icon", help="ページアイコンにする絵文字1つ")
+    p_create.add_argument("--icon", help="ページアイコンにする絵文字1つ（内容に合うものを必ず指定する）")
     p_create.set_defaults(func=cmd_create)
+
+    p_icon = sub.add_parser("set-icon", help="既存ページのアイコンを設定・変更する")
+    p_icon.add_argument("--page-id", required=True)
+    p_icon.add_argument("--icon", required=True, help="ページアイコンにする絵文字1つ")
+    p_icon.set_defaults(func=cmd_set_icon)
 
     p_archive = sub.add_parser("archive", help="ページをアーカイブする（復元可能）")
     p_archive.add_argument("--page-id", required=True)

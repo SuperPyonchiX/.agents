@@ -9,6 +9,12 @@ import time
 import urllib.error
 import urllib.request
 
+# Windows の既定コンソールは cp932 で、絵文字や一部記号を print した瞬間に
+# UnicodeEncodeError で落ちる。出力は常に UTF-8 に固定する。
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
+
 API_BASE = "https://api.notion.com"
 NOTION_VERSION = "2025-09-03"
 

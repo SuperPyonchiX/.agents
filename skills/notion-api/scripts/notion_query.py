@@ -5,7 +5,7 @@
         → プロパティ定義（select / multi_select は選択肢一覧つき）を JSON で出力
     python notion_query.py query --data-source-id <ds-id> [--filter <JSON|ファイル>] [--compact]
         → 全件をページネーションを回して取得し、結果配列を JSON で出力。
-          --compact は id・url・プロパティの値だけに間引く（一覧確認用）
+          --compact は id・url・アイコン・プロパティの値だけに間引く（一覧確認用）
     python notion_query.py blocks --page-id <page-id>
         → ページ直下のブロック配列を JSON で出力（投稿後の読み戻し検証用）
 
@@ -56,6 +56,7 @@ def cmd_query(args):
         payload["start_cursor"] = res["next_cursor"]
     if args.compact:
         results = [{"id": p["id"], "url": p.get("url"),
+                    "icon": (p.get("icon") or {}).get("emoji"),
                     "properties": {k: compact_value(v)
                                    for k, v in p.get("properties", {}).items()}}
                    for p in results]
