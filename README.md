@@ -48,6 +48,7 @@ graph LR
         ├── assets/            ← 出力テンプレート
         ├── templates/         ← 同上（assets の別名として使っているスキルあり）
         ├── examples/          ← 出力例
+        ├── local/             ← git 管理外の資料置き場（cpp14-rule-reference のみ。骨組みだけコミット）
         └── LICENSE            ← 外部から取り込んだスキルのみ。元のライセンス全文
 ```
 

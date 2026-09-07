@@ -77,6 +77,9 @@
 Guidelines for the use of the C++14 language）から入手する。CERT C++ は SEI CERT C++ Coding
 Standard の公開 Wiki を参照するか、SEI 配布の PDF を入手する。社内規約は社内の文書管理から。
 新しい環境では git clone 後に各自で `local/` へ配置し直す（無い間、スキルは止まって配置を依頼する）。
+`local/autosar/` `local/cert/` `local/inhouse/` の骨組みは `.gitkeep` でコミット済みなので、各環境では
+資料ファイルを該当ディレクトリに置くだけでよい。`.gitignore` は `.gitkeep` 以外を全て除外し、
+`tools/pack_skill.py` も `local/` を zip に入れない。資料を置いたままパッケージしても再配布にはならない。
 
 ## ラッパースクリプト（リポジトリ外）
 

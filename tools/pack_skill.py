@@ -30,7 +30,9 @@ from pathlib import Path
 WEB_DESCRIPTION_MAX_CHARS = 200
 
 # zip に含めない。実行環境の残骸であってスキルの一部ではない。
-EXCLUDE_NAMES = {"__pycache__", ".DS_Store", ".git"}
+# "local" は git 管理外の資料置き場（cpp14-rule-reference の規約資料など、再配布不可のもの）。
+# 手元に資料が置かれていても claude.ai 用 zip には入れない。
+EXCLUDE_NAMES = {"__pycache__", ".DS_Store", ".git", "local"}
 EXCLUDE_SUFFIXES = {".pyc"}
 
 TOP_KEY = re.compile(r"^([A-Za-z_][\w-]*):\s*(.*)$")
