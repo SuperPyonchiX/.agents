@@ -33,6 +33,7 @@ graph LR
 
 ```
 ~/.agents/
+├── LICENSE                    ← このリポジトリ本体のライセンス（MIT）
 ├── README.md                  ← このファイル（人間向け運用手順）
 ├── AGENTS.md                  ← エージェント向け規約（実体）
 ├── CLAUDE.md                  ← AGENTS.md への参照のみ
@@ -49,7 +50,7 @@ graph LR
         ├── templates/         ← 同上（assets の別名として使っているスキルあり）
         ├── examples/          ← 出力例
         ├── local/             ← git 管理外の資料置き場（cpp14-rule-reference のみ。骨組みだけコミット）
-        └── LICENSE            ← 外部から取り込んだスキルのみ。元のライセンス全文
+        └── LICENSE            ← 外部から取り込んだスキルのみ。元のライセンス全文（ルートの LICENSE とは別物）
 ```
 
 `SKILL.md` 以外はすべて任意。ただし **SKILL.md から参照されないファイルは置かない**（検証スクリプトが孤児ファイルとして警告する）。
@@ -294,6 +295,20 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | Agent Skills | 必要なときだけ | 作業手順。レビュー、テスト生成、ドキュメント作成 |
 
 常に知っておいてほしい「事実」は AGENTS.md に、特定の場面でだけ従ってほしい「手順」は Skills に置く。**AGENTS.md の一節が説明ではなく手順書に育ってきたら、それはスキルに切り出すタイミング。**
+
+## ライセンス
+
+このリポジトリ本体は **MIT**（ルート直下の [LICENSE](LICENSE)）。自作スキル・`tools/`・ドキュメントが対象で、自由に使ってよい。
+
+ただし**リポジトリ全体が一律 MIT ではない**。スキル単位で次のとおり分かれる。
+
+| 対象 | 適用されるライセンス |
+| --- | --- |
+| 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
+| `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/obsidian/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
+
+スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。
 
 ## 参考
 
