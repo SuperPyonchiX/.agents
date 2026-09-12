@@ -76,7 +76,7 @@ graph LR
 | `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 262行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う | 84行 |
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
-| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
+| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 73行 |
 | `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 126行 |
 | `repo-agent-bootstrap` | 新規・既存リポジトリへ Claude / Codex 共通の指示・スキル配布・検証を導入する。既存内容の統合、衝突検出、再実行時の保持まで扱う | 91行 |
 | `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する | 164行 |
@@ -240,34 +240,33 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## チーム展開への移行
 
-個人用スキルが「これはチームでも使える」と思えるレベルになったら、プロジェクトリポジトリ側に移す。
+個人用スキルが「これはチームでも使える」と思えるレベルになったら、プロジェクトリポジトリ側に移す。**導入は `repo-agent-bootstrap` スキルが行う。** 手作業でリンクを張る運用は廃止した。
 
-1. `~/.agents/skills/<name>/` を `<リポジトリ>/.agents/skills/<name>/` にコピーし、リポジトリにコミットする。
-2. リポジトリの `.gitignore` に次を追加する。
+1. `~/.agents/skills/<name>/` を `<リポジトリ>/.agents/skills/<name>/` へコピーする。
+2. `repo-agent-bootstrap` を呼ぶ（「共通ハーネスを導入して」で発火する）。導入先には次ができる。
 
-   ```gitignore
-   .claude/skills
+   | 生成物 | 中身 |
+   | --- | --- |
+   | `AGENTS.md` | 既存の内容を保持したまま「エージェント共通運用」節をマーカー付きで追記 |
+   | `CLAUDE.md` | `@AGENTS.md` だけを書いた入口 |
+   | `Tools/` | `Sync-AgentSkills.ps1` / `Test-AgentHarness.ps1` / `AgentHarness.Common.ps1` |
+   | `.agents/skills/` | **正本。** スキルはここを編集する |
+   | `.claude/skills/` | **生成物。** 正本からのコピーで、直接編集しない |
+
+   書き込み前に `-Check` で差分と衝突を確認できる。同名・異内容のファイルがあれば書き込まずに止まるので、強制上書きは起きない。
+
+3. 導入後の運用は、正本を直す → 同期 → 検査の3手。
+
+   ```powershell
+   powershell -NoProfile -File Tools/Sync-AgentSkills.ps1
+   powershell -NoProfile -File Tools/Test-AgentHarness.ps1
    ```
 
-3. Claude Code を使うメンバーは各自ローカルでリンクを張る（リポジトリルートで実行）。
+   PowerShell 7 では `powershell` を `pwsh` に置き換える。**正本と配布物は同じコミットに含める。** ずれたままだと `Test-AgentHarness.ps1` が落ちる。
 
-   **Windows（コマンドプロンプト）**
+**リポジトリ側ではシンボリックリンクを使わない。** Windows でチェックアウトするとリンクが実体化されず、リンク先のパスが書かれただけのテキストファイルになる。`core.symlinks` と開発者モードで回避はできるが、メンバー全員の環境に依存するため運用に乗らない。だからリポジトリ側はコピー同期にしてある。導入スクリプトは対象ファイル・スキルツリー・親階層のいずれかにリンクを見つけた時点で拒否する。
 
-   ```bat
-   mkdir .claude
-   mklink /D ".claude\skills" "..\.agents\skills"
-   ```
-
-   **Linux / macOS / WSL**
-
-   ```bash
-   mkdir -p .claude
-   ln -s ../.agents/skills .claude/skills
-   ```
-
-**シンボリックリンクをコミットしてはいけない。** Windows でチェックアウトするとリンクが実体化されず、リンク先のパスが書かれただけのテキストファイルになる。`core.symlinks` と開発者モードで回避はできるが、メンバー全員の環境に依存するため運用に乗らない。
-
-リポジトリに含める実体は `.agents/skills/` の1箇所だけにする。OS を問わずチェックアウトでき、差分も1系統で済む。
+この方式の対象は**導入先のリポジトリだけ**。`~/.agents` 自身はこれに従わず、ホーム側は `~/.claude/skills` へのシンボリックリンクのままでよい（「セットアップ」節が正本）。
 
 ## トラブルシューティング
 
@@ -284,7 +283,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 仕組み（なぜ増やしても重くならないか）
 
-段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。このリポジトリの description は日本語で 200〜340 文字（1本あたり 200〜300 トークン程度）なので、20本で 5,000 トークン前後になる。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
+段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。このリポジトリの description は日本語で 200〜340 文字（1本あたり 200〜300 トークン程度）なので、22本で 5,500 トークン前後になる。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
 
 だから**資料が何千行あってもコンテキストのコストはかからない**。本文を500行以内に保ち、長い資料を `references/` に逃がすのが推奨されるのはこのため。
 
