@@ -13,3 +13,14 @@ skills/obsidian/
 skills/cpp14-rule-reference/local/**
 !skills/cpp14-rule-reference/local/**/
 !skills/cpp14-rule-reference/local/**/.gitkeep
+
+# Anthropic 公式配布のスキル。LICENSE.txt で Services 外への持ち出し・複製・再配布が
+# 禁止されている（(c) Anthropic, PBC）。手元にだけ置く。
+skills/docx/
+skills/pptx/
+skills/pdf/
+skills/deep-research/
+
+# Claude Code が claude.ai から同期するスキルのキャッシュ。~/.claude/skills が
+# このリポジトリへのシンボリックリンクなので、ここに着地してしまう。
+skills/synced/
