@@ -16,7 +16,7 @@ YouTube動画のURLを受け取り、要約→Notion保存までを一気に行�
 ① 判別: 公開 / メンバー限定
    ├─ 公開      → nlm source add --url        (Chrome不要)
    └─ メンバー限定 → Claude in Chrome で字幕抽出 → nlm source add --file
-② 要約: nlm notebook query --source-ids → 要約テキスト
+② 要約: nlm chat --source-ids → 要約テキスト
 ③ 保存: DB_YouTube要約 にページ作成 (notion-api スキルのスクリプトで)
 ④ 報告: NotionページのURLをユーザーに伝える
 ```
@@ -39,8 +39,10 @@ YouTube動画のURLを受け取り、要約→Notion保存までを一気に行�
 Chrome も文字起こし抽出も不要。
 
 ```
-nlm source add <notebook-id> --url "https://www.youtube.com/watch?v=<videoId>" --wait
+nlm source add <notebook-id> "https://www.youtube.com/watch?v=<videoId>"
 ```
+
+URL は位置引数で渡す(`--url` は無い)。同期実行なので `--wait` も無い。数秒で `source_id` だけを返すが取り込みは完了していないことがあるので、30 秒ほど置いて `nlm source list` の `STATUS` が `enabled` になったことを確認する。
 
 - タイトル・チャンネル名・公開日が Notion 保存に必要なので、取り込み後に `nlm source list <notebook-id>` で登録名を確認するか、要約の中から拾う。足りなければ動画ページを1回だけ開いて `ytInitialPlayerResponse` から取る。
 - 取り込みに失敗する(処理が ready にならない/エラーになる)場合は、メンバー限定か地域制限を疑い、手順2へ回す。
@@ -113,24 +115,47 @@ nlm source add <notebook-id> --url "https://www.youtube.com/watch?v=<videoId>" -
    
    クリップボード経由(`navigator.clipboard.writeText` → `Get-Clipboard -Raw`)は、MCPタブが `document.hidden === true` のため writeText が解決せず**失敗する**。`document.execCommand('copy')` も同様に失敗する。localhost へのPOSTや `window.open` は YouTube の CSP でブロックされ、`window.name` はクロスオリジン遷移で消える。いずれも当てにしない。
 9. 使い終わったタブは `tabs_close_mcp` で閉じる。
-10. NotebookLM に登録: `nlm source add <notebook-id> --file transcript_<videoId>.txt --wait`(長文のため `--text` は使わない)。
+10. NotebookLM に登録: `nlm source add <notebook-id> transcript_<videoId>.txt`(ファイルも位置引数。長文を `--text` 相当でインライン投入しない)。
 
 ### 3. NotebookLM の準備とソース登録
 
 notebooklm スキルの手順に従う。要点:
 
-1. `nlm login --check`。切れていたら「Chromeを完全終了してから再ログインします」と伝えて `nlm login`。
-2. ノートブックはチャンネル単位で1冊、名前は `YouTube_<チャンネル名>`。`nlm alias list` → 無ければ `nlm notebook create` して `nlm alias set`。
-   - 既存: `yt-yucheru` = YouTube_ユーちぇる監督 (`6032a681-f9eb-4916-a4f4-ea3419aae914`)
+1. `nlm notebook list` を叩く。**終了コード 3 が認証切れ**。`login --check` サブコマンドは無い。切れていたら下の「認証が切れたとき」へ。
+2. ノートブックはチャンネル単位で1冊、名前は `YouTube_<チャンネル名>`。`nlm notebook list` で探し、無ければ `nlm notebook create`。**alias 機能は無いので ID をそのまま使う。**
+   - 既存(ユーちぇる監督): 無印 `6032a681-f9eb-4916-a4f4-ea3419aae914` ほか `_02`〜`_06` があり、**`_02` は同名が2冊ある**。投入先は `notebook list` の最終更新が最も新しいものを選び、ユーザーに名前と ID を告げてから入れる。
 3. add の出力または `nlm source list <notebook-id>` で新ソースのIDを控える。ソース数が45件を超えていたら上限接近をユーザーに報告する。
+
+#### 認証が切れたとき(`nlm notebook list` が終了コード 3)
+
+**`nlm auth login` を素で叩いても通らない。** nlm はプロファイルを別ディレクトリへ**コピー**して Chrome を起動するが、Windows の Chrome 127 以降は Cookie が App-Bound Encryption で保護されており、コピー先では復号できずサインイン画面へ飛ぶ。`✗ No notebook.google.com cookies` と出るのがこの症状で、ブラウザ側でログイン済みでも直らない。Chrome を終了させて試しても同じなので、**2回以上繰り返さない。**
+
+生きている Chrome に CDP で繋ぐ。Chrome 136 以降は既定プロファイルでのリモートデバッグを拒否するので、nlm 専用のプロファイルを別に作る。
+
+1. `chrome.exe --user-data-dir=<専用ディレクトリ> --remote-debugging-port=9222 https://notebook.google.com/` で起動する
+2. **そのウィンドウで Google ログインをユーザーに依頼する。** パスワードと2段階認証には触れない。`http://127.0.0.1:9222/json/list` の title で NotebookLM が開けたことを確認する
+3. `http://127.0.0.1:9222/json/version` の `webSocketDebuggerUrl` を取り、`nlm auth login -cdp-url <その ws URL>` を実行する
+4. `nlm notebook list` が通れば完了。認証は `~/.nlm/env` に保存されるので**以降 CDP は不要**。専用プロファイルのウィンドウは閉じてよい
+
+次に切れたときも同じ手順を踏む。普段使いの Chrome プロファイルは触らない。
 
 ### 4. 要約生成
 
 新ソースだけに絞って要約させる:
 
+プロンプトはファイルへ置き `-f` で渡す(日本語を引数に直接書くとシェルの引用で壊れやすい)。`notebook query` サブコマンドは無く `chat` を使う。**ノートブックIDは最後の位置引数**。
+
 ```
-nlm notebook query <notebook-id> "このソースの内容を次の構成で日本語で要約して。1) 結論(3行以内) 2) トピック別の要点(動画の流れの順に、見出しと説明で。タイムスタンプや時間表記は一切書かないこと) 3) 専門用語・前提知識の補足(中学生でも分かる言葉で。ただし「中学生向け説明」のようなラベルは書かず、説明文だけを書くこと)" --source-ids <新ソースID>
+nlm chat --source-ids <新ソースID> --citations off -f prompt.txt <notebook-id>
 ```
+
+prompt.txt の中身:
+
+```
+このソースの内容を次の構成で日本語で要約して。1) 結論(3行以内) 2) トピック別の要点(動画の流れの順に、見出しと説明で。タイムスタンプや時間表記は一切書かないこと) 3) 専門用語・前提知識の補足(中学生でも分かる言葉で。ただし「中学生向け説明」のようなラベルは書かず、説明文だけを書くこと)
+```
+
+`--citations off` を付けると出典マーカーが最初から付かない(付けない場合は下の除去処理で落とす)。応答は 45 秒ほどかかり、30 秒経過時に「待機中」と stderr に出るが異常ではない。
 
 プロンプトの2つの但し書きには理由がある。
 
@@ -155,7 +180,7 @@ DB「DB_YouTube要約」は作成済み。データソースID: `52e0eace-9cf1-4
 
 1ページの作り方:
 
-1. 本文 Markdown を組む: 冒頭に元動画URLの引用行 → 要約全文(手順4の3構成をそのまま、`##`/`###` 見出しに整形) → 末尾に「NotebookLM: <ノートブック名>」。**「専門用語・前提知識の補足」も省略せず入れる**。`summaries/<videoId>.md` に置く。
+1. 本文 Markdown を組む: 冒頭に元動画URLの引用行 → 要約全文(下の「Notion 用の整形」で変換する) → 末尾に `---` を2行分と「NotebookLM: <ノートブック名>」。**「専門用語・前提知識の補足」も省略せず入れる**。`summaries/<videoId>.md` に置く。
 2. プロパティ JSON を組む: `タイトル`(title) / `URL`(url) / `チャンネル`(select) / `カテゴリ`(select) / `公開日`(date) / `追加日`(date)。
 3. アイコンの絵文字を1つ決める(下の「アイコンの付け方」)。`--icon` は必須。
 4. 変換して投稿する。
@@ -170,6 +195,26 @@ DB「DB_YouTube要約」は作成済み。データソースID: `52e0eace-9cf1-4
 
    2000字分割・100ブロック超の追送はスクリプトが吸収する。一括処理ではこの2コマンドをドライバスクリプトから回す。
 5. 投稿後、`notion_query.py query --compact` の `icon` フィールドで、作ったページにアイコンが入っていることを確認する。抜けていたら `notion_page.py set-icon --page-id <id> --icon <絵文字>` で入れる。
+
+#### Notion 用の整形(手順4の出力をそのまま渡さない)
+
+**`md2blocks.py` は `#` 3つまでしか見出しにしない。** Notion に heading_4 が無いため、`####` の行は変換されず `#### 見出し` という文字列のまま段落として画面に出る。手順4の出力は `### 1) 結論` と `#### 小見出し` を含むので、**そのまま渡すと必ず崩れる**。
+
+既存ページと同じ見た目にするため、Markdown を組む前に次の変換を当てる。
+
+| 手順4の出力 | 変換後 | Notion 上のブロック |
+|---|---|---|
+| `### 1) 結論` / `### 2) トピック別の要点` / `### 3) 専門用語・前提知識の補足` | `## 結論` など(**番号 `N)` を落とす**) | heading_2 |
+| 結論セクションの `・本文` | `- **本文**` | bulleted_list_item(全文太字) |
+| `#### 小見出し` | `- **小見出し**` | bulleted_list_item(全文太字) |
+| 小見出し配下の説明文 | そのまま | paragraph |
+| `---` | そのまま | divider |
+
+- **`- **…**` で包む行に `**` が既に含まれていたら、内側の `**` を先に落とす。** `make_block()` は `**` で素朴に分割するのでネストで壊れ、`**` が本文に残る。結論の行は NotebookLM が語句を太字にしてくることが多い。
+- 小見出し配下に `・A: 〜` の列挙がある場合は **paragraph のまま置く**(連続行は1ブロックに結合される)。`- ` に変換すると小見出しと同じ階層になり区別がつかなくなる。
+- 組み終えたら `md2blocks.py` に通し、`heading_2` → `bulleted_list_item`(bold) → `paragraph` の並びになっていること、`####` を含むブロックが無いことを確認してから投稿する。
+
+**既に崩れた書式で投稿してしまったときは、ページを作り直さない。** URL が変わるとユーザーへ渡したリンクが死ぬ。`notion_http.request()` で `GET /v1/blocks/<page-id>/children` → 各ブロックを `DELETE /v1/blocks/<id>` → 正しいブロックを `PATCH /v1/blocks/<page-id>/children` に 100 件ずつ追送すると、URL を保ったまま中身だけ差し替えられる。削除前に取得結果をファイルへ退避しておく。
 
 #### アイコンの付け方
 
@@ -257,6 +302,7 @@ DOMスクロールでは全件出ない(仮想リストで30件しか描画さ�
 - 字幕トラックが無い(captionTracksが空): 抽出不可と報告して終了。別手段(音声ダウンロード等)へ勝手に進まない。
 - Chrome拡張がyoutube.comの権限を持たない/タブ操作が2〜3回失敗: 状況を説明してユーザーに確認する。
 - 字幕リクエストが3周叩いても発生しない、または有効なレスポンスが取れない: ブラウザの再起動を提案する(再起動で通るようになった実績がある)。勝手に再生を試み続けない。
+- nlm が認証エラー(終了コード 3): 手順3の「認証が切れたとき」へ。`nlm auth login` を素で繰り返さない。
 - nlm が認証以外のエラーで失敗: エラーをそのまま提示して指示を待つ。要約だけClaudeが直接行う代替は、ユーザーが同意した場合のみ。
 - Notion書き込み失敗: 要約テキストを会話に提示し、保存だけ後でやり直せる状態にして終了する。
 - 想定外の入力(URLがYouTube動画でない、プレイリストURL等): 進めずに確認する。
