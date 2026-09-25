@@ -6,11 +6,13 @@
 
 対応する記法:
     #/##/### 見出し、> 引用、--- 区切り線、-/* 箇条書き（字下げ2以上は直前項目の子）、
-    1. 番号リスト、``` コードフェンス（言語指定つき）、**太字**、`インラインコード`。
+    1. 番号リスト、``` コードフェンス（言語指定つき）、| 表 |、**太字**、`インラインコード`。
     それ以外の連続行は1つの段落にまとめる。
 
 制約の吸収:
     rich_text の1要素は2000字未満に自動分割する。
+    表は2行目が区切り行（|---|）なら1行目を列見出しにする。列数は最も多い行に揃え、足りないセルは空で埋める。
+    表の行が100を超えると API が受け付けないため、その場合は終了コード2で止める。
 
 終了コード: 0=成功 / 2=引数・入力の不備
 """
@@ -33,6 +35,12 @@ LANGUAGE_ALIASES = {"js": "javascript", "ts": "typescript", "py": "python",
                     "": "plain text"}
 
 INLINE_RE = re.compile(r"(\*\*.+?\*\*|`[^`]+`)")
+TABLE_SEPARATOR_RE = re.compile(r"^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$")
+MAX_TABLE_ROWS = 100  # ブロックの children 1回あたりの上限
+
+
+class InputError(Exception):
+    """入力 Markdown が Notion の制約に収まらない。"""
 
 
 def chunk(text):
@@ -69,15 +77,44 @@ def make_block(block_type, text):
     return {"object": "block", "type": block_type, block_type: {"rich_text": rich_text(text)}}
 
 
+def split_table_row(line):
+    """| a | b | を ["a", "b"] に分ける。\\| はセル内の | として扱う。"""
+    body = line.strip()
+    if body.startswith("|"):
+        body = body[1:]
+    if body.endswith("|") and not body.endswith("\\|"):
+        body = body[:-1]
+    return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", body)]
+
+
+def make_table(rows):
+    """Markdown 表の行（文字列）から table ブロックを作る。"""
+    has_header = len(rows) >= 2 and TABLE_SEPARATOR_RE.match(rows[1].strip()) is not None
+    cells = [split_table_row(r) for r in rows if not TABLE_SEPARATOR_RE.match(r.strip())]
+    if len(cells) > MAX_TABLE_ROWS:
+        raise InputError("表の行数が {} あり、上限 {} を超えています: {}".format(
+            len(cells), MAX_TABLE_ROWS, rows[0].strip()))
+    width = max(len(c) for c in cells)
+    children = [{"object": "block", "type": "table_row", "table_row": {
+        "cells": [rich_text(c) for c in row + [""] * (width - len(row))]}} for row in cells]
+    return {"object": "block", "type": "table", "table": {
+        "table_width": width, "has_column_header": has_header,
+        "has_row_header": False, "children": children}}
+
+
 def convert(lines):
     blocks = []
     paragraph = []  # 連続する平文行のバッファ
+    table = []      # 連続する表の行のバッファ
     code = None     # コードフェンス内なら [language, [lines...]]
 
     def flush_paragraph():
         if paragraph:
             blocks.append(make_block("paragraph", "\n".join(paragraph)))
             paragraph.clear()
+        if table:
+            blocks.append(make_table(table))
+            table.clear()
 
     for raw in lines:
         line = raw.rstrip("\n")
@@ -93,6 +130,14 @@ def convert(lines):
             continue
 
         stripped = line.strip()
+        if stripped.startswith("|"):
+            if paragraph:  # 段落の直後に表が始まったら段落を先に閉じる
+                blocks.append(make_block("paragraph", "\n".join(paragraph)))
+                paragraph.clear()
+            table.append(stripped)
+            continue
+        if table:
+            flush_paragraph()
         if stripped.startswith("```"):
             flush_paragraph()
             lang = stripped[3:].strip().lower()
@@ -156,7 +201,11 @@ def main():
     else:
         lines = sys.stdin.readlines()
 
-    blocks = convert(lines)
+    try:
+        blocks = convert(lines)
+    except InputError as e:
+        print(e, file=sys.stderr)
+        sys.exit(2)
     text = json.dumps(blocks, ensure_ascii=False, indent=1)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:

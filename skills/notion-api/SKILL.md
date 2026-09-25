@@ -31,7 +31,7 @@ Notion を REST API で操作するための基盤。ワークフローは持た
 
 | スクリプト | 用途 |
 | --- | --- |
-| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収 |
+| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで） |
 | `scripts/notion_page.py` | `create`（ページ作成。100ブロック超は自動追送）/ `set-icon`（既存ページのアイコン設定）/ `archive`（ゴミ箱送り） |
 | `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ。`--compact` は `icon` も返す）/ `blocks`（本文読み戻し） |
 
