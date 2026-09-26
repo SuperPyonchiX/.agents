@@ -25,13 +25,14 @@ MAX_TEXT = 1990  # rich_text 1要素の上限 2000 に対する安全マージ�
 
 # Notion が受け付けるコードブロック言語（主要なもの）。外れたら plain text に落とす
 KNOWN_LANGUAGES = {
-    "bash", "c", "c#", "c++", "cpp", "csharp", "css", "diff", "go", "graphql", "html",
+    "bash", "c", "c#", "c++", "css", "diff", "go", "graphql", "html",
     "java", "javascript", "json", "kotlin", "markdown", "mermaid", "php", "plain text",
     "powershell", "python", "ruby", "rust", "shell", "sql", "swift", "typescript",
     "xml", "yaml",
 }
 LANGUAGE_ALIASES = {"js": "javascript", "ts": "typescript", "py": "python",
-                    "sh": "shell", "ps1": "powershell", "cs": "c#", "text": "plain text",
+                    "sh": "shell", "ps1": "powershell", "cs": "c#", "csharp": "c#",
+                    "cpp": "c++", "text": "plain text",
                     "": "plain text"}
 
 INLINE_RE = re.compile(r"(\*\*.+?\*\*|`[^`]+`)")

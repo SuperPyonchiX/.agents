@@ -10,6 +10,7 @@
 - create の --icon は省略できるが、省略するとアイコンなしのページになる。一覧での見分けが
   つかなくなるので、内容に合う絵文字を必ず渡すこと。付け忘れたページは set-icon で後から直せる
 - blocks が100個を超える場合は自動で分割追送する（APIの1リクエスト100ブロック制限を吸収）
+- create は本文の先頭に目次ブロック（table_of_contents）を必ず入れる。blocks の先頭が既に目次なら重ねない
 - archive はゴミ箱送り（復元可能）。完全削除は実装していない
 - トークンは環境変数 NOTION_TOKEN。プロパティ値の形は references/api-guide.md を参照
 
@@ -22,10 +23,15 @@ import sys
 
 from notion_http import load_json_arg, request
 
+# 作成するページの先頭に必ず置く目次。見出しから Notion が自動で組み立てる
+TOC_BLOCK = {"object": "block", "type": "table_of_contents", "table_of_contents": {"color": "default"}}
+
 
 def cmd_create(args):
     properties = load_json_arg(args.properties, dict)
     blocks = load_json_arg(args.blocks, list) if args.blocks else []
+    if not blocks or blocks[0].get("type") != "table_of_contents":
+        blocks = [TOC_BLOCK] + blocks
     payload = {
         "parent": {"type": "data_source_id", "data_source_id": args.data_source_id},
         "properties": properties,

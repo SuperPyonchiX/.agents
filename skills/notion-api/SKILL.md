@@ -31,8 +31,8 @@ Notion を REST API で操作するための基盤。ワークフローは持た
 
 | スクリプト | 用途 |
 | --- | --- |
-| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで） |
-| `scripts/notion_page.py` | `create`（ページ作成。100ブロック超は自動追送）/ `set-icon`（既存ページのアイコン設定）/ `archive`（ゴミ箱送り） |
+| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで）。コードフェンスの `csharp` `cpp` などは Notion の言語名（`c#` `c++`）へ直す |
+| `scripts/notion_page.py` | `create`（ページ作成。本文の先頭に目次ブロックを必ず入れる。100ブロック超は自動追送）/ `set-icon`（既存ページのアイコン設定）/ `archive`（ゴミ箱送り） |
 | `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ。`--compact` は `icon` も返す）/ `blocks`（本文読み戻し） |
 
 終了コードは3本とも共通: **0=成功 / 1=APIエラー（レスポンス本文を stderr に表示）/
@@ -59,6 +59,12 @@ python scripts/notion_query.py query --data-source-id <uuid> --compact
 **`create` の `--icon` は省略しない。** 省略できてしまうが、アイコンなしのページは
 一覧で内容を見分けられず、後からまとめて付け直すのは手間がかかる。内容に合う絵文字を
 毎回1つ選ぶ。同じ絵文字を全ページに使い回すのもアイコンなしと変わらないので避ける。
+
+**作成するページの先頭行は Notion の目次にする。** `create` が本文の先頭に目次ブロック
+（`table_of_contents`）を自動で入れるので、`md2blocks.py` の出力に自分で足さない（先頭が既に目次なら重ねない）。
+`PATCH /v1/blocks/<page-id>/children` で本文を差し替えるなど `create` 以外の経路で書くときは、
+目次が自動では入らない。差し替え後も先頭が目次になるよう、送るブロックの先頭に
+`{"type": "table_of_contents", "table_of_contents": {"color": "default"}}` を置く。
 
 `--properties` `--blocks` `--filter` は JSON リテラルでもファイルパスでもよい。
 長い JSON は一時ファイルに書いてパスを渡す（コマンドラインに長文を載せない）。
