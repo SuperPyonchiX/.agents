@@ -1,6 +1,6 @@
 ---
 name: nextdesign-cpp14-implementation
-description: Next Design の詳細設計を入力に、組込み C++14（AUTOSAR / CERT 準拠）の関数設計と実装を構築する工程スキル。Doxygen コメント（brief・param・retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、設計にある関数が漏れなく宣言・実装されたことを機械検査する。入力は HTML・Excel/CSV・PlantUML・Markdown・画像。「Next Design の設計からコードを作って」「詳細設計を C++ に落として」「クラス図から実装を作って」で使う。単体テストは範囲外。Next Design 自体の拡張は nextdesign-script-extension。
+description: Next Design の詳細設計を入力に、組込み C++14（AUTOSAR / CERT 準拠）の関数設計と実装を構築する工程スキル。Doxygen コメント（brief・param・retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、設計にある関数が漏れなく宣言・実装されたことを機械検査する。入力は HTML・Excel/CSV・PlantUML・Markdown・画像。「Next Design の設計からコードを作って」「詳細設計を C++ に落として」「クラス図から実装を作って」で使う。単体テストは範囲外。Next Design 自体の拡張は nextdesign-extension。
 metadata:
   web-description: Next Design の詳細設計から組込みC++14の関数設計と実装を作る。Doxygen コメントを関数仕様の正本として書き切ってから実装し、レビューゲートと機械検査で漏れを防ぐ。「設計からコードを作って」「詳細設計をC++に落として」と言われたら使う。単体テストは別スキルの担当。
 ---
