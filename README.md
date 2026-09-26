@@ -82,6 +82,7 @@ graph LR
 | `daily-capture` | 会話に出た体調・トレード・今日の学び・読んだ本を Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し、承認された行だけをスクリプトで節の直下に差し込む | 124行 |
 | `reveal-file` | 生成した PDF・Excel などの成果物をエクスプローラー（macOS は Finder）で選択状態にして開く。OS ごとの差はスクリプトが吸収する | 67行 |
 | `session-history-mining` | Claude Code / Codex のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 134行 |
+| `ui-ux-pro-max` | UI を作る前に、画面の種類に合うスタイル・配色・フォント・UX ガイドライン・22スタック（WPF・WinUI を含む）の実装指針をローカルのデータから検索し、デザインシステムとして返す（外部取り込み・MIT） | 217行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
@@ -308,6 +309,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | --- | --- |
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
 | `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。
