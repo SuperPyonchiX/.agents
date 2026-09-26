@@ -1,0 +1,35 @@
+using System;
+using NextDesign.Core;
+using NextDesign.Desktop;
+using NextDesign.Extension;
+
+namespace MyExtension
+{
+    // DLL のエントリ。IExtension を実装したクラスはプロジェクト全体で1つだけにする。
+    // 他の処理は別ファイル・別クラスに分けてよい（スクリプト方式と違い1ファイルに縛られない）。
+    public class MyExtensionEntry : IExtension
+    {
+        // 処理が無くても空で実装する
+        public void Activate(IContext context)
+        {
+        }
+
+        public void Deactivate(IContext context)
+        {
+        }
+
+        // manifest.json の commands[].execFunc と名前を一致させ、public にする
+        public void Run(ICommandContext context, ICommandParams commandParams)
+        {
+            try
+            {
+                context.App.Window.UI.ShowInformationDialog("実行しました。", "MyExtension");
+            }
+            catch (Exception ex)
+            {
+                context.App.Output.WriteLine("MyExtension", ex.ToString());
+                throw;
+            }
+        }
+    }
+}

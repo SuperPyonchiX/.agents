@@ -7,8 +7,8 @@
   "docBase": "",
   "_docBase": "references/doc-map.md の表で決めたドキュメント基点 URL",
 
-  "scriptLanguage": "csharp",
-  "_scriptLanguage": "本スキルは csharp のみを扱う",
+  "implementation": "",
+  "_implementation": "script | dll。新規はユーザーに尋ね、既存は manifest.json の main（.cs / .dll）で判定する。空のまま先に進まない",
 
   "extensionName": "",
   "_extensionName": "拡張機能名。ディレクトリ名と manifest.json の name に使う",

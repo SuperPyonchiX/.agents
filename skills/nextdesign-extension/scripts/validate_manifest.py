@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
-"""Next Design スクリプト拡張機能の manifest.json を機械的に検証する。
+"""Next Design 拡張機能の manifest.json を機械的に検証する。
 
 使い方:
     python scripts/validate_manifest.py <拡張機能ディレクトリ> [--nd-version 3|4|5]
+                                        [--publish-dir <DLL の publish 出力>]
+
+方式は manifest.json の main で判定する。
+    main が .cs  → スクリプト方式。<拡張機能ディレクトリ> は配置するディレクトリそのもの
+    main が .dll → DLL 方式。<拡張機能ディレクトリ> は .csproj のあるプロジェクトディレクトリ。
+                   ハンドラはディレクトリ配下（bin / obj を除く）の全 .cs から探す。
+                   DLL 本体はビルド前に存在しないので、実在の検査は --publish-dir を
+                   渡したときだけ行う（配置直前に publish 出力を検査する用途）
 
 終了コード:
     0  合格（WARN のみなら合格。内容は表示する）
@@ -18,7 +26,7 @@
 エラーを出さないので、配置前にここで捕まえるしかない。
 
 見ないもの（目視・実機確認に残る）:
-  - C# の構文とコンパイル可否（Next Design 上でしか分からない）
+  - C# の構文とコンパイル可否（スクリプトは Next Design 上でしか分からない。DLL は dotnet build が見る）
   - API メンバーの実在（バージョン別のリファレンスを読むこと）
   - イベント名がそのバージョンに実在するか（綴り違いは黙って無視される）
   - 拡張機能が要件を満たしているか
@@ -158,13 +166,21 @@ def check_definition(data, ext_dir, nd_version, rep):
 
     main = data.get("main")
     if isinstance(main, str):
-        if not main.endswith(".cs"):
+        if main.endswith(".cs"):
+            if not (ext_dir / main).is_file():
+                rep.error("manifest.json", "main が指す '{}' が存在しない".format(main))
+        elif main.endswith(".dll"):
+            if not list(ext_dir.glob("*.csproj")):
+                rep.error(
+                    "manifest.json",
+                    "main が DLL だが {} に .csproj が無い。"
+                    "DLL 方式ではプロジェクトディレクトリを渡すこと".format(ext_dir),
+                )
+        else:
             rep.error(
                 "manifest.json",
-                "main が '{}'。このスキルは C# スクリプト (.cs) のみを扱う".format(main),
+                "main が '{}'。C# スクリプト (.cs) か DLL (.dll) を指定する".format(main),
             )
-        if not (ext_dir / main).is_file():
-            rep.error("manifest.json", "main が指す '{}' が存在しない".format(main))
     elif main is not None:
         rep.error("manifest.json", "main は文字列でなければならない")
 
@@ -383,24 +399,41 @@ def check_extension_points(data, ext_dir, rep):
     return required_funcs
 
 
+def read_source(path, label, rep):
+    """C# ソースを読み、コメントを落として返す。読めなければ None。"""
+    try:
+        source = path.read_text(encoding="utf-8-sig")
+    except UnicodeDecodeError:
+        rep.error(label, "UTF-8 で読めない。UTF-8 で保存し直すこと")
+        return None
+    # 行コメントとブロックコメントを落とす。コメントアウトされた雛形を
+    # 実装済みと誤認しないため。
+    stripped = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    return re.sub(r"//[^\n]*", "", stripped)
+
+
+def dll_sources(ext_dir):
+    """DLL プロジェクトの .cs を列挙する。ビルド生成物の bin / obj は除く。"""
+    return sorted(
+        f for f in ext_dir.rglob("*.cs")
+        if not ({"bin", "obj"} & {part.lower() for part in f.relative_to(ext_dir).parts})
+    )
+
+
 def check_script(data, ext_dir, required_funcs, rep):
-    """main.cs にハンドラが実装されているかを照合する。"""
+    """ハンドラが実装されているかを照合する。"""
     main = data.get("main")
     if not isinstance(main, str):
+        return
+    if main.endswith(".dll"):
+        check_dll_sources(ext_dir, required_funcs, rep)
         return
     script = ext_dir / main
     if not script.is_file():
         return
-    try:
-        source = script.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        rep.error(main, "UTF-8 で読めない。UTF-8 で保存し直すこと")
+    stripped = read_source(script, main, rep)
+    if stripped is None:
         return
-
-    # 行コメントとブロックコメントを落とす。コメントアウトされた雛形を
-    # 実装済みと誤認しないため。
-    stripped = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
-    stripped = re.sub(r"//[^\n]*", "", stripped)
 
     for func, where in required_funcs:
         pattern = r"\bvoid\s+{}\s*\(".format(re.escape(func))
@@ -420,6 +453,68 @@ def check_script(data, ext_dir, required_funcs, rep):
         )
 
 
+def check_dll_sources(ext_dir, required_funcs, rep):
+    """DLL 方式: IExtension 実装クラスが1つで、ハンドラが public で実装されているか。"""
+    sources = {}
+    for f in dll_sources(ext_dir):
+        label = str(f.relative_to(ext_dir))
+        stripped = read_source(f, label, rep)
+        if stripped is not None:
+            sources[label] = stripped
+    if not sources:
+        rep.error("プロジェクト", "{} に .cs が無い".format(ext_dir))
+        return
+
+    entry = [
+        label for label, text in sources.items()
+        if re.search(r"\bclass\s+\w+\s*:[^{]*\bIExtension\b", text)
+    ]
+    if not entry:
+        rep.error("プロジェクト", "IExtension を実装したクラスが無い。DLL のエントリになるクラスが要る")
+    elif len(entry) > 1:
+        rep.error(
+            "プロジェクト",
+            "IExtension を実装したクラスが複数ある（{}）。エントリは1つに限る".format(
+                ", ".join(entry)
+            ),
+        )
+
+    joined = "\n".join(sources.values())
+    for func, where in required_funcs:
+        pattern = r"\bpublic\s+void\s+{}\s*\(".format(re.escape(func))
+        if not re.search(pattern, joined):
+            rep.error(
+                where,
+                "'{}' が public メソッドとしてプロジェクトの .cs に実装されていない".format(func),
+            )
+
+    if "using NextDesign" not in joined:
+        rep.warn("プロジェクト", "NextDesign 名前空間の using が無い")
+
+
+def check_publish(data, publish_dir, rep):
+    """DLL 方式: 配置する publish 出力の中身を検査する。"""
+    main = data.get("main")
+    where = "publish"
+    if not (publish_dir / "manifest.json").is_file():
+        rep.error(where, "manifest.json が出力に無い。csproj で出力ディレクトリへコピーする")
+    if isinstance(main, str) and not (publish_dir / main).is_file():
+        rep.error(where, "main が指す '{}' が出力に無い".format(main))
+    for name in ("NextDesign.Core.dll", "NextDesign.Desktop.dll"):
+        if (publish_dir / name).is_file():
+            rep.error(
+                where,
+                "{} が出力に含まれている。本体の DLL と競合するので配置しない"
+                "（csproj で Private=false / ExcludeAssets=runtime）".format(name),
+            )
+    text = json.dumps(data, ensure_ascii=False)
+    for image in set(re.findall(r'"image(?:Small|Large)"\s*:\s*"([^"]+)"', text)):
+        if not (publish_dir / image).is_file():
+            rep.error(where, "画像 '{}' が出力に無い。csproj で resources を出力へコピーする".format(image))
+    for f in publish_dir.glob("*.cs"):
+        rep.warn(where, "ソース {} が出力にある。配置先にはビルド成果物だけを置く".format(f.name))
+
+
 def check_locale(data, ext_dir, rep):
     """label に %...% を使いながらロケールファイルが無い状態を拾う。"""
     text = json.dumps(data, ensure_ascii=False)
@@ -435,7 +530,7 @@ def check_locale(data, ext_dir, rep):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Next Design スクリプト拡張機能の manifest.json を検証する",
+        description="Next Design 拡張機能（スクリプト / DLL）の manifest.json を検証する",
         add_help=True,
     )
     parser.add_argument("extension_dir", help="拡張機能ディレクトリ")
@@ -445,6 +540,10 @@ def main():
         choices=(3, 4, 5),
         default=5,
         help="Next Design のメジャーバージョン（省略時 5）",
+    )
+    parser.add_argument(
+        "--publish-dir",
+        help="DLL 方式のみ。dotnet publish の出力ディレクトリ。配置する中身を検査する",
     )
     try:
         args = parser.parse_args()
@@ -466,6 +565,15 @@ def main():
     required_funcs = check_extension_points(data, ext_dir, rep)
     check_script(data, ext_dir, required_funcs, rep)
     check_locale(data, ext_dir, rep)
+    if args.publish_dir:
+        publish_dir = Path(args.publish_dir)
+        if not publish_dir.is_dir():
+            print("ERROR  引数: publish ディレクトリが存在しない: {}".format(publish_dir))
+            return 2
+        if not str(data.get("main", "")).endswith(".dll"):
+            print("ERROR  引数: --publish-dir は main が .dll のときだけ使う")
+            return 2
+        check_publish(data, publish_dir, rep)
 
     rep.dump()
     return 1 if rep.errors else 0

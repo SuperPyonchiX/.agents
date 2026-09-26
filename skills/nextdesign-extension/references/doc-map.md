@@ -33,6 +33,11 @@ V5.x のページ構成を基準にすると、V4.x / V3.x は `docBase` に同�
 | `docs/tutorials/hello-world` | 最小構成を確認したいとき |
 | `api/intro` | E3。API の全体構成 |
 | `docs/getting-started/dev-with-scripts/...` | E3・E4。スクリプト開発の手順とデバッグ（V4.x 以降。V3.x はパスが異なるので目次から辿る） |
+| `docs/overview/script-and-dlls` | E0。スクリプトと DLL の比較表（方式を尋ねる前に、その版の表を確かめる） |
+| `docs/getting-started/intro` | E3-dll。DLL 開発の前提（.NET SDK の版） |
+| `docs/getting-started/dev-with-vs/create-vs-project` | E3-dll。TargetFramework、NuGet パッケージ、manifest の main |
+| `docs/getting-started/dev-with-vs/impl-handlers` | E3-dll。IExtension の実装とハンドラ |
+| `docs/getting-started/dev-with-vs/debugging` | E3-dll・E4。配置先、DLL の差し替え、デバッグ |
 
 **ネットワークが使えない場合**は `references/manifest-spec.md` と `references/csharp-script.md` の記載を使う。ただしそれらは V5.x のドキュメントを基準に書いてあるので、下の差異表に載っている項目は**ユーザーに確認する**。
 
