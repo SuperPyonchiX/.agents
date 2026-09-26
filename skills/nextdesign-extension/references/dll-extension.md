@@ -64,7 +64,20 @@ E0 で新規作成の方式を尋ねるとき、要件に照らして次の表�
 - **ソースのディレクトリと配置先を分ける。** 配置先（extensions フォルダ）に置くのは publish の出力だけ
 - `IExtension` を実装したクラスはプロジェクト全体で1つだけ。`Activate` / `Deactivate` は処理が無くても空で実装する
 - `execFunc` とイベントハンドラは、エントリクラスの **public メソッド**にする
+- `using` は各 `.cs` に書くか、csproj の `<Using Include="..." />`（global using）にまとめる。`validate_manifest.py` はどちらも見る
 - 名前空間とエントリクラスを同名にしない（型名の解決があいまいになる）
+
+## スクリプトから DLL へ移す
+
+既存のスクリプト拡張を DLL にするときの手順。スクリプトのトップレベルに書いたハンドラは、C# スクリプトの中では暗黙のクラスのメンバーなので、それを明示的なクラスに置き換えるのが中心になる。
+
+1. トップレベルのメソッド（ハンドラと、ハンドラから呼ぶ private メソッド）を `public partial class <拡張機能名>Extension { ... }` で包む。複数のファイルや箇所に分かれていても partial でまとめられる。トップレベルのクラスはそのまま残す（入れ子にすると、他のクラスから名前で参照できなくなる）
+2. エントリの `.cs` に `public partial class <拡張機能名>Extension : IExtension` と空の `Activate` / `Deactivate` を置く
+3. スクリプトでは先頭の `using` が全体に効いていた。ファイルを分けるなら、csproj の `<Using Include="..." />`（global using）にまとめるのが手早い
+4. csproj では `EnableDefaultCompileItems` を false にし、`<Compile Include>` を記載順に並べる。既定の取り込みのままだと、tests/ の `.cs` まで混ざる。ほかの拡張と共有するソースは、正本のパスをそのまま `Include` する（コピーしない）
+5. スクリプトのグローバル（`App` / `UI` / `Output` / `CurrentProject` など）を使っていたら、`context.App` 経由に書き換える
+6. `manifest.json` の `main` を `<拡張機能名>.dll` にする。同梱するフォルダ（スキル、テンプレートなど）は csproj で出力へコピーする。実行時の拡張フォルダは `context.ExtensionInfo.ExtensionPath` で取れ、DLL 方式でも配置先を指す
+7. 配置先に残ったスクリプト版の `main.cs` は、退避してから外す
 
 ## ビルド
 

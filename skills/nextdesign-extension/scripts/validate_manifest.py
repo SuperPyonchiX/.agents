@@ -542,8 +542,25 @@ def check_dll_sources(ext_dir, required_funcs, rep):
                 "'{}' が public メソッドとしてプロジェクトの .cs に実装されていない".format(func),
             )
 
-    if "using NextDesign" not in joined:
-        rep.warn("プロジェクト", "NextDesign 名前空間の using が無い")
+    if "using NextDesign" not in joined and not project_global_usings(ext_dir):
+        rep.warn("プロジェクト", "NextDesign 名前空間の using が無い（.cs にも csproj の Using 項目にも無い）")
+
+
+def project_global_usings(ext_dir):
+    """csproj か上位の Directory.Build.props に NextDesign の Using 項目（global using）があるか。"""
+    files = list(ext_dir.glob("*.csproj"))
+    for d in [ext_dir.resolve()] + list(ext_dir.resolve().parents):
+        props = d / "Directory.Build.props"
+        if props.is_file():
+            files.append(props)
+    pattern = re.compile(r"<Using\s+Include\s*=\s*\"NextDesign\.")
+    for f in files:
+        try:
+            if pattern.search(f.read_text(encoding="utf-8-sig")):
+                return True
+        except (OSError, UnicodeDecodeError):
+            continue
+    return False
 
 
 def check_publish(data, publish_dir, rep):
