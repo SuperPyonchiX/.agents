@@ -70,7 +70,7 @@ graph LR
 | `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 287行 |
 | `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 254行 |
 | `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 200行 |
-| `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する | 209行 |
+| `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 226行 |
 | `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 132行 |
 | `second-opinion` | 意見が割れそうなテーマで ChatGPT にも同じ質問を投げ、Claude 自身の見解と突き合わせる。機密チェックとリトライ上限を手順に組み込み、結果をリサーチフォルダに残す | 98行 |
 | `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 262行 |
