@@ -116,7 +116,8 @@ python skills/notion-api/scripts/notion_page.py create \
 作成ページを読み戻し、承認内容と一致していることを確認したうえで、ページ URL をユーザーに報告する。
 
 - タイトル・カテゴリ: `notion_query.py query --compact` で該当ページを引いて確認する
-- 本文: `notion_query.py blocks --page-id <id>` でブロックを読み戻して確認する
+- 本文: `notion_query.py blocks --page-id <id>` でブロックを読み戻して確認する。先頭ブロックが目次（`table_of_contents`）で、2番目以降が承認した本文と一致すること
+- 見出しの並び: 読み戻した `heading_2` / `heading_3` の順番が本文案の見出しの順番と一致すること。送った内容と一致しても、送る前の本文案の組み立て自体が崩れていれば検出できないため、目次に出る見出しの順序を必ず確かめる
 
 完了条件: 作成ページの URL を提示したこと。
 読み戻しで差異があれば、差異の内容を報告して対処（ページ修正）の指示を仰ぐ。
