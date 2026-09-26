@@ -406,10 +406,64 @@ def read_source(path, label, rep):
     except UnicodeDecodeError:
         rep.error(label, "UTF-8 で読めない。UTF-8 で保存し直すこと")
         return None
-    # 行コメントとブロックコメントを落とす。コメントアウトされた雛形を
-    # 実装済みと誤認しないため。
-    stripped = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
-    return re.sub(r"//[^\n]*", "", stripped)
+    return strip_comments(source)
+
+
+def strip_comments(source):
+    """C# のコメントを落とし、文字列・文字リテラルの中身を空にして返す。
+
+    コメントアウトされた雛形を実装済みと誤認しないため。正規表現で
+    ブロックコメントを先に落とすと、行コメント中の "src/*.cs" の "/*" を
+    ブロックコメントの始まりと誤認して、遠くの "*/" までを消してしまう。
+    行コメント・ブロックコメント・文字列を先頭から1回の走査で区別する。
+    文字列の中身は空にする（"void Foo(" を含む文字列を実装と誤認しない）。
+    """
+    out = []
+    i, n = 0, len(source)
+    while i < n:
+        c = source[i]
+        nxt = source[i + 1] if i + 1 < n else ""
+        if c == "/" and nxt == "/":
+            end = source.find("\n", i)
+            i = n if end < 0 else end
+        elif c == "/" and nxt == "*":
+            end = source.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+            out.append(" ")
+        elif c == '"' or (c in "@$" and nxt in '"@$'):
+            # 接頭辞（@ / $ / $@ / @$）を読んで逐語的文字列かどうかを決める
+            j = i
+            verbatim = False
+            while j < n and source[j] in "@$":
+                verbatim = verbatim or source[j] == "@"
+                j += 1
+            if j >= n or source[j] != '"':
+                out.append(c)
+                i += 1
+                continue
+            j += 1
+            while j < n:
+                if verbatim and source[j] == '"' and j + 1 < n and source[j + 1] == '"':
+                    j += 2
+                elif not verbatim and source[j] == "\\":
+                    j += 2
+                elif source[j] == '"' or (not verbatim and source[j] == "\n"):
+                    j += 1
+                    break
+                else:
+                    j += 1
+            out.append('""')
+            i = j
+        elif c == "'":
+            j = i + 1
+            while j < n and source[j] != "'" and source[j] != "\n":
+                j += 2 if source[j] == "\\" else 1
+            out.append("''")
+            i = j + 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def dll_sources(ext_dir):
