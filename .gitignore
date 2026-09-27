@@ -8,6 +8,9 @@ dist/
 # コミットは再配布にあたる。出典と扱いは vendor/NOTICE.md を参照。
 skills/obsidian/
 
+# Remotion 公式のスキル。Remotion License で再配布の許諾が明記されていない。vendor/NOTICE.md 参照
+skills/remotion-best-practices/
+
 # 著作権保護された規約資料（AUTOSAR/CERT）。手元にだけ置く。復元手順は vendor/NOTICE.md
 # ディレクトリの骨組み（.gitkeep）だけコミットし、中身は一切コミットしない
 skills/cpp14-rule-reference/local/**

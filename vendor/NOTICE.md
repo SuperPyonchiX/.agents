@@ -86,6 +86,27 @@
 **コミットしたくなったら**: 先に配布者へ再配布の可否を確認する。許諾が取れたら、その旨とライセンス表記を
 `skills/obsidian/LICENSE` に置き、`.gitignore` から外して SKILL.md の frontmatter に `license:` を足す。
 
+### remotion-best-practices
+
+| | |
+|---|---|
+| 出典 | https://github.com/remotion-dev/skills （本体 `remotion-dev/remotion` の `packages/skills` のミラー） |
+| 取得時のコミット | `cf49eff5d4463b33966b6618c83f7295797dd028`（2026-09-25）、スキル版 4.0.529 |
+| ライセンス | skills リポジトリに LICENSE は無い。本体は **Remotion License**（MIT 等ではない）。利用・改変は許可されているが、再配布の許諾は明記されていない |
+| 扱い | `.gitignore` で `skills/remotion-best-practices/` を除外。**コミットしない** |
+| 取得日 | 2026-09-27 |
+| 改変 | あり（frontmatter のみ） |
+
+改変の内訳:
+
+- `description` を日本語の発火条件つきに書き換え（元は `Router for all Remotion skills`）
+- `version` を `metadata.version` へ移し、`metadata.web-description` を追加
+- 12本のうちルーターの1本だけを入れた。ほかの11本は `remotion-*/REFERENCE.md` としてこの中に同梱されているため、別スキルとして入れると description が重複するだけになる
+
+**利用条件の注意**: Remotion 本体は、個人・従業員3人以下の営利組織・非営利組織なら無料（商用可）。それを超える営利組織で使うには Company License が要る。**業務（社内向けの動画など）で使う前に、会社でのライセンスを確認する。**
+
+**再取得**: `git clone --depth 1 https://github.com/remotion-dev/skills.git` の `skills/remotion-best-practices/` を `skills/` へコピーし、上の frontmatter の改変を当て直す。
+
 ### cpp14-rule-reference の規約資料（local/）
 
 | | |

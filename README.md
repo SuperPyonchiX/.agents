@@ -87,7 +87,7 @@ graph LR
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
-`skills/obsidian/` はこの表に載っていない。ライセンスが付与されていない配布物で、リポジトリには含めていない（後述の「外部から取り込んだスキル」を参照）。
+`skills/obsidian/` と `skills/remotion-best-practices/` はこの表に載っていない。再配布の許諾が確認できない配布物で、リポジトリには含めていない（後述の「ライセンス」と [vendor/NOTICE.md](vendor/NOTICE.md) を参照）。
 
 ## セットアップ（新しい環境で）
 
@@ -343,7 +343,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
 | `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
-| `skills/obsidian/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
+| `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。
 
