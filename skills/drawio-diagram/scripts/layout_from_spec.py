@@ -1,0 +1,839 @@
+#!/usr/bin/env python3
+"""spec.json から座標と線の経路を決めて .drawio を生成する。
+
+モデルが座標を手で決めると、箱の重なりや線の突き抜けが起きやすい。このスクリプトは
+配置（グリッド → 座標、枠の大きさ）と線の経路（箱を避ける直交経路）を決定論的に決める。
+モデルは spec.json に「何を・どの枠に・何列目何行目に」を書くだけでよい。
+
+使い方:
+  python layout_from_spec.py <file.spec.json> -o <file.drawio>
+
+spec.json の形（1ページ）:
+  {
+    "name": "ページ名",
+    "direction": "LR",                 # 流れの向き。LR（左→右、既定）か TB（上→下）
+    "groups": [                        # 枠。kind は "lane"（スイムレーン）か "box"（囲み枠）
+      {"id": "lane_dev", "label": "開発者", "kind": "lane"},
+      {"id": "ecu", "label": "ECU", "kind": "box", "stack": "column", "pos": [1, 0], "span": [1, 2]},
+      {"id": "app", "label": "アプリ層", "kind": "box", "in": "ecu"}
+    ],
+    "nodes": [
+      {"id": "start", "label": "開始", "shape": "start", "in": "lane_dev"},
+      {"id": "fix", "label": "コード修正", "shape": "process", "in": "lane_dev", "pos": [3, 0]}
+    ],
+    "edges": [
+      {"from": "triage", "to": "fix", "label": "修正"},
+      {"from": "review", "to": "triage", "label": "差し戻し", "dashed": true},
+      {"from": "mt5", "to": "broker", "label": "注文", "both": false}
+    ],
+    "order": [{"axis": "y", "ids": ["app", "rte", "bsw"]}]   # 並び順。check_drawio.py が照合し、
+                                                             # 同じ枠の直下で pos の無い兄弟ならこの順に並べる
+  }
+  複数ページは {"pages": [ {1ページ分}, ... ]} と書く。
+
+  - shape: process（既定）/ decision / start / end / document / database / external / actor / note / text
+  - pos: [列, 行]。その枠（または図全体）の中のグリッド位置。0 始まり。省略すると自動
+      * スイムレーン図: 流れの順（最長経路）で列、同じレーン・同じ列なら次の行
+      * それ以外: 枠の stack（"row" 既定 / "column"）の向きに並べる
+  - span: [列数, 行数]。大きな枠を複数のセルにまたがらせる（外の箱をその横に縦に並べるとき）
+  - レーン（kind=lane）は図全体の直下に置き、上から groups に書いた順に縦に積む。列はレーン間でそろう
+
+終了コード: 0 = 生成した / 1 = 経路が見つからない線がある（生成はする。該当線は直線で引く） /
+          2 = 引数の誤り・spec.json が読めない・参照先の無い id がある
+依存: 標準ライブラリのみ
+"""
+import argparse
+import heapq
+import json
+import sys
+from xml.sax.saxutils import escape, quoteattr
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+SIZES = {
+    "process": (140, 60), "decision": (140, 80), "start": (110, 50), "end": (110, 50),
+    "document": (140, 70), "database": (110, 80), "external": (140, 60), "actor": (40, 70),
+    "note": (140, 60), "text": (160, 30),
+}
+STYLES = {
+    "process": "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
+    "decision": "rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;",
+    "start": "ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;",
+    "end": "ellipse;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;",
+    "document": "shape=document;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
+    "database": "shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;size=12;fillColor=#dae8fc;strokeColor=#6c8ebf;",
+    "external": "rounded=0;whiteSpace=wrap;html=1;dashed=1;fillColor=#f5f5f5;strokeColor=#666666;",
+    "actor": "shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;",
+    "note": "shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;",
+    "text": "text;html=1;align=center;verticalAlign=middle;",
+}
+ROUND = ("decision", "start", "end", "database", "actor")
+COL_GAP, ROW_GAP = 100, 70
+LANE_HEAD, BOX_HEAD, PAD = 40, 30, 30
+HEAD_GAP = 20       # 見出し帯と中身の間に足す余白（見出し帯のすぐ下を線が通れるように）
+MARGIN = 14          # 経路が箱から離れる距離
+STUB = 12            # 出入口からまっすぐ出す長さ
+BEND, OVERLAP_COST, NEAR_COST = 120.0, 5000.0, 60.0
+
+
+class SpecError(Exception):
+    pass
+
+
+# ---------------------------------------------------------------- 配置
+
+class Layout:
+    def __init__(self, page):
+        self.page = page
+        self.direction = page.get("direction", "LR").upper()
+        if any(g.get("kind") == "lane" for g in page.get("groups", [])):
+            self.direction = "LR"   # レーンは上下に積むので、流れは左→右に固定する
+        self.groups = {g["id"]: dict(g) for g in page.get("groups", [])}
+        self.nodes = {n["id"]: dict(n) for n in page.get("nodes", [])}
+        self.edges = [dict(e) for e in page.get("edges", [])]
+        ids = list(self.groups) + list(self.nodes)
+        if len(ids) != len(set(ids)):
+            raise SpecError("groups と nodes の id が重複している")
+        for item in list(self.groups.values()) + list(self.nodes.values()):
+            if item.get("in") and item["in"] not in self.groups:
+                raise SpecError(f"「{item['id']}」の in=\"{item['in']}\" が groups に無い")
+        for n in self.nodes.values():
+            if n.get("shape", "process") not in SIZES:
+                raise SpecError(f"「{n['id']}」の shape=\"{n.get('shape')}\" は使えない。使える値: {', '.join(SIZES)}")
+        for g in self.groups.values():
+            if g.get("kind", "box") not in ("lane", "box"):
+                raise SpecError(f"枠「{g['id']}」の kind=\"{g.get('kind')}\" は使えない。lane か box")
+        for e in self.edges:
+            for k in ("from", "to"):
+                if e.get(k) not in self.nodes and e.get(k) not in self.groups:
+                    raise SpecError(f"線の {k}=\"{e.get(k)}\" が nodes / groups に無い")
+        self.lanes = [g for g in self.groups.values() if g.get("kind") == "lane"]
+        for g in self.lanes:
+            if g.get("in"):
+                raise SpecError(f"レーン「{g['id']}」は図全体の直下に置く（in を書かない）")
+        self.children = {None: []}
+        for gid in self.groups:
+            self.children[gid] = []
+        for item in list(self.groups.values()) + list(self.nodes.values()):
+            self.children[item.get("in")].append(item["id"])
+        self.size = {}
+        self.rel = {}      # 親の左上からの相対座標
+        self.abs = {}
+
+    def item(self, iid):
+        return self.groups.get(iid) or self.nodes.get(iid)
+
+    # --- 自動の pos
+    def ranks(self):
+        order = list(self.nodes) + list(self.groups)
+        adj = {n: [] for n in order}
+        for e in self.edges:
+            if e["from"] in adj and e["to"] in adj:
+                adj[e["from"]].append(e["to"])
+        state, back = {}, set()
+
+        def dfs(u):
+            state[u] = 1
+            for v in adj[u]:
+                if state.get(v) == 1:
+                    back.add((u, v))
+                elif v not in state:
+                    dfs(v)
+            state[u] = 2
+
+        sys.setrecursionlimit(10000)
+        for n in order:
+            if n not in state:
+                dfs(n)
+        rank = {n: 0 for n in order}
+        for _ in range(len(order)):
+            changed = False
+            for u in order:
+                for v in adj[u]:
+                    if (u, v) not in back and rank[v] < rank[u] + 1:
+                        rank[v] = rank[u] + 1
+                        changed = True
+            if not changed:
+                break
+        self.back = back
+        return rank
+
+    def apply_order(self):
+        """order に書かれた兄弟（同じ枠の直下で pos の無いもの）は、その順に並べる"""
+        for o in self.page.get("order", []):
+            ids = [i for i in o.get("ids", []) if self.item(i) is not None]
+            if len(ids) < 2 or len({self.item(i).get("in") for i in ids}) != 1:
+                continue
+            if any("pos" in self.item(i) for i in ids) or any(self.item(i).get("kind") == "lane" for i in ids):
+                continue
+            for n, i in enumerate(ids):
+                self.item(i)["pos"] = [0, n] if o.get("axis", "y") == "y" else [n, 0]
+
+    def auto_pos(self):
+        self.apply_order()
+        self.auto_ids = {k for k in list(self.groups) + list(self.nodes) if "pos" not in self.item(k)}
+        rank = self.ranks()
+        lr = self.direction != "TB"
+        if self.lanes:
+            used = {}
+            for lane in self.lanes:
+                for cid in self.children[lane["id"]]:
+                    it = self.item(cid)
+                    if "pos" in it:
+                        used.setdefault((lane["id"], it["pos"][0]), set()).add(it["pos"][1])
+            for lane in self.lanes:
+                for cid in self.children[lane["id"]]:
+                    it = self.item(cid)
+                    if "pos" not in it:
+                        col = rank.get(cid, 0)
+                        rows = used.setdefault((lane["id"], col), set())
+                        row = 0
+                        while row in rows:
+                            row += 1
+                        rows.add(row)
+                        it["pos"] = [col, row] if lr else [row, col]
+            axis = 0 if lr else 1
+            kids = [self.item(c) for l in self.lanes for c in self.children[l["id"]]]
+            dense = {v: i for i, v in enumerate(sorted({k["pos"][axis] for k in kids}))}
+            for k in kids:
+                k["pos"][axis] = dense[k["pos"][axis]]
+        for parent, kids in self.children.items():
+            if parent is not None and self.groups[parent].get("kind") == "lane":
+                continue
+            if parent is None and self.lanes:
+                continue
+            free = [k for k in kids if "pos" not in self.item(k)]
+            if not free:
+                continue
+            stack = "column" if parent is None and not lr else \
+                (self.groups[parent].get("stack", "row") if parent else ("row" if lr else "column"))
+            has_edges = any(e["from"] in free and e["to"] in free for e in self.edges)
+            taken = {tuple(self.item(k)["pos"]) for k in kids if "pos" in self.item(k)}
+            count = {}
+            dense = {v: i for i, v in enumerate(sorted({rank.get(k, 0) for k in free}))}
+            for k in free:
+                main = dense[rank.get(k, 0)] if has_edges else None
+                if main is None:
+                    main = 0
+                    while ((main, 0) if stack == "row" else (0, main)) in taken:
+                        main += 1
+                    pos = (main, 0) if stack == "row" else (0, main)
+                else:
+                    sub = count.get(main, 0)
+                    pos = (main, sub) if stack == "row" else (sub, main)
+                    while pos in taken:
+                        sub += 1
+                        pos = (main, sub) if stack == "row" else (sub, main)
+                    count[main] = sub + 1
+                taken.add(pos)
+                self.item(k)["pos"] = list(pos)
+
+    # --- 大きさと座標
+    def grid(self, kids, col_w=None):
+        """kids を pos で並べ、(列幅, 行高, 内容幅, 内容高) を返す。span を考慮する"""
+        cw, rh = {}, {}
+        spans = []
+        for k in kids:
+            c, r = self.item(k)["pos"]
+            sc, sr = self.item(k).get("span", [1, 1])
+            w, h = self.size[k]
+            if sc == 1:
+                cw[c] = max(cw.get(c, 0), w)
+            if sr == 1:
+                rh[r] = max(rh.get(r, 0), h)
+            spans.append((k, c, r, sc, sr, w, h))
+        if col_w:
+            for c, w in col_w.items():
+                cw[c] = max(cw.get(c, 0), w)
+        for k, c, r, sc, sr, w, h in spans:
+            for i in range(c, c + sc):
+                cw.setdefault(i, 0)
+            for j in range(r, r + sr):
+                rh.setdefault(j, 0)
+            if sc > 1:
+                have = sum(cw[i] for i in range(c, c + sc)) + COL_GAP * (sc - 1)
+                if have < w:
+                    cw[c + sc - 1] += w - have
+            if sr > 1:
+                have = sum(rh[j] for j in range(r, r + sr)) + ROW_GAP * (sr - 1)
+                if have < h:
+                    rh[r + sr - 1] += h - have
+        ncol = max(cw) + 1 if cw else 0
+        nrow = max(rh) + 1 if rh else 0
+        for i in range(ncol):
+            cw.setdefault(i, 0)
+        for j in range(nrow):
+            rh.setdefault(j, 0)
+        width = sum(cw.values()) + COL_GAP * max(0, ncol - 1)
+        height = sum(rh.values()) + ROW_GAP * max(0, nrow - 1)
+        return cw, rh, width, height
+
+    def place(self, kids, cw, rh, ox, oy):
+        xs, ys = {}, {}
+        x = ox
+        for i in sorted(cw):
+            xs[i] = x
+            x += cw[i] + COL_GAP
+        y = oy
+        for j in sorted(rh):
+            ys[j] = y
+            y += rh[j] + ROW_GAP
+        for k in kids:
+            c, r = self.item(k)["pos"]
+            sc, sr = self.item(k).get("span", [1, 1])
+            w, h = self.size[k]
+            cell_w = sum(cw[i] for i in range(c, c + sc)) + COL_GAP * (sc - 1)
+            cell_h = sum(rh[j] for j in range(r, r + sr)) + ROW_GAP * (sr - 1)
+            if k in self.groups:   # 枠はセルいっぱいに広げず、左上に置く
+                self.rel[k] = (xs[c], ys[r])
+            else:
+                self.rel[k] = (xs[c] + (cell_w - w) / 2, ys[r] + (cell_h - h) / 2)
+
+    def measure(self, gid):
+        for k in self.children[gid]:
+            if k in self.groups:
+                self.measure(k)
+            else:
+                shape = self.nodes[k].get("shape", "process")
+                w, h = self.nodes[k].get("size", SIZES.get(shape, SIZES["process"]))
+                text = self.nodes[k].get("label", "").split("<br>")
+                longest = max(len(s) for s in text) if text else 0
+                need = 14 * longest + (60 if shape == "decision" else 24)
+                if shape not in ("actor", "text") and need > w:
+                    w = min(need, 320)
+                    if shape == "decision":
+                        h = max(h, int(w * 0.5))
+                self.size[k] = (w, h)
+        if gid is None:
+            return
+        kids = self.children[gid]
+        cw, rh, w, h = self.grid(kids) if kids else ({}, {}, 160, 40)
+        self.stretch(kids, cw, rh)
+        self.size[gid] = (w + PAD * 2, h + BOX_HEAD + HEAD_GAP + PAD * 2)
+        self.groups[gid]["_grid"] = (cw, rh)
+
+    def stretch(self, kids, cw, rh):
+        """同じ列の枠は列幅に、同じ行の枠は行高にそろえ、中身を中央に寄せる"""
+        for k in kids:
+            if k not in self.groups or self.item(k).get("kind") == "lane":
+                continue
+            c, r = self.item(k)["pos"]
+            sc, sr = self.item(k).get("span", [1, 1])
+            w, h = self.size[k]
+            nw = sum(cw[i] for i in range(c, c + sc)) + COL_GAP * (sc - 1)
+            nh = sum(rh[j] for j in range(r, r + sr)) + ROW_GAP * (sr - 1)
+            nw, nh = max(w, nw), max(h, nh)
+            self.groups[k]["_offset"] = ((nw - w) / 2, (nh - h) / 2)
+            self.size[k] = (nw, nh)
+
+    def layout(self):
+        self.auto_pos()
+        self.place_all()
+        if self.reorder():
+            self.size, self.rel, self.abs = {}, {}, {}
+            for g in self.groups.values():
+                g.pop("_offset", None)
+                g.pop("_grid", None)
+            self.place_all()
+
+    def reorder(self):
+        """自動で並べた兄弟を、つながる相手の位置（重心）の順に並べ替える。変えたら True"""
+        changed = False
+        nbr = {}
+        for e in self.edges:
+            nbr.setdefault(e["from"], []).append(e["to"])
+            nbr.setdefault(e["to"], []).append(e["from"])
+
+        def desc(iid):
+            out = [iid]
+            for k in self.children.get(iid, []):
+                out += desc(k)
+            return out
+
+        for parent, kids in self.children.items():
+            auto = [k for k in kids if k in self.auto_ids]
+            if len(auto) < 2 or (parent is None and self.lanes) or                     (parent and self.groups[parent].get("kind") == "lane"):
+                continue
+            rows = {}
+            for k in auto:
+                rows.setdefault(tuple(self.item(k)["pos"][1:] if True else ()), [])
+            axis = 0 if len({self.item(k)["pos"][1] for k in auto}) == 1 else                 (1 if len({self.item(k)["pos"][0] for k in auto}) == 1 else None)
+            if axis is None:
+                continue
+            inner = set(sum((desc(k) for k in auto), []))
+            keyed = []
+            for idx, k in enumerate(auto):
+                pts = []
+                for d in desc(k):
+                    for o in nbr.get(d, []):
+                        if o not in inner and o in self.abs:
+                            x, y = self.abs[o]
+                            w, h = self.size[o]
+                            pts.append(x + w / 2 if axis == 0 else y + h / 2)
+                keyed.append((sum(pts) / len(pts) if pts else None, idx, k))
+            if all(v is None for v, _, _ in keyed):
+                continue
+            slots = sorted(self.item(k)["pos"][axis] for k in auto)
+            known = sorted((v, i, k) for v, i, k in keyed if v is not None)
+            order = [k for _, _, k in known]
+            for v, i, k in keyed:   # 相手の無い箱は元の位置の近くに差し込む
+                if v is None:
+                    order.insert(min(i, len(order)), k)
+            if order != auto:
+                changed = True
+                for k, s in zip(order, slots):
+                    self.item(k)["pos"][axis] = s
+        return changed
+
+    def place_all(self):
+        self.measure(None)
+        if self.lanes:
+            lane_kids = {l["id"]: self.children[l["id"]] for l in self.lanes}
+            col_w = {}
+            for kids in lane_kids.values():
+                for k in kids:
+                    c = self.item(k)["pos"][0]
+                    col_w[c] = max(col_w.get(c, 0), self.size[k][0])
+            grids = {lid: self.grid(kids, col_w) for lid, kids in lane_kids.items()}
+            width = max(g[2] for g in grids.values()) + LANE_HEAD + PAD * 2 + HEAD_GAP
+            y = 0
+            for lane in self.lanes:
+                cw, rh, _, h = grids[lane["id"]]
+                lane_h = max(h, 60) + PAD * 2
+                self.size[lane["id"]] = (width, lane_h)
+                self.rel[lane["id"]] = (0, y)
+                self.place(lane_kids[lane["id"]], cw, rh, LANE_HEAD + PAD + HEAD_GAP, PAD)
+                y += lane_h
+            others = [k for k in self.children[None] if k not in lane_kids]
+            if others:
+                cw, rh, _, _ = self.grid(others)
+                self.place(others, cw, rh, 0, y + ROW_GAP)
+        else:
+            top = self.children[None]
+            cw, rh, _, _ = self.grid(top)
+            self.stretch(top, cw, rh)
+            self.place(top, cw, rh, 0, 0)
+        for gid, g in self.groups.items():
+            if g.get("kind") != "lane" and "_grid" in g:
+                cw, rh = g["_grid"]
+                ox, oy = g.get("_offset", (0, 0))
+                self.place(self.children[gid], cw, rh, PAD + ox, BOX_HEAD + HEAD_GAP + PAD + oy)
+
+        def absolute(iid):
+            if iid in self.abs:
+                return self.abs[iid]
+            x, y = self.rel[iid]
+            parent = self.item(iid).get("in")
+            if parent:
+                px, py = absolute(parent)
+                x, y = x + px, y + py
+            self.abs[iid] = (x, y)
+            return self.abs[iid]
+
+        for iid in self.rel:
+            absolute(iid)
+
+    def rect(self, iid):
+        x, y = self.abs[iid]
+        w, h = self.size[iid]
+        return (x, y, w, h)
+
+
+# ---------------------------------------------------------------- 経路
+
+SIDES = {"right": (1, 0.5), "left": (0, 0.5), "top": (0.5, 0), "bottom": (0.5, 1)}
+OUT = {"right": (1, 0), "left": (-1, 0), "top": (0, -1), "bottom": (0, 1)}
+
+
+def inside(px, py, r, strict=True):
+    x, y, w, h = r
+    if strict:
+        return x < px < x + w and y < py < y + h
+    return x <= px <= x + w and y <= py <= y + h
+
+
+class Router:
+    def __init__(self, lay):
+        self.lay = lay
+        self.obstacles = []
+        for nid in lay.nodes:
+            x, y, w, h = lay.rect(nid)
+            self.obstacles.append((nid, (x - MARGIN, y - MARGIN, w + MARGIN * 2, h + MARGIN * 2)))
+        for gid, g in lay.groups.items():
+            x, y, w, h = lay.rect(gid)
+            if not lay.children[gid]:   # 中身の無い枠は箱と同じく避ける
+                self.obstacles.append((gid, (x - MARGIN, y - MARGIN, w + MARGIN * 2, h + MARGIN * 2)))
+                continue
+            if g.get("kind") == "lane":
+                band = (x - 2, y, LANE_HEAD + 2 + MARGIN, h)
+            else:
+                band = (x, y - 2, w, BOX_HEAD + 2 + MARGIN)
+            self.obstacles.append((gid + "#head", band))
+        self.routed = []   # (from, to, [points])
+        self.borders = []  # 枠の辺。線を沿わせない（枠線と見分けられなくなる）
+        for gid in lay.groups:
+            x, y, w, h = lay.rect(gid)
+            self.borders += [("h", y, x, x + w), ("h", y + h, x, x + w), ("v", x, y, y + h), ("v", x + w, y, y + h)]
+        xs, ys = set(), set()
+        for _, (x, y, w, h) in self.obstacles:
+            xs.update((x, x + w))
+            ys.update((y, y + h))
+        allx = [r[0] for _, r in self.obstacles] + [r[0] + r[2] for _, r in self.obstacles]
+        ally = [r[1] for _, r in self.obstacles] + [r[1] + r[3] for _, r in self.obstacles]
+        self.frame = (min(allx) - 60, min(ally) - 60, max(allx) + 60, max(ally) + 60)
+        for gid in lay.groups:   # 枠の辺の少し外側と内側にも経路の候補線を置く
+            x, y, w, h = lay.rect(gid)
+            xs.update((x - MARGIN * 1.5, x + MARGIN * 1.5, x + w - MARGIN * 1.5, x + w + MARGIN * 1.5))
+            ys.update((y - MARGIN * 1.5, y + h - MARGIN * 1.5, y + h + MARGIN * 1.5))
+        xs.update((self.frame[0], self.frame[2]))
+        ys.update((self.frame[1], self.frame[3]))
+        self.base_xs, self.base_ys = xs, ys
+
+    def port(self, nid, side, frac=0.5):
+        x, y, w, h = self.lay.rect(nid)
+        if side in ("left", "right"):
+            px = x + (w if side == "right" else 0)
+            py = y + h * frac
+            fx, fy = (1 if side == "right" else 0), frac
+        else:
+            px = x + w * frac
+            py = y + (h if side == "bottom" else 0)
+            fx, fy = frac, (1 if side == "bottom" else 0)
+        dx, dy = OUT[side]
+        return (px, py), (px + dx * (STUB + MARGIN), py + dy * (STUB + MARGIN)), (fx, fy)
+
+    def blocked(self, ax, ay, bx, by, ignore):
+        mx, my = (ax + bx) / 2, (ay + by) / 2
+        for oid, r in self.obstacles:
+            if oid in ignore:
+                continue
+            if inside(mx, my, r) or inside(ax, ay, r) or inside(bx, by, r):
+                return True
+        return False
+
+    def seg_cost(self, a, b, src, dst):
+        cost = 0.0
+        for kind, c, lo, hi in self.borders:
+            if kind == "h" and abs(a[1] - b[1]) < 0.01 and abs(a[1] - c) < 10:
+                if min(max(a[0], b[0]), hi) - max(min(a[0], b[0]), lo) > 1:
+                    cost += OVERLAP_COST / 2
+            elif kind == "v" and abs(a[0] - b[0]) < 0.01 and abs(a[0] - c) < 10:
+                if min(max(a[1], b[1]), hi) - max(min(a[1], b[1]), lo) > 1:
+                    cost += OVERLAP_COST / 2
+        for f, t, pts in self.routed:
+            if f == src or t == dst:
+                continue
+            for p, q in zip(pts, pts[1:]):
+                if a[1] == b[1] == p[1] == q[1]:
+                    lo, hi = max(min(a[0], b[0]), min(p[0], q[0])), min(max(a[0], b[0]), max(p[0], q[0]))
+                    if hi - lo > 1:
+                        cost += OVERLAP_COST
+                elif a[0] == b[0] == p[0] == q[0]:
+                    lo, hi = max(min(a[1], b[1]), min(p[1], q[1])), min(max(a[1], b[1]), max(p[1], q[1]))
+                    if hi - lo > 1:
+                        cost += OVERLAP_COST
+                elif (a[1] == b[1] and p[1] == q[1] and abs(a[1] - p[1]) < 8) or \
+                        (a[0] == b[0] and p[0] == q[0] and abs(a[0] - p[0]) < 8):
+                    cost += NEAR_COST
+        return cost
+
+    def search(self, s, t, src, dst, ignore):
+        xs = sorted(self.base_xs | {s[0], t[0]} | self.mids(self.base_xs | {s[0], t[0]}))
+        ys = sorted(self.base_ys | {s[1], t[1]} | self.mids(self.base_ys | {s[1], t[1]}))
+        xi = {x: i for i, x in enumerate(xs)}
+        yi = {y: i for i, y in enumerate(ys)}
+        if s[0] not in xi or s[1] not in yi or t[0] not in xi or t[1] not in yi:
+            return None, float("inf")
+        start = (xi[s[0]], yi[s[1]])
+        goal = (xi[t[0]], yi[t[1]])
+        pq = [(0.0, start, None)]
+        best = {(start, None): 0.0}
+        prev = {}
+        while pq:
+            c, (i, j), d = heapq.heappop(pq)
+            if (i, j) == goal:
+                pts = [(xs[i], ys[j])]
+                key = ((i, j), d)
+                while key in prev:
+                    key = prev[key]
+                    pts.append((xs[key[0][0]], ys[key[0][1]]))
+                return simplify(pts[::-1]), c
+            if c > best.get(((i, j), d), float("inf")):
+                continue
+            for nd, (di, dj) in enumerate(((1, 0), (-1, 0), (0, 1), (0, -1))):
+                ni, nj = i + di, j + dj
+                if not (0 <= ni < len(xs) and 0 <= nj < len(ys)):
+                    continue
+                a, b = (xs[i], ys[j]), (xs[ni], ys[nj])
+                if self.blocked(a[0], a[1], b[0], b[1], ignore):
+                    continue
+                cost = c + abs(a[0] - b[0]) + abs(a[1] - b[1])
+                if d is not None and d != nd:
+                    cost += BEND
+                cost += self.seg_cost(a, b, src, dst)
+                key = ((ni, nj), nd)
+                if cost < best.get(key, float("inf")):
+                    best[key] = cost
+                    prev[key] = ((i, j), d)
+                    heapq.heappush(pq, (cost, (ni, nj), nd))
+        return None, float("inf")
+
+    @staticmethod
+    def mids(vals):
+        v = sorted(vals)
+        return {(a + b) / 2 for a, b in zip(v, v[1:]) if b - a > 2 * MARGIN}
+
+    def candidates(self, e):
+        (sx, sy, sw, sh), (tx, ty, tw, th) = self.lay.rect(e["from"]), self.lay.rect(e["to"])
+        dx = (tx + tw / 2) - (sx + sw / 2)
+        dy = (ty + th / 2) - (sy + sh / 2)
+        lr = self.lay.direction != "TB"
+        back = (e["from"], e["to"]) in getattr(self.lay, "back", set())
+        if back:
+            return [("top", "top"), ("bottom", "bottom"), ("right", "top"), ("left", "left")] if lr else \
+                   [("left", "left"), ("right", "right"), ("bottom", "left"), ("top", "top")]
+        horiz = [("right", "left") if dx >= 0 else ("left", "right")]
+        vert = [("bottom", "top") if dy >= 0 else ("top", "bottom")]
+        mixed = [("right" if dx >= 0 else "left", "top" if dy >= 0 else "bottom"),
+                 ("bottom" if dy >= 0 else "top", "left" if dx >= 0 else "right")]
+        first = horiz + vert if abs(dx) >= abs(dy) else vert + horiz
+        return first + mixed
+
+    def route_one(self, e, sides=None, fracs=(0.5, 0.5)):
+        src, dst = e["from"], e["to"]
+        ignore = set()   # 両端の箱も避ける（出入口の直線部分は余白より長いので、探索の始点・終点は箱の外）
+        best = (None, float("inf"), None)
+        for ss, ts in ([sides] if sides else self.candidates(e)):
+            sp, sstub, sf = self.port(src, ss, fracs[0])
+            tp, tstub, tf = self.port(dst, ts, fracs[1])
+            pts, cost = self.search(sstub, tstub, src, dst, ignore)
+            if pts is None:
+                continue
+            if cost < best[1]:
+                best = ([sp] + pts + [tp], cost, (ss, ts, sf, tf))
+        return best
+
+    def route_all(self):
+        order = sorted(self.lay.edges, key=lambda e: (e["from"], e["to"]) in getattr(self.lay, "back", set()))
+        chosen = {}
+        for e in order:
+            pts, cost, info = self.route_one(e)
+            if pts is None:
+                chosen[id(e)] = None
+                continue
+            chosen[id(e)] = info
+            self.routed.append((e["from"], e["to"], simplify(pts)))
+        # 同じ辺に複数の線が付く四角い箱は、出入口をずらして引き直す
+        uses = {}
+        for e in order:
+            info = chosen[id(e)]
+            if not info:
+                continue
+            ss, ts = info[0], info[1]
+            uses.setdefault((e["from"], ss), []).append((e, 0))
+            uses.setdefault((e["to"], ts), []).append((e, 1))
+        frac = {}
+        for (nid, side), lst in uses.items():
+            if len(lst) < 2 or self.lay.nodes.get(nid, {}).get("shape", "process") in ROUND or nid in self.lay.groups:
+                continue
+            if len({end for _, end in lst}) == 1:   # 全部入る線か全部出る線なら、1点にまとめて幹にする
+                continue
+            others = []
+            for e, end in lst:
+                other = e["to"] if end == 0 else e["from"]
+                ox, oy, ow, oh = self.lay.rect(other)
+                key = oy + oh / 2 if side in ("left", "right") else ox + ow / 2
+                others.append((key, id(e), end))
+            others.sort()
+            for k, (_, eid, end) in enumerate(others):
+                frac[(eid, end)] = (k + 1) / (len(others) + 1)
+        self.routed = []
+        result = {}
+        failed = []
+        for e in order:
+            info = chosen[id(e)]
+            if not info:
+                failed.append(e)
+                result[id(e)] = None
+                continue
+            fr = (frac.get((id(e), 0), 0.5), frac.get((id(e), 1), 0.5))
+            pts, cost, info2 = self.route_one(e, (info[0], info[1]), fr)
+            if pts is None:
+                pts, cost, info2 = self.route_one(e)
+            if pts is None:
+                failed.append(e)
+                result[id(e)] = None
+                continue
+            pts = simplify(pts)
+            self.routed.append((e["from"], e["to"], pts))
+            result[id(e)] = (pts, info2)
+        return result, failed
+
+
+def simplify(pts):
+    out = []
+    for p in pts:
+        if out and abs(out[-1][0] - p[0]) < 0.01 and abs(out[-1][1] - p[1]) < 0.01:
+            continue
+        out.append(p)
+    i = 1
+    while i < len(out) - 1:
+        a, b, c = out[i - 1], out[i], out[i + 1]
+        if (abs(a[0] - b[0]) < 0.01 and abs(b[0] - c[0]) < 0.01) or (abs(a[1] - b[1]) < 0.01 and abs(b[1] - c[1]) < 0.01):
+            out.pop(i)
+        else:
+            i += 1
+    return out
+
+
+def seg_hits_box(a, b, box):
+    x, y, w, h = box
+    if abs(a[1] - b[1]) < 0.01:
+        return y < a[1] < y + h and min(a[0], b[0]) < x + w and max(a[0], b[0]) > x
+    return x < a[0] < x + w and min(a[1], b[1]) < y + h and max(a[1], b[1]) > y
+
+
+def label_pos(pts, text, others, rects, borders):
+    """ラベルの置き場所を選ぶ。戻り値は (線全体の中での相対位置 -1〜1, 横へのずらし量 dx, dy)。
+    線分上の3か所と、その両脇を候補にし、他の線・箱・枠の境界に重ならないものを選ぶ"""
+    lens = [abs(a[0] - b[0]) + abs(a[1] - b[1]) for a, b in zip(pts, pts[1:])]
+    total = sum(lens) or 1
+    lw, lh = 13 * len(text) + 10, 20
+    best = None
+    own = list(zip(pts, pts[1:]))
+    for k, (a, b) in enumerate(own):
+        horiz = abs(a[1] - b[1]) < 0.01
+        for frac in (0.5, 0.3, 0.7):
+            px, py = a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac
+            sides = [(0, 0)] + ([(0, -(lh / 2 + 4)), (0, lh / 2 + 4)] if horiz else
+                                [(-(lw / 2 + 6), 0), (lw / 2 + 6, 0)])
+            for dx, dy in sides:
+                box = (px + dx - lw / 2, py + dy - lh / 2, lw, lh)
+                hits = sum(seg_hits_box(p, q, box) for seg in others for p, q in zip(seg, seg[1:]))
+                hits += sum(1 for r in rects if not (box[0] + lw <= r[0] or r[0] + r[2] <= box[0] or
+                                                     box[1] + lh <= r[1] or r[1] + r[3] <= box[1]))
+                hits += sum(seg_hits_box(p, q, box) for p, q in borders)
+                if dx or dy:   # 脇に置くなら、自分の他の線分とも重ねない
+                    hits += sum(seg_hits_box(p, q, box) for j, (p, q) in enumerate(own) if j != k)
+                score = (hits, 0 if not (dx or dy) else 1, abs(frac - 0.5), -lens[k] - 40 * k)
+                if best is None or score < best[0]:
+                    at = sum(lens[:k]) + lens[k] * frac
+                    best = (score, round(2 * at / total - 1, 3), dx, dy)
+    return best[1], best[2], best[3]
+
+
+# ---------------------------------------------------------------- 書き出し
+
+def fmt(v):
+    return str(int(round(v)))
+
+
+def page_xml(page, idx):
+    global COL_GAP, ROW_GAP
+    longest = max([len(e.get("label", "")) for e in page.get("edges", [])] + [0])
+    COL_GAP = min(240, max(100, 13 * longest + 70))
+    ROW_GAP = 70 if longest <= 4 else 90
+    lay = Layout(page)
+    lay.layout()
+    router = Router(lay)
+    routes, failed = router.route_all()
+    out = []
+    name = page.get("name", f"ページ{idx}")
+    out.append(f'  <diagram id="page{idx}" name={quoteattr(name)}>')
+    out.append('    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" page="1" '
+               'pageWidth="1169" pageHeight="827"><root>')
+    out.append('      <mxCell id="0"/><mxCell id="1" parent="0"/>')
+    emitted = set()
+    borders = []
+    for gid in lay.groups:
+        x, y, w, h = lay.rect(gid)
+        borders += [((x, y), (x + w, y)), ((x, y + h), (x + w, y + h)),
+                    ((x, y), (x, y + h)), ((x + w, y), (x + w, y + h))]
+
+    def emit(iid):
+        if iid in emitted:
+            return
+        it = lay.item(iid)
+        if it.get("in"):
+            emit(it["in"])
+        emitted.add(iid)
+        x, y = lay.rel[iid]
+        w, h = lay.size[iid]
+        parent = it.get("in") or "1"
+        if iid in lay.groups:
+            if it.get("kind") == "lane":
+                style = f"swimlane;horizontal=0;startSize={LANE_HEAD};html=1;fillColor=#f5f5f5;swimlaneFillColor=#ffffff;"
+            else:
+                style = f"swimlane;startSize={BOX_HEAD};html=1;rounded=1;horizontal=1;"
+        else:
+            style = STYLES.get(it.get("shape", "process"), STYLES["process"])
+        out.append(f'      <mxCell id={quoteattr(iid)} value={quoteattr(it.get("label", ""))} '
+                   f'style={quoteattr(style)} vertex="1" parent={quoteattr(parent)}>'
+                   f'<mxGeometry x="{fmt(x)}" y="{fmt(y)}" width="{fmt(w)}" height="{fmt(h)}" as="geometry"/></mxCell>')
+
+    for gid in [l["id"] for l in lay.lanes] + list(lay.groups) + list(lay.nodes):
+        emit(gid)
+    for n, e in enumerate(lay.edges):
+        eid = e.get("id") or f"e_{e['from']}_{e['to']}" + (f"_{n}" if any(
+            x is not e and x["from"] == e["from"] and x["to"] == e["to"] for x in lay.edges) else "")
+        style = "edgeStyle=none;rounded=0;html=1;endArrow=classic;labelBackgroundColor=#ffffff;"
+        if e.get("dashed"):
+            style += "dashed=1;"
+        if e.get("both"):
+            style += "startArrow=classic;"
+        r = routes.get(id(e))
+        geo = '<mxGeometry relative="1" as="geometry"/>'
+        if r:
+            pts, (ss, ts, sf, tf) = r
+            style += (f"exitX={sf[0]:.3g};exitY={sf[1]:.3g};exitDx=0;exitDy=0;exitPerimeter=0;"
+                      f"entryX={tf[0]:.3g};entryY={tf[1]:.3g};entryDx=0;entryDy=0;entryPerimeter=0;")
+            inner = "".join(f'<mxPoint x="{fmt(x)}" y="{fmt(y)}"/>' for x, y in pts[1:-1])
+            lx, ldx, ldy = 0, 0, 0
+            if e.get("label"):
+                others = [q for f2, t2, q in router.routed if q is not pts]
+                rects = [lay.rect(n) for n in lay.nodes]
+                lx, ldx, ldy = label_pos(pts, e["label"], others, rects, borders)
+            offset = f'<mxPoint x="{fmt(ldx)}" y="{fmt(ldy)}" as="offset"/>' if (ldx or ldy) else ""
+            geo = (f'<mxGeometry x="{lx}" relative="1" as="geometry">'
+                   + (f'<Array as="points">{inner}</Array>' if inner else "") + offset + '</mxGeometry>')
+        out.append(f'      <mxCell id={quoteattr(eid)} value={quoteattr(e.get("label", ""))} '
+                   f'style={quoteattr(style)} edge="1" parent="1" source={quoteattr(e["from"])} '
+                   f'target={quoteattr(e["to"])}>{geo}</mxCell>')
+    out.append('    </root></mxGraphModel>')
+    out.append('  </diagram>')
+    return out, [(name, e) for e in failed]
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("spec")
+    p.add_argument("-o", "--output", required=False)
+    try:
+        a = p.parse_args()
+    except SystemExit:
+        return 2
+    try:
+        spec = json.load(open(a.spec, encoding="utf-8"))
+        pages = spec["pages"] if "pages" in spec else [spec]
+        lines, failed = ["<mxfile>"], []
+        for i, page in enumerate(pages, 1):
+            body, f = page_xml(page, i)
+            lines += body
+            failed += f
+        lines.append("</mxfile>")
+    except (OSError, ValueError, KeyError, TypeError, SpecError) as e:
+        print(f"ERROR  spec.json を処理できない: {e}")
+        return 2
+    out = a.output or a.spec.replace(".spec.json", "") + ".drawio"
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
+    for name, e in failed:
+        print(f"WARN   [{name}] 線「{e['from']} → {e['to']}」の経路が見つからない。箱の pos を離すか、枠の外に出す")
+    print(f"OK     {out}（{len(pages)} ページ、経路なし {len(failed)} 本）")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
