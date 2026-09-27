@@ -86,6 +86,7 @@ graph LR
 | `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 157行 |
 | `drawio-diagram` | 構成図・フロー図・スイムレーン図を、人が後から直せる draw.io 形式（.drawio）で作る。要件を spec.json に書くと、座標と箱を避ける線の経路をスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 147行 |
 | `narrated-video` | 台本から VOICEVOX（無料・ローカル）でナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕・クレジットつきの MP4 にする。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 138行 |
+| `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 128行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
@@ -345,6 +346,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
 | `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。

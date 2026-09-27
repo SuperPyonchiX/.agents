@@ -47,6 +47,27 @@
 
 **更新するとき**: 上流を clone し、上の範囲だけをコピーし直してから改変を当て直す。`grep CLAUDE_PLUGIN_ROOT skills/ui-ux-pro-max/SKILL.md` が0件になることを確かめる。
 
+### threejs-game
+
+| | |
+|---|---|
+| 出典 | https://github.com/majidmanzarpour/threejs-game-skills （`skills/threejs-game-director/` `skills/threejs-gameplay-systems/` `skills/threejs-qa-release/`） |
+| ライセンス | MIT（Copyright (c) 2026 Majid Manzarpour）。全文は `skills/threejs-game/LICENSE` |
+| 取得時のコミット | `e5f301d548bb18c530afbece78cd25082f4cda9c`（2026-09-05） |
+| 取得日 | 2026-09-27 |
+| 改変 | **あり**（下記） |
+
+上流は9本のスキル群。そのうち3本を1本のスキルにまとめ直した。
+
+- `SKILL.md` は日本語で書き直した。上流3本の手順（設計メモ・遊べるループ優先・検証）を残し、「premium」基準と視覚スコアカード、エビデンス manifest と `check_evidence.py`、並列の作業分担は外した。ジャンル・画風・規模を押し付けないため
+- そのまま取り込んだもの: `assets/threejs-vite-game/`（雛形。撮影スクリプト `inspect-threejs-canvas.mjs` を含む）、`scripts/create_threejs_game.py`、`references/` の6本（gameplay-systems の game-feel・genre-design・physics-engine-selection、qa-release の playtest-bot・release-checks・visual-test-harness）
+- `references/` は削った部分を指す3行だけ書き換えた（release-checks の premium スコアカード、visual-test-harness の director の manifest、genre-design の SKILL.md 見出し名）
+- qa-release の `scripts/inspect-threejs-canvas.mjs` は雛形内のものと同一なので、雛形側だけを残した
+- 取り込んでいない: director・gameplay-systems・qa-release 以外の6本（3D・画像・音声の生成は有料 API 前提、画質・UI・デバッグは参考資料）、director の `references/`・`scripts/`、各スキルの `agents/openai.yaml`、上流リポジトリの `install.sh`・テスト類
+- `validate_skill.py` は雛形の各ファイルに参照が無いと WARN を出すが、雛形はスクリプトが丸ごとコピーする1単位なので、そのままにしている。`references/game-feel.md` の目次なし WARN も上流のまま
+
+**更新するとき**: 上流を clone し、上の範囲だけをコピーし直してから `references/` の3行を当て直す。`SKILL.md` は上流の director・gameplay-systems・qa-release の差分を読んで必要な分だけ反映する。
+
 ## コミットしていないもの
 
 ライセンスが無い、または再配布の許諾が確認できないもの。**`.gitignore` で除外し、手元にだけ置く。**
