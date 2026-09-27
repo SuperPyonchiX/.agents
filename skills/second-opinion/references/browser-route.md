@@ -2,6 +2,16 @@
 
 Codex CLI が使えないとき（未導入・`ask_codex.py` が終了コード2、未ログイン、このスキルを Codex 自身が実行している）だけ読む。質問文・反論ラウンドの規約は SKILL.md と同じで、送り先が ChatGPT の画面に変わるだけ。
 
+## 機密チェック（送る前に必ず）
+
+無料アカウントの ChatGPT に貼るので、質問文が次を含んでいないか確認する。
+
+- 業務情報（社名・製品名・社内システム名・コード片）
+- 個人情報
+- 未公開の個人開発の詳細（EA のロジックなど、出したくないもの）
+
+含まれていたら一般化した質問文に書き換える。書き換えられないなら**中止してユーザーに報告する**。勝手に送らない。
+
 ## 手順
 
 1. `ToolSearch` で claude-in-chrome ツールを**1回でまとめて**読み込む: `tabs_context_mcp, tabs_create_mcp, navigate, computer, read_page, get_page_text, find, tabs_close_mcp`
