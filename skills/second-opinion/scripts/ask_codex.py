@@ -21,6 +21,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+GUARD = ("（あなたは second-opinion スキルの相談先として呼ばれている。"
+         "second-opinion スキルは使わず、別の AI にも相談せず、あなた自身の見解を答えること）\n\n")
+
 
 def build_command(codex, args):
     common = ["--skip-git-repo-check", "--json", "-o", str(args.out)]
@@ -63,7 +66,8 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     if args.out.exists():
         args.out.unlink()
-    prompt = args.prompt_file.read_text(encoding="utf-8")
+    # 呼ばれた側の Codex にも second-opinion が見えているので、入れ子の相談を止める
+    prompt = GUARD + args.prompt_file.read_text(encoding="utf-8")
 
     try:
         proc = subprocess.run(

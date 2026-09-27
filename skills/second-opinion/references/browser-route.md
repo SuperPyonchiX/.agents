@@ -1,6 +1,6 @@
 # ブラウザ経路（ChatGPT × Claude in Chrome）
 
-Codex CLI が使えないとき（未導入・`ask_codex.py` が終了コード2、未ログイン、このスキルを Codex 自身が実行している）だけ読む。質問文・反論ラウンドの規約は SKILL.md と同じで、送り先が ChatGPT の画面に変わるだけ。
+Codex CLI が使えないとき（未導入・`ask_codex.py` が終了コード2、未ログイン）だけ読む。質問文・反論ラウンドの規約は SKILL.md と同じで、送り先が ChatGPT の画面に変わるだけ。
 
 ## 機密チェック（送る前に必ず）
 
