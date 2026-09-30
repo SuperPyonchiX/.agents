@@ -94,6 +94,7 @@ STUB = 12            # 出入口からまっすぐ出す長さ
 BEND, OVERLAP_COST, NEAR_COST = 120.0, 5000.0, 60.0
 CROSS_COST = 250.0   # 他の線との交差1か所あたり。交差が合流に見えるのを避けるため、多少の遠回りを選ばせる
 NEAR = ("right_of", "left_of", "below", "above")
+JOG = 16.0           # 線の途中の段差とみなす長さ（check_layout.py の JOG と同じ）
 NEAR_GAP = 80        # near の既定の間隔（線とラベルが通れる幅）
 
 
@@ -759,6 +760,36 @@ class Router:
                     heapq.heappush(pq, (cost, (ni, nj), nd))
         return None, float("inf")
 
+    def dejog(self, pts, info, e):
+        """出入口の直線のすぐ隣にある短い段差を、出入口を辺に沿って動かして消す"""
+        ss, ts, sf, tf = info
+        for end in ("src", "dst"):
+            if len(pts) < 4:
+                break
+            if end == "src":
+                a, b, nid, side = pts[1], pts[2], e["from"], ss
+            else:
+                a, b, nid, side = pts[-2], pts[-3], e["to"], ts
+            dx, dy = b[0] - a[0], b[1] - a[1]
+            if not 0.5 < abs(dx) + abs(dy) < JOG:
+                continue
+            if self.lay.nodes.get(nid, {}).get("shape", "process") in ROUND or nid in self.lay.groups:
+                continue   # ひし形・楕円は辺の中央以外に付けると輪郭から離れる
+            x, y, w, h = self.lay.rect(nid)
+            port = pts[0] if end == "src" else pts[-1]
+            np_ = (port[0] + dx, port[1] + dy)
+            fx, fy = (np_[0] - x) / w, (np_[1] - y) / h
+            if side in ("top", "bottom") and not 0.1 <= fx <= 0.9 or side in ("left", "right") and not 0.1 <= fy <= 0.9:
+                continue
+            if end == "src":
+                pts = [np_, b] + pts[3:]
+                sf = (fx, fy)
+            else:
+                pts = pts[:-3] + [b, np_]
+                tf = (fx, fy)
+            pts = simplify(pts)
+        return pts, (ss, ts, sf, tf)
+
     def used_sides(self, nid):
         """引き終えた線のうち、この箱に付いている端がどの辺にあるか"""
         x, y, w, h = self.lay.rect(nid)
@@ -886,7 +917,7 @@ class Router:
                 failed.append(e)
                 result[id(e)] = None
                 continue
-            pts = simplify(pts)
+            pts, info2 = self.dejog(simplify(pts), info2, e)
             self.routed.append((e["from"], e["to"], pts))
             result[id(e)] = (pts, info2)
         return result, failed

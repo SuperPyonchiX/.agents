@@ -12,6 +12,7 @@ check_drawio.py は XML の構造しか見ない。線の経路は draw.io が�
   OVERLAP  source も target も異なる2本の線が、同じ直線上で 20px 以上重なっている
   HEADER   線が、スイムレーン・枠の見出し帯（名前が書かれた帯）を横切っている
   BORDER   線が、枠の辺に沿って 20px 以上走っている（枠線と見分けられない）
+  JOG      線の途中に 16px 未満の短い折れ（段差）がある。つながる箱の中心がわずかにずれているときに出る
   LABEL    線のラベル同士が重なっている、線のラベルが別の線の上に乗っている、
            線のラベルが無関係の箱に重なっている、または自分の線の端（矢印の先端・出口）にかかっている
 
@@ -43,6 +44,7 @@ SVG = "{http://www.w3.org/2000/svg}"
 INSET = 3.0        # 箱の縁から内側へこの距離より深く入ったら「突き抜け」
 TOUCH_MARGIN = 4.0  # 箱の縁の外側この距離までに線が来たら「接触」
 MIN_OVERLAP = 20.0
+MIN_JOG = 16.0      # 線の途中の線分がこれより短ければ段差とみなす
 ARROW = 8.0         # 線の端からこの距離までにラベルが来たら、矢印や出口にかかっているとみなす
 
 
@@ -109,6 +111,23 @@ def path_points(d):
         pts.append((nums[-2], nums[-1]))  # 曲線は終点だけ使う（近似）
         i += n
     return pts
+
+
+def merge_straight(pts):
+    """同じ点の重複と、一直線上の途中の点を除く（交差の跳び越しの弧は、直線の途中の短い区間として出てくる）"""
+    out = []
+    for p in pts:
+        if out and abs(out[-1][0] - p[0]) < 0.5 and abs(out[-1][1] - p[1]) < 0.5:
+            continue
+        out.append(p)
+    i = 1
+    while i < len(out) - 1:
+        a, b, c = out[i - 1], out[i], out[i + 1]
+        if (abs(a[0] - b[0]) < 0.5 and abs(b[0] - c[0]) < 0.5) or (abs(a[1] - b[1]) < 0.5 and abs(b[1] - c[1]) < 0.5):
+            out.pop(i)
+        else:
+            i += 1
+    return out
 
 
 def svg_groups(svg_path):
@@ -265,6 +284,13 @@ def main():
                 problems.append(f"THROUGH  線「{cid}」が箱「{vid}」（{label}）を突き抜けている")
             elif any(clip(s, t, r, -TOUCH_MARGIN) for s, t in segs):
                 problems.append(f"TOUCH    線「{cid}」が箱「{vid}」（{label}）の縁に沿っているか触れている")
+
+    for cid, (c, segs) in edges.items():
+        pts = merge_straight([segs[0][0]] + [t for _, t in segs]) if segs else []
+        inner = list(zip(pts, pts[1:]))[1:-1]   # 端の線分（出入口の直線）は短くてよい
+        if c.get("source") != c.get("target") and any(
+                0.5 < abs(p[0] - q[0]) + abs(p[1] - q[1]) < MIN_JOG for p, q in inner):
+            problems.append(f"JOG      線「{cid}」に小さな段差がある。両端の箱の中心を線の向きにそろえる")
 
     ids = list(edges)
     for i, e1 in enumerate(ids):
