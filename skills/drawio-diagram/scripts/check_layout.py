@@ -213,7 +213,10 @@ def main():
         print("ERROR  SVG と .drawio の座標を対応づけられない（ページ違い、または矩形の箱が1つも無い）")
         return 2
     rects = {k: (x + off[0], y + off[1], w, h) for k, (x, y, w, h) in rects.items()}
-    containers = {c.get("parent") for c in cells.values()}
+    # クラス図・ER図の箱（行を積む swimlane）は1つの箱として扱い、中の行は見ない
+    lists = {cid for cid, c in cells.items() if "stackLayout" in (c.get("style") or "")}
+    rects = {k: r for k, r in rects.items() if cells[k].get("parent") not in lists}
+    containers = {c.get("parent") for c in cells.values()} - lists
 
     edges = {}
     for cid, c in cells.items():

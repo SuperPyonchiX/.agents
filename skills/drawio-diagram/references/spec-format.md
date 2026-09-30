@@ -70,6 +70,20 @@ D0 で spec.json を書くときに読む。`layout_from_spec.py` はこの形�
 | `actor` | 人型 | 利用者 |
 | `note` | 付箋 | 補足 |
 | `text` | 枠なしの文字 | 注記 |
+| `state` | 丸みの強い四角 | 状態遷移図の状態 |
+| `initial` / `final` | 黒丸 / 二重丸 | 状態遷移図の開始・終了。`label` は省いてよい |
+| `choice` | 小さなひし形 | 状態遷移図の分岐点 |
+| `class` | 見出し＋属性＋操作の区画 | クラス図。`fields`・`methods` に行を書く |
+| `entity` | 見出し＋属性の区画 | ER図。`fields` に行を書く（`PK 顧客ID` など） |
+
+`class` と `entity` の大きさは行数と最長の行から決まる（`size` の幅があればそれを使う）。
+
+```json
+{"id": "temp", "label": "TempSensor", "shape": "class",
+ "fields": ["- raw_: uint16_t"], "methods": ["+ read(): int32_t"]}
+```
+
+中の行は `<箱の id>__f<番号>`（属性）・`__sep`（区切り線）・`__m<番号>`（操作）の id で出力され、draw.io 上で1行ずつ直せる。
 
 これ以外の図形は `style` に `shape=...` を書く（`shape=cloud`、`shape=hexagon;perimeter=hexagonPerimeter2` など）。`shape=` を差し替えた箱には、線の接続点が図形の輪郭に投影されるよう自動で設定する。ただし雲形のように輪郭が外接矩形より内側に凹む図形では、矢印の先端と輪郭の間に隙間が残る（draw.io の図形側の性質）。
 
@@ -104,10 +118,14 @@ D0 で spec.json を書くときに読む。`layout_from_spec.py` はこの形�
 | `label` | 線のラベル |
 | `dashed` | `true` で破線 |
 | `both` | `true` で両端に矢印 |
+| `kind` | クラス図の関係。`inherit`（汎化）/ `realize`（実現）/ `compose`（コンポジション）/ `aggregate`（集約）/ `assoc`（関連）/ `depend`（依存）。`compose`・`aggregate` は `from` が全体の側（ひし形が付く） |
+| `card` | ER図の多重度 `[from 側, to 側]`。値は `1` / `0..1` / `1..*` / `0..*` / `*`。カラスの足の記号で描く |
 | `from_side` / `to_side` | 出口・入口の辺。`top` / `bottom` / `left` / `right`。省略すると経路探索が選ぶ |
 | `via` | `[[x, y], ...]`。経由させる点（図全体の左上からの座標）。探索は点ごとに区切って行う |
 | `style` / `class` | 箱と同じ。線の色・太さ（`strokeColor=#b85450;strokeWidth=2`）など |
 | `id` | 省略すると `e_<from>_<to>` |
+
+線どうしが交差する箇所は、後に描く線が弧で跳び越す（交差と合流を見分けるため）。経路探索は交差の少ない経路を選ぶ。
 
 経路（折れ点）そのものは書かない。直したいときは、まず箱の位置、次に `from_side`・`to_side`、最後に `via` の順で指定する。
 
@@ -142,6 +160,38 @@ D0 で spec.json を書くときに読む。`layout_from_spec.py` はこの形�
     {"from": "api", "to": "db"},
     {"from": "api", "to": "ext", "label": "決済", "from_side": "bottom"}
   ]
+}
+```
+
+状態遷移図（自己遷移は from と to を同じにする）:
+
+```json
+{
+  "name": "状態遷移", "layout": "free",
+  "nodes": [
+    {"id": "init", "shape": "initial", "at": [0, 45]},
+    {"id": "idle", "label": "待機", "shape": "state", "near": {"right_of": "init"}},
+    {"id": "run", "label": "運転", "shape": "state", "near": {"right_of": "idle", "gap": 160}}
+  ],
+  "edges": [
+    {"from": "init", "to": "idle"},
+    {"from": "idle", "to": "run", "label": "開始"},
+    {"from": "run", "to": "idle", "label": "停止"},
+    {"from": "run", "to": "run", "label": "周期処理"}
+  ]
+}
+```
+
+ER図:
+
+```json
+{
+  "name": "ER図", "layout": "free",
+  "nodes": [
+    {"id": "cust", "label": "顧客", "shape": "entity", "fields": ["PK 顧客ID", "氏名"], "at": [0, 0]},
+    {"id": "ord", "label": "注文", "shape": "entity", "fields": ["PK 注文ID", "FK 顧客ID"], "near": {"right_of": "cust", "gap": 140}}
+  ],
+  "edges": [{"from": "cust", "to": "ord", "card": ["1", "0..*"]}]
 }
 ```
 

@@ -34,6 +34,8 @@ SIZES = {
     "process": (140, 60), "decision": (140, 80), "start": (110, 50), "end": (110, 50),
     "document": (140, 70), "database": (110, 80), "external": (140, 60), "actor": (40, 70),
     "note": (140, 60), "text": (160, 30),
+    "state": (140, 60), "initial": (30, 30), "final": (30, 30), "choice": (40, 40),
+    "class": (160, 60), "entity": (160, 60),
 }
 STYLES = {
     "process": "rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
@@ -46,14 +48,48 @@ STYLES = {
     "actor": "shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;",
     "note": "shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;",
     "text": "text;html=1;align=center;verticalAlign=middle;",
+    "state": "rounded=1;arcSize=40;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;",
+    "initial": "ellipse;html=1;fillColor=#000000;strokeColor=#000000;",
+    "final": "ellipse;shape=endState;html=1;fillColor=#000000;strokeColor=#000000;",
+    "choice": "rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;",
+    "class": ("swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;"
+              "startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;"
+              "marginBottom=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;"),
+    "entity": ("swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;"
+               "startSize=26;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=0;"
+               "marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;"),
 }
-ROUND = ("decision", "start", "end", "database", "actor")
+ROUND = ("decision", "start", "end", "database", "actor", "initial", "final", "choice")
+FIXED = ("actor", "text", "initial", "final", "choice")   # ラベルの長さで幅を広げない形
+LIST = ("class", "entity")   # 見出しの下に行を積む箱（クラス図・ER図）
+ROW_H, SEP_H = 26, 8
+ROW_STYLE = ("text;strokeColor=none;fillColor=none;align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;"
+             "overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;whiteSpace=wrap;html=1;")
+SEP_STYLE = ("line;strokeWidth=1;fillColor=none;align=left;verticalAlign=middle;spacingTop=-1;spacingLeft=3;"
+             "spacingRight=3;rotatable=0;labelPosition=right;points=[];portConstraint=eastwest;strokeColor=inherit;")
+# 線の種類（クラス図）。compose / aggregate は from が全体（ひし形の側）
+EDGE_KINDS = {
+    "inherit": "endArrow=block;endFill=0;endSize=12;",
+    "realize": "endArrow=block;endFill=0;endSize=12;dashed=1;",
+    "compose": "startArrow=diamondThin;startFill=1;startSize=14;endArrow=none;",
+    "aggregate": "startArrow=diamondThin;startFill=0;startSize=14;endArrow=none;",
+    "assoc": "endArrow=none;",
+    "depend": "endArrow=open;endFill=0;dashed=1;",
+}
+# ER図の多重度（カラスの足）。card: [from 側, to 側]
+CARD = {"1": "ERmandOne", "0..1": "ERzeroToOne", "1..*": "ERoneToMany", "0..*": "ERzeroToMany", "*": "ERmany"}
+
+
+def text_width(text):
+    """全角は 14px、半角は 8px として概算する"""
+    return sum(14 if ord(ch) > 0x2E7F else 8 for ch in text)
 COL_GAP, ROW_GAP = 100, 70
 LANE_HEAD, BOX_HEAD, PAD = 40, 30, 30
 HEAD_GAP = 20       # 見出し帯と中身の間に足す余白（見出し帯のすぐ下を線が通れるように）
 MARGIN = 14          # 経路が箱から離れる距離
 STUB = 12            # 出入口からまっすぐ出す長さ
 BEND, OVERLAP_COST, NEAR_COST = 120.0, 5000.0, 60.0
+CROSS_COST = 250.0   # 他の線との交差1か所あたり。交差が合流に見えるのを避けるため、多少の遠回りを選ばせる
 NEAR = ("right_of", "left_of", "below", "above")
 NEAR_GAP = 80        # near の既定の間隔（線とラベルが通れる幅）
 
@@ -359,6 +395,15 @@ class Layout:
             else:
                 self.rel[k] = (xs[c] + (cell_w - w) / 2, ys[r] + (cell_h - h) / 2)
 
+    def list_size(self, n, w):
+        """クラス・エンティティの大きさ。見出し＋属性の行＋（操作があれば）区切り線と操作の行"""
+        fields, methods = n.get("fields", []), n.get("methods", [])
+        lines = [n.get("label", "")] + fields + methods
+        if "size" not in n:
+            w = max(w, min(max(text_width(t) for t in lines) + 24, 400))
+        h = ROW_H + ROW_H * len(fields) + (SEP_H + ROW_H * len(methods) if methods else 0)
+        return w, max(h, ROW_H + SEP_H)
+
     def measure(self, gid):
         for k in self.children[gid]:
             if k in self.groups:
@@ -370,7 +415,9 @@ class Layout:
                 text = self.nodes[k].get("label", "").split("<br>")
                 longest = max(len(s) for s in text) if text else 0
                 need = 14 * longest + (60 if shape == "decision" else 24)
-                if shape not in ("actor", "text") and need > w and not fixed:
+                if shape in LIST:
+                    w, h = self.list_size(self.nodes[k], w)
+                elif shape not in FIXED and need > w and not fixed:
                     w = min(need, 320)
                     if shape == "decision":
                         h = max(h, int(w * 0.5))
@@ -664,6 +711,8 @@ class Router:
                 elif (a[1] == b[1] and p[1] == q[1] and abs(a[1] - p[1]) < 8) or \
                         (a[0] == b[0] and p[0] == q[0] and abs(a[0] - p[0]) < 8):
                     cost += NEAR_COST
+                elif crosses(a, b, p, q):
+                    cost += CROSS_COST
         return cost
 
     def search(self, s, t, src, dst, ignore):
@@ -840,6 +889,19 @@ class Router:
         return result, failed
 
 
+def crosses(a, b, p, q):
+    """直交する2本の線分が、どちらの端点でもない所で交わるか"""
+    if a[1] == b[1] and p[0] == q[0]:
+        h, v = (a, b), (p, q)
+    elif a[0] == b[0] and p[1] == q[1]:
+        h, v = (p, q), (a, b)
+    else:
+        return False
+    x, y = v[0][0], h[0][1]
+    return (min(h[0][0], h[1][0]) < x < max(h[0][0], h[1][0]) and
+            min(v[0][1], v[1][1]) < y < max(v[0][1], v[1][1]))
+
+
 def simplify(pts):
     out = []
     for p in pts:
@@ -970,21 +1032,49 @@ def page_xml(page, idx):
                 style = f"swimlane;startSize={BOX_HEAD};html=1;rounded=1;horizontal=1;"
         else:
             style = STYLES.get(it.get("shape", "process"), STYLES["process"])
+            if not it.get("label") and it.get("shape") in FIXED:
+                style += "noLabel=1;"
         style = merge_style(style, user_style(page, it))
         out.append(f'      <mxCell id={quoteattr(iid)} value={quoteattr(it.get("label", ""))} '
                    f'style={quoteattr(style)} vertex="1" parent={quoteattr(parent)}>'
                    f'<mxGeometry x="{fmt(x)}" y="{fmt(y)}" width="{fmt(w)}" height="{fmt(h)}" as="geometry"/></mxCell>')
+        if it.get("shape") in LIST and iid in lay.nodes:
+            emit_rows(iid, it, w)
+
+    def emit_rows(iid, it, w):
+        """クラス・エンティティの中の行。id は <箱の id>__f<番号>（属性）/ __sep / __m<番号>（操作）"""
+        y = ROW_H
+        rows = [(f"{iid}__f{i}", t, ROW_STYLE, ROW_H) for i, t in enumerate(it.get("fields", []))]
+        if it.get("methods"):
+            rows.append((f"{iid}__sep", "", SEP_STYLE, SEP_H))
+            rows += [(f"{iid}__m{i}", t, ROW_STYLE, ROW_H) for i, t in enumerate(it["methods"])]
+        for rid, text, st, h in rows:
+            out.append(f'      <mxCell id={quoteattr(rid)} value={quoteattr(text)} style={quoteattr(st)} '
+                       f'vertex="1" parent={quoteattr(iid)}>'
+                       f'<mxGeometry y="{fmt(y)}" width="{fmt(w)}" height="{fmt(h)}" as="geometry"/></mxCell>')
+            y += h
 
     for gid in [l["id"] for l in lay.lanes] + list(lay.groups) + list(lay.nodes):
         emit(gid)
     for n, e in enumerate(lay.edges):
         eid = e.get("id") or f"e_{e['from']}_{e['to']}" + (f"_{n}" if any(
             x is not e and x["from"] == e["from"] and x["to"] == e["to"] for x in lay.edges) else "")
-        style = "edgeStyle=none;rounded=0;html=1;endArrow=classic;labelBackgroundColor=#ffffff;"
+        # 交差する箇所は後に描く線が弧で跳び越す（交差と合流を見分けられるように）
+        style = "edgeStyle=none;rounded=0;html=1;endArrow=classic;labelBackgroundColor=#ffffff;jumpStyle=arc;jumpSize=10;"
         if e.get("dashed"):
             style += "dashed=1;"
         if e.get("both"):
             style += "startArrow=classic;"
+        if e.get("kind"):
+            if e["kind"] not in EDGE_KINDS:
+                raise SpecError(f"線「{e['from']} → {e['to']}」の kind=\"{e['kind']}\" は使えない。使える値: {', '.join(EDGE_KINDS)}")
+            style = merge_style(style, EDGE_KINDS[e["kind"]])
+        if e.get("card"):
+            ends = e["card"]
+            if len(ends) != 2 or any(c not in CARD for c in ends):
+                raise SpecError(f"線「{e['from']} → {e['to']}」の card は [from 側, to 側] で、値は {' / '.join(CARD)}")
+            style = merge_style(style, f"startArrow={CARD[ends[0]]};startFill=0;startSize=10;"
+                                       f"endArrow={CARD[ends[1]]};endFill=0;endSize=10;")
         r = routes.get(id(e))
         style = merge_style(style, user_style(page, e))
         geo = '<mxGeometry relative="1" as="geometry"/>'

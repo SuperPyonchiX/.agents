@@ -126,7 +126,7 @@ def check_model(page, model):
             errors.append(f"[{page}] vertex「{cid}」の幅か高さが 0 以下")
         style = c.get("style", "")
         if not (c.get("value") or "").strip() and cid not in parents \
-                and "text" not in style and "line" not in style:
+                and "text" not in style and "line" not in style                 and "noLabel=1" not in style:
             warns.append(f"[{page}] vertex「{cid}」のラベルが空")
     for cid, c in ids.items():
         if c.get("edge") == "1" and (c.get("value") or "").strip() \
