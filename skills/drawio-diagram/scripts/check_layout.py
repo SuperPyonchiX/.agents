@@ -13,7 +13,7 @@ check_drawio.py は XML の構造しか見ない。線の経路は draw.io が�
   HEADER   線が、スイムレーン・枠の見出し帯（名前が書かれた帯）を横切っている
   BORDER   線が、枠の辺に沿って 20px 以上走っている（枠線と見分けられない）
   LABEL    線のラベル同士が重なっている、線のラベルが別の線の上に乗っている、
-           または線のラベルが無関係の箱に重なっている
+           線のラベルが無関係の箱に重なっている、または自分の線の端（矢印の先端・出口）にかかっている
 
 使い方:
   python export_drawio.py <file.drawio> -f svg [--page N]   # 先に SVG を書き出す
@@ -40,6 +40,7 @@ SVG = "{http://www.w3.org/2000/svg}"
 INSET = 3.0        # 箱の縁から内側へこの距離より深く入ったら「突き抜け」
 TOUCH_MARGIN = 4.0  # 箱の縁の外側この距離までに線が来たら「接触」
 MIN_OVERLAP = 20.0
+ARROW = 8.0         # 線の端からこの距離までにラベルが来たら、矢印や出口にかかっているとみなす
 
 
 def cells_of(model):
@@ -298,6 +299,11 @@ def main():
         for other, (_, segs) in edges.items():
             if other != cid and any(clip(s, t, lb, 1.0) for s, t in segs):
                 problems.append(f"LABEL    線「{cid}」のラベルが線「{other}」の上に乗っている")
+        own = edges[cid][1]
+        if own:
+            ex, ey, ew, eh = lb[0] - ARROW, lb[1] - ARROW, lb[2] + 2 * ARROW, lb[3] + 2 * ARROW
+            if any(ex <= px <= ex + ew and ey <= py <= ey + eh for px, py in (own[0][0], own[-1][1])):
+                problems.append(f"LABEL    線「{cid}」のラベルが線の端（矢印・出口）にかかっている。両端の箱の間を広げる")
         c = edges[cid][0]
         skip = {c.get("source"), c.get("target")}
         for e in list(skip):

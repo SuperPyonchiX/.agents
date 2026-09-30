@@ -20,7 +20,7 @@ spec.json の形（D0 で書く。id は .drawio の mxCell の id と一致さ�
    "nodes": [{"id": "fix", "label": "コード修正", "in": "lane_dev"}, ...],
    "edges": [{"from": "triage", "to": "fix", "label": "修正"}, ...]}
   - groups[] も箱として照合する（id・label・in）。複数ページは {"pages": [...]} で、全ページ分をまとめて照合する
-  - layout_from_spec.py 用の pos・span・shape・kind・stack・direction などのキーは無視する
+  - layout_from_spec.py 用の配置・見た目のキー（at・near・pos・span・shape・kind・stack・style・class など）は無視する
   - nodes[].in    置き場所の枠・レーンの id（任意）。親をたどってその枠の中にあれば合格
   - nodes[].label ラベルに含まれるべき文字列（任意。改行・空白は無視して部分一致）
   - edges[].label 線のラベルに含まれるべき文字列（任意）
