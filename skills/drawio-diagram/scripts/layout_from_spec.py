@@ -858,6 +858,9 @@ class Router:
             pts, cost = self.search_via(sstub, tstub, e.get("via", []), src, dst, ignore)
             if pts is None:
                 continue
+            for nid, side in ((src, ss), (dst, ts)):   # 帳票の下辺は波形で、線が波の下の空白で止まる
+                if side == "bottom" and self.lay.nodes.get(nid, {}).get("shape") == "document"                         and side != e.get("from_side" if nid == src else "to_side"):
+                    cost += OVERLAP_COST / 5
             if src == dst:   # 自己遷移は、他の線が付いていない辺を使う
                 used = self.used_sides(src)
                 cost += OVERLAP_COST * ((ss in used) + (ts in used))
@@ -978,7 +981,8 @@ def label_pos(pts, text, others, rects, borders):
                 hits = sum(seg_hits_box(p, q, box) for seg in others for p, q in zip(seg, seg[1:]))
                 hits += sum(1 for r in rects if not (box[0] + lw <= r[0] or r[0] + r[2] <= box[0] or
                                                      box[1] + lh <= r[1] or r[1] + r[3] <= box[1]))
-                hits += sum(seg_hits_box(p, q, box) for p, q in borders)
+                pad = (box[0] - 8, box[1] - 8, lw + 16, lh + 16)   # 枠の辺に接して見えないよう余裕をとる
+                hits += sum(seg_hits_box(p, q, pad) for p, q in borders)
                 if dx or dy:   # 脇に置くなら、自分の他の線分とも重ねない
                     hits += sum(seg_hits_box(p, q, box) for j, (p, q) in enumerate(own) if j != k)
                 short = lens[k] < (lw if horiz else lh) + 2 * STUB + 12   # ラベルが矢印や出入口にかかる
