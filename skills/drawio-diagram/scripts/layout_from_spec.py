@@ -26,6 +26,9 @@ import json
 import sys
 from xml.sax.saxutils import escape, quoteattr
 
+sys.path.insert(0, __file__.rsplit("layout_from_spec.py", 1)[0] or ".")
+from layout_sequence import sequence_xml  # noqa: E402
+
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -992,6 +995,11 @@ def user_style(page, it):
 
 def page_xml(page, idx):
     global COL_GAP, ROW_GAP
+    if page.get("layout") == "sequence":
+        body, warns = sequence_xml(page, idx)
+        for w in warns:
+            print(f"WARN   [{page.get('name', idx)}] {w}")
+        return body, []
     longest = max([len(e.get("label", "")) for e in page.get("edges", [])] + [0])
     COL_GAP = min(240, max(100, 13 * longest + 70))
     ROW_GAP = 70 if longest <= 4 else 90

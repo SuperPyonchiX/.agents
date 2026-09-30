@@ -20,6 +20,8 @@ spec.json の形（D0 で書く。id は .drawio の mxCell の id と一致さ�
    "nodes": [{"id": "fix", "label": "コード修正", "in": "lane_dev"}, ...],
    "edges": [{"from": "triage", "to": "fix", "label": "修正"}, ...]}
   - groups[] も箱として照合する（id・label・in）。複数ページは {"pages": [...]} で、全ページ分をまとめて照合する
+  - シーケンス図のページ（layout: "sequence"）は participants を箱、steps の中のメッセージを線として照合し、
+    参加者が左から書いた順に並んでいるかも見る。活性区間につながる線はそのライフラインの線とみなす
   - layout_from_spec.py 用の配置・見た目のキー（at・near・pos・span・shape・kind・stack・style・class など）は無視する
   - nodes[].in    置き場所の枠・レーンの id（任意）。親をたどってその枠の中にあれば合格
   - nodes[].label ラベルに含まれるべき文字列（任意。改行・空白は無視して部分一致）
@@ -135,7 +137,9 @@ def check_model(page, model):
     by_parent = {}
     for cid, c in vertices.items():
         by_parent.setdefault(c.get("parent"), []).append(cid)
+    decor = ("seqDecor=1", "orthogonalPerimeter")   # シーケンス図の枠・ガード・活性区間は重なってよい
     for siblings in by_parent.values():
+        siblings = [v for v in siblings if not any(d in vertices[v].get("style", "") for d in decor)]
         for i, a in enumerate(siblings):
             for b in siblings[i + 1:]:
                 ra, rb = rect(vertices[a]), rect(vertices[b])
@@ -178,7 +182,23 @@ def flatten_spec(spec):
         out["nodes"] += [dict(g, _group=True) for g in pg.get("groups", [])] + list(pg.get("nodes", []))
         out["edges"] += list(pg.get("edges", []))
         out["order"] += list(pg.get("order", []))
+        if pg.get("layout") == "sequence":   # 参加者は箱、メッセージは線、参加者の並びは左からの順
+            parts = pg.get("participants", [])
+            out["nodes"] += parts
+            out["edges"] += list(iter_messages(pg.get("steps", [])))
+            if len(parts) > 1:
+                out["order"].append({"axis": "x", "ids": [p["id"] for p in parts]})
     return out
+
+
+def iter_messages(steps):
+    for s in steps:
+        if "fragment" in s:
+            ops = s.get("operands") or [{"steps": s.get("steps", [])}]
+            for op in ops:
+                yield from iter_messages(op.get("steps", []))
+        else:
+            yield s
 
 
 def check_spec(models, spec):
@@ -235,9 +255,16 @@ def check_spec(models, spec):
             if not ok:
                 where = "下" if axis == "y" else "右"
                 errors.append(f"「{b_id}」が「{a_id}」より{where}に置かれていない（要件: {'上から' if axis == 'y' else '左から'} {' → '.join(ids_)}）")
+    def owner(cid):
+        """シーケンス図の活性区間はライフラインの一部として扱う"""
+        c = cells.get(cid)
+        if c is not None and "targetShapes=umlLifeline" in (c.get("style") or ""):
+            return c.get("parent")
+        return cid
+
     edges = [c for c in cells.values() if c.get("edge") == "1"]
     for e in spec.get("edges", []):
-        hits = [c for c in edges if c.get("source") == e["from"] and c.get("target") == e["to"]]
+        hits = [c for c in edges if owner(c.get("source")) == e["from"] and owner(c.get("target")) == e["to"]]
         if not hits:
             errors.append(f"要件の線「{e['from']} → {e['to']}」が図に無い")
         elif e.get("label") and not any(norm(e["label"]) in norm(c.get("value")) for c in hits):

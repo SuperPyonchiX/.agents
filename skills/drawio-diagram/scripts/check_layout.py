@@ -15,6 +15,9 @@ check_drawio.py は XML の構造しか見ない。線の経路は draw.io が�
   LABEL    線のラベル同士が重なっている、線のラベルが別の線の上に乗っている、
            線のラベルが無関係の箱に重なっている、または自分の線の端（矢印の先端・出口）にかかっている
 
+シーケンス図のライフラインは見出しだけを箱とみなし（縦の破線は見ない）、フラグメントの枠・ガード・区切り線は
+検査の対象外にする。クラス図・ER図の行を積む箱は、中の行を見ずに1つの箱として扱う。
+
 使い方:
   python export_drawio.py <file.drawio> -f svg [--page N]   # 先に SVG を書き出す
   python check_layout.py <file.drawio> <file.svg> [--page N]
@@ -216,7 +219,16 @@ def main():
     # クラス図・ER図の箱（行を積む swimlane）は1つの箱として扱い、中の行は見ない
     lists = {cid for cid, c in cells.items() if "stackLayout" in (c.get("style") or "")}
     rects = {k: r for k, r in rects.items() if cells[k].get("parent") not in lists}
-    containers = {c.get("parent") for c in cells.values()} - lists
+    # シーケンス図: ライフラインは見出しだけを箱とみなし、フラグメントの枠・ガード・区切り線は見ない
+    lifelines = {cid for cid, c in cells.items() if "umlLifeline" in (c.get("style") or "")
+                 and "targetShapes" not in (c.get("style") or "")}
+    for cid in lifelines:
+        if cid in rects:
+            st = dict(kv.partition("=")[::2] for kv in cells[cid].get("style", "").split(";") if kv)
+            x, y, w, _ = rects[cid]
+            rects[cid] = (x, y, w, float(st.get("size") or 40))
+    rects = {k: r for k, r in rects.items() if "seqDecor=1" not in (cells[k].get("style") or "")}
+    containers = {c.get("parent") for c in cells.values()} - lists - lifelines
 
     edges = {}
     for cid, c in cells.items():
@@ -241,6 +253,10 @@ def main():
         for e in ends:
             if e:
                 skip |= ancestors(cells, e)
+        # 端がライフラインか活性区間なら、同じライフラインの活性区間どうしは接して描かれるので見ない
+        own_lines = {e for e in ends if e in lifelines} | {cells[e].get("parent") for e in ends
+                                                          if e in cells and cells[e].get("parent") in lifelines}
+        skip |= {k for k, v in cells.items() if v.get("parent") in own_lines}
         for vid, r in rects.items():
             if vid in skip or vid in containers:
                 continue
