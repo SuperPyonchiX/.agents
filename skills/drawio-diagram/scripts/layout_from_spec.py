@@ -91,7 +91,8 @@ LANE_HEAD, BOX_HEAD, PAD = 40, 30, 30
 HEAD_GAP = 20       # 見出し帯と中身の間に足す余白（見出し帯のすぐ下を線が通れるように）
 MARGIN = 14          # 経路が箱から離れる距離
 STUB = 12            # 出入口からまっすぐ出す長さ
-BEND, OVERLAP_COST, NEAR_COST = 120.0, 5000.0, 60.0
+BEND, OVERLAP_COST = 120.0, 5000.0
+PARALLEL_GAP, PARALLEL_COST = 12.0, 800.0   # この間隔未満で並走する線（重ならないが二重線に見える）
 CROSS_COST = 250.0   # 他の線との交差1か所あたり。交差が合流に見えるのを避けるため、多少の遠回りを選ばせる
 NEAR = ("right_of", "left_of", "below", "above")
 JOG = 16.0           # 線の途中の段差とみなす長さ（check_layout.py の JOG と同じ）
@@ -701,22 +702,24 @@ class Router:
                 if min(max(a[1], b[1]), hi) - max(min(a[1], b[1]), lo) > 1:
                     cost += OVERLAP_COST / 2
         for f, t, pts in self.routed:
-            if f == src or t == dst:
-                continue
+            shared = f == src or t == dst   # 同じ箱から出る・同じ箱へ入る線は、ぴったり重ねて合流させてよい
             for p, q in zip(pts, pts[1:]):
-                if a[1] == b[1] == p[1] == q[1]:
+                if a[1] == b[1] and p[1] == q[1]:
+                    gap = abs(a[1] - p[1])
                     lo, hi = max(min(a[0], b[0]), min(p[0], q[0])), min(max(a[0], b[0]), max(p[0], q[0]))
-                    if hi - lo > 1:
-                        cost += OVERLAP_COST
-                elif a[0] == b[0] == p[0] == q[0]:
+                elif a[0] == b[0] and p[0] == q[0]:
+                    gap = abs(a[0] - p[0])
                     lo, hi = max(min(a[1], b[1]), min(p[1], q[1])), min(max(a[1], b[1]), max(p[1], q[1]))
-                    if hi - lo > 1:
-                        cost += OVERLAP_COST
-                elif (a[1] == b[1] and p[1] == q[1] and abs(a[1] - p[1]) < 8) or \
-                        (a[0] == b[0] and p[0] == q[0] and abs(a[0] - p[0]) < 8):
-                    cost += NEAR_COST
-                elif crosses(a, b, p, q):
-                    cost += CROSS_COST
+                else:
+                    if not shared and crosses(a, b, p, q):
+                        cost += CROSS_COST
+                    continue
+                if hi - lo <= 1:
+                    continue
+                if gap < 0.01:
+                    cost += 0 if shared else OVERLAP_COST
+                elif gap < PARALLEL_GAP:   # 数 px 離れて並走すると二重線に見える
+                    cost += PARALLEL_COST
         return cost
 
     def search(self, s, t, src, dst, ignore):

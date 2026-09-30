@@ -12,6 +12,7 @@ check_drawio.py は XML の構造しか見ない。線の経路は draw.io が�
   OVERLAP  source も target も異なる2本の線が、同じ直線上で 20px 以上重なっている
   HEADER   線が、スイムレーン・枠の見出し帯（名前が書かれた帯）を横切っている
   BORDER   線が、枠の辺に沿って 20px 以上走っている（枠線と見分けられない）
+  PARALLEL 2本の線が 12px 未満の間隔で 20px 以上並走している（重なってはいないが二重線に見える。同じ箱に入る線も対象）
   JOG      線の途中に 16px 未満の短い折れ（段差）がある。つながる箱の中心がわずかにずれているときに出る
   LABEL    線のラベル同士が重なっている、線のラベルが別の線の上に乗っている、
            線のラベルが無関係の箱に重なっている、または自分の線の端（矢印の先端・出口）にかかっている
@@ -44,6 +45,7 @@ SVG = "{http://www.w3.org/2000/svg}"
 INSET = 3.0        # 箱の縁から内側へこの距離より深く入ったら「突き抜け」
 TOUCH_MARGIN = 4.0  # 箱の縁の外側この距離までに線が来たら「接触」
 MIN_OVERLAP = 20.0
+PARALLEL_GAP = 12.0  # これ未満の間隔で並走する2本の線は二重線に見える
 MIN_JOG = 16.0      # 線の途中の線分がこれより短ければ段差とみなす
 ARROW = 8.0         # 線の端からこの距離までにラベルが来たら、矢印や出口にかかっているとみなす
 
@@ -212,6 +214,20 @@ def collinear_overlap(a, b):
     return 0.0
 
 
+def near_parallel(a, b):
+    """平行な2本の線分が 0.5〜PARALLEL_GAP px の間隔で並ぶ区間の長さ（重なっている＝間隔 0 は数えない）"""
+    (a1, a2), (b1, b2) = a, b
+    if abs(a1[1] - a2[1]) < 0.5 and abs(b1[1] - b2[1]) < 0.5:
+        gap = abs(a1[1] - b1[1])
+        lo, hi = max(min(a1[0], a2[0]), min(b1[0], b2[0])), min(max(a1[0], a2[0]), max(b1[0], b2[0]))
+    elif abs(a1[0] - a2[0]) < 0.5 and abs(b1[0] - b2[0]) < 0.5:
+        gap = abs(a1[0] - b1[0])
+        lo, hi = max(min(a1[1], a2[1]), min(b1[1], b2[1])), min(max(a1[1], a2[1]), max(b1[1], b2[1]))
+    else:
+        return 0.0
+    return hi - lo if 0.5 < gap < PARALLEL_GAP else 0.0
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("drawio")
@@ -301,6 +317,12 @@ def main():
                 continue  # 同じ箱からの分岐・同じ箱への合流は重なってよい
             if any(collinear_overlap(x, y) >= MIN_OVERLAP for x in s1 for y in s2):
                 problems.append(f"OVERLAP  線「{e1}」と「{e2}」が同じ線分上に重なっている")
+
+    for i, e1 in enumerate(ids):
+        for e2 in ids[i + 1:]:
+            if any(near_parallel(x, y) >= MIN_OVERLAP for x in edges[e1][1] for y in edges[e2][1]):
+                problems.append(f"PARALLEL 線「{e1}」と「{e2}」が近すぎる間隔で並走している。"
+                                "どちらかの端の箱を動かして離すか、同じ箱に入る線なら1本に合流させる")
 
     for vid in containers:
         c = cells.get(vid)
