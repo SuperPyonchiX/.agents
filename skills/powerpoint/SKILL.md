@@ -1,5 +1,5 @@
 ---
-name: pptx-file
+name: powerpoint
 description: PowerPoint（.pptx）を読む・作る・直すスキル。スライドの文字・配置・ノートの抽出、python-pptx での作成（16:9・和文フォント・テンプレートのレイアウト利用）、スライドの削除・並べ替え、はみ出しと重なりの検査、画像にしての見た目確認まで行う。「PowerPoint で資料を作って」「この pptx を読んで」「スライドを直して」「テンプレートに沿ってスライドを作って」で使う。
 metadata:
   web-description: PowerPoint（.pptx）を読む・作る・直す。文字・配置・ノートの抽出、python-pptx での作成（16:9・和文フォント・テンプレート利用）、削除・並べ替え、はみ出しと重なりの検査、見た目の確認まで行う。「PowerPoint で資料を作って」「pptx を読んで」で使う。
@@ -47,11 +47,11 @@ python scripts/inspect_pptx.py <pptx> [--layouts] [--slides 1-3] [--check]
 
 ```
 python scripts/inspect_pptx.py <pptx> --check
-python ../pdf-file/scripts/to_pdf.py <pptx> --outdir <作業フォルダ>
-python ../pdf-file/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python ../pdf/scripts/to_pdf.py <pptx> --outdir <作業フォルダ>
+python ../pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 ```
 
-`to_pdf.py` と `pdf_to_png.py` は隣の `pdf-file` スキルのもの（パスはこのスキルのディレクトリからの相対）。
+`to_pdf.py` と `pdf_to_png.py` は隣の `pdf` スキルのもの（パスはこのスキルのディレクトリからの相対）。
 
 ```
 for 周回 in 1..3:
@@ -97,4 +97,4 @@ else:
 
 位置は mm で出る。1 mm 以下のはみ出し・重なりは無視する。
 
-PDF 化と画像化は `pdf-file` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+PDF 化と画像化は `pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
