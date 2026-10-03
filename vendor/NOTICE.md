@@ -68,6 +68,19 @@
 
 **更新するとき**: 上流を clone し、上の範囲だけをコピーし直してから `references/` の3行を当て直す。`SKILL.md` は上流の director・gameplay-systems・qa-release の差分を読んで必要な分だけ反映する。
 
+### japanese-prose-polish
+
+| 項目 | 内容 |
+|---|---|
+| 出典 | https://github.com/gonta223/humanizer-ja |
+| ライセンス | MIT。著作権表示を含む上流の全文を `skills/japanese-prose-polish/LICENSE` に同梱 |
+| LICENSEの取得コミット | `a1e343696e43aa50e7218891f3319ab22cde3464` |
+| LICENSE取得日 | 2026-10-03。既存本文の初回取得時コミットは未記録であり、この値で代用しない |
+| 改変 | あり。改名、description短縮、業務文書モード、保護対象、ルール21を追加済み |
+
+2026-10-03に上流の本文・著作者表示を照合し、欠落していたLICENSEを原文のまま補った。原文SHA-256は `f75eb14ec27966cd36603902343e942aa1d125e7ef78cfb786ba71b29938b7dc`。
+再取得は上記コミットのLICENSEを取得する。本文を更新する場合は、業務文書モードと引用・テンプレート・事実の保護規定を維持して差分を適用する。
+
 ## コミットしていないもの
 
 ライセンスが無い、または再配布の許諾が確認できないもの。**`.gitignore` で除外し、手元にだけ置く。**
