@@ -18,12 +18,12 @@ skills/<skill-name>/SKILL.md   ← 各スキルの本体
 
 ## SKILL.md の規約
 
-- frontmatter に置いてよいのは `name` / `description` / `license` / `allowed-tools` / `metadata` / `compatibility` のみ。基本は `name` と `description`、それに claude.ai 用の `metadata.web-description` の3つ。
+- frontmatter に置いてよいのは `name` / `description` / `license` / `allowed-tools` / `metadata` / `compatibility` のみ。基本は `name` と `description` の2つ。
 - **`name` はディレクトリ名と完全一致させる。** kebab-case、64文字以内。ずれると読み込まれず、エラーも出ない。
 - **`description` には「何をするか」と「いつ使うか」を両方書く。** 発火判断の唯一の材料であり、「いつ使うか」がないと拾われない。1024文字以内、山括弧は使わない。
-- **`description` は 300 文字を目安にする。** 全スキル分が毎セッション読み込まれる固定費になる。「〜といった話が出たら明示的な言及がなくても使う」の類の定型句は書かず「〜で使う」で止める。他スキルへの名指しは、実際に取り違えが起きる相手だけに1文で書く。
+- **`description` は 200 文字以内にする。** claude.ai（WEB版）の上限で、全スキル分が毎セッション読み込まれる固定費でもある。超えると `validate_skill.py` が ERROR にする。「〜といった話が出たら明示的な言及がなくても使う」の類の定型句は書かず「〜で使う」で止める。他スキルへの名指しは、実際に取り違えが起きる相手だけに1文で書く。
 - 本文は500行以内。超えたら `references/` に分割し、SKILL.md からは索引として参照する。
-- **`metadata.web-description` に200文字以内の短縮版 description を必ず置く。** claude.ai（WEB版）は description の上限が200文字で、通常の `description` はそのままでは通らない。WEB配布用 zip は `python tools/pack_skill.py --all` で作り、このスクリプトが zip 内の `description:` を短縮版へ差し替える。実体は書き換えない。未設定のスキルはパッケージ時に終了コード1で止まる。
+- **`metadata.web-description`（CLI 用と WEB 用で description を分ける旧方式）は使わない。** 2026-10-03 に description を200文字以内の1本へ統一した。WEB配布用 zip は `python tools/pack_skill.py --all` で作り、SKILL.md はそのまま入る。
 - 指示は命令形で書く。完了条件は判定可能な形にする（「確認する」ではなく「一覧を提示し確認を得たこと」）。想定外時の戻り条件と、抜け道を塞ぐ禁止事項も書く。
 
 ## ファイル配置の規約
@@ -92,7 +92,7 @@ MIT / BSD / Apache-2.0 の条件は著作権表示とライセンス全文を残
 - **`license:` に確認していない値を書かない。** 分からないならキーごと書かない。誤った表記は無表記より悪い
 - `pack_skill.py` はスキルディレクトリを `rglob` で丸ごと zip に入れるので、`LICENSE` は claude.ai 配布物にも自動で同梱される。除外設定を足さないこと
 - **改変してよい。** ただし移植性の規約は取り込んだスキルにも適用する。Claude Code 独自拡張（`agents/` のサブエージェント定義など）は `references/` の手順へ移し替えてから取り込む
-- **記述言語の規約（日本語）は取り込んだスキルの本文には適用しない。** 上流との差分を無用に増やす。ただし `metadata.web-description` だけは日本語で書く。発火は日本語の依頼で起きる
+- **記述言語の規約（日本語）は取り込んだスキルの本文には適用しない。** 上流との差分を無用に増やす。ただし `description` だけは日本語で書く。発火は日本語の依頼で起きる
 
 ## 変更後に必ず実行すること
 

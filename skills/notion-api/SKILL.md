@@ -1,8 +1,6 @@
 ---
 name: notion-api
-description: Notion を REST API（インテグレーショントークン）で操作する基盤スキル。DB スキーマ取得・クエリ、ページ作成・アーカイブ、Markdown から Notion ブロックへの変換を標準ライブラリのみの Python スクリプトで行う。「Notion を API で操作して」「Notion からデータを取得して」「ページを一括投入して」で使う。notion-knowhow-page と youtube-member-summary はこのスクリプトを呼ぶ。
-metadata:
-  web-description: NotionをREST API経由で操作する基盤スキル。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。「NotionをAPIで操作して」「NotionのDBにページを作って」と言われたら使う。他のNotion系スキルの書き込み基盤でもある。
+description: NotionをREST API経由で操作する基盤スキル。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。「NotionをAPIで操作して」「NotionのDBにページを作って」で使う。他のNotion系スキルの書き込み基盤でもある。
 ---
 
 # notion-api

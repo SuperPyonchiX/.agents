@@ -59,38 +59,38 @@ graph LR
 
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
-| `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 91行 |
-| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 365行 |
-| `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 93行 |
-| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 130行 |
-| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 136行 |
-| `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
-| `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 333行 |
-| `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 219行 |
-| `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 287行 |
-| `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 254行 |
-| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 200行 |
-| `skill-portfolio-audit` | スキル置き場の横断検査。web-description欠落・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 226行 |
-| `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 132行 |
-| `second-opinion` | 意見が割れそうなテーマで Codex CLI（GPT）に同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させて Claude の見解と突き合わせる。Codex は read-only で実行し、使えなければ ChatGPT のブラウザ操作に切り替える。結果をリサーチフォルダに残す | 146行 |
-| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 262行 |
-| `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 86行 |
-| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 62行 |
+| `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 89行 |
+| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 363行 |
+| `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 97行 |
+| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 129行 |
+| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 134行 |
+| `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 196行 |
+| `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 331行 |
+| `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
+| `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 285行 |
+| `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 252行 |
+| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 198行 |
+| `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 224行 |
+| `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 130行 |
+| `second-opinion` | 意見が割れそうなテーマで Codex CLI（GPT）に同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させて Claude の見解と突き合わせる。Codex は read-only で実行し、使えなければ ChatGPT のブラウザ操作に切り替える。結果をリサーチフォルダに残す | 144行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 323行 |
+| `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 84行 |
+| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 60行 |
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
-| `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 126行 |
-| `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する。新しい画面の設計判断は `ui-ux-pro-max`、撮影できない実機での確認は `manual-test-sheet` | 164行 |
-| `daily-capture` | 会話に出た体調・トレード・今日の学び・読んだ本を Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し、承認された行だけをスクリプトで節の直下に差し込む | 124行 |
-| `reveal-file` | 生成した PDF・Excel などの成果物をエクスプローラー（macOS は Finder）で選択状態にして開く。OS ごとの差はスクリプトが吸収する | 67行 |
-| `session-history-mining` | Claude Code / Codex のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 134行 |
-| `ui-ux-pro-max` | UI を作る前に、画面の種類に合うスタイル・配色・フォント・UX ガイドライン・22スタック（WPF・WinUI を含む）の実装指針をローカルのデータから検索し、デザインシステムとして返す（外部取り込み・MIT） | 217行 |
-| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 157行 |
-| `drawio-diagram` | 構成図・フロー図・スイムレーン図・シーケンス図・状態遷移図・クラス図・ER図を、人が後から直せる draw.io 形式（.drawio）で作る。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 157行 |
-| `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 221行 |
-| `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 128行 |
-| `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 115行 |
-| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 112行 |
-| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 91行 |
-| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 100行 |
+| `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 124行 |
+| `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する。新しい画面の設計判断は `ui-ux-pro-max`、撮影できない実機での確認は `manual-test-sheet` | 162行 |
+| `daily-capture` | 会話に出た体調・トレード・今日の学び・読んだ本を Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し、承認された行だけをスクリプトで節の直下に差し込む | 122行 |
+| `reveal-file` | 生成した PDF・Excel などの成果物をエクスプローラー（macOS は Finder）で選択状態にして開く。OS ごとの差はスクリプトが吸収する | 65行 |
+| `session-history-mining` | Claude Code / Codex のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 132行 |
+| `ui-ux-pro-max` | UI を作る前に、画面の種類に合うスタイル・配色・フォント・UX ガイドライン・22スタック（WPF・WinUI を含む）の実装指針をローカルのデータから検索し、デザインシステムとして返す（外部取り込み・MIT） | 215行 |
+| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 155行 |
+| `drawio-diagram` | 構成図・フロー図・スイムレーン図・シーケンス図・状態遷移図・クラス図・ER図を、人が後から直せる draw.io 形式（.drawio）で作る。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 155行 |
+| `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 219行 |
+| `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
+| `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 113行 |
+| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 110行 |
+| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 89行 |
+| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 98行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
@@ -197,18 +197,7 @@ python tools/pack_skill.py skills/<name>  # 1件だけならこちら
 
 ### 制約
 
-- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火文言を含めるため多くが 200 文字を超え（2026-10-03 時点で 99〜570 文字）、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
-
-  ```yaml
-  ---
-  name: markdown-doc
-  description: 業務用の Markdown 文書を種別ごとの定型で作るスキル。…（CLI 用。長いまま）
-  metadata:
-    web-description: 業務用 Markdown 文書を種別ごとの定型で作る。…（200文字以内）
-  ---
-  ```
-
-  `metadata.web-description` が無いスキルは**パッケージ時に終了コード1で止まる**。長い description のまま上げてしまう事故を防ぐため。
+- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリでは CLI 用と WEB 用を分けず、**すべてのスキルの description を200文字以内の1本にしている**（2026-10-03 に統一。それまでは `metadata.web-description` に短縮版を置き、zip の中で差し替えていた）。SKILL.md はそのまま zip に入る。
 - **`scripts/` は claude.ai のサンドボックスでも動く。** ただし `static-analysis-triage` の `openpyxl` のような外部依存は実行時にインストールが必要になるため、WEB では動かないことがある。標準ライブラリだけのスクリプトはそのまま動く。
 - **アップロードしたスキルは個人アカウント内でのみ有効。** チーム全体へ配るには Team / Enterprise で Owner が組織向けに配置する必要がある。
 
@@ -222,7 +211,7 @@ python tools/pack_skill.py skills/<name>  # 1件だけならこちら
 2. **`skills/<name>/SKILL.md` を作る** — ハマりどころは次の2つだけ。
    - **`name` はディレクトリ名と完全一致させる。** ずれるとエラーも出ずに読み込まれない。
    - **`description` には「何をするか」と「いつ使うか」の両方を書く。** これがエージェントがスキルを使うか判断する唯一の材料。「レビューの手順」だけでは発火せず、「レビュー依頼のときに使用する」まで書いてはじめて拾われる。
-   - **`metadata.web-description` に200文字以内の短縮版を添える。** claude.ai 用。無いと `pack_skill.py` が止まる（前節参照）。
+      - **`description` は200文字以内。** claude.ai の上限で、超えると `validate_skill.py` が ERROR、`pack_skill.py` が終了コード1で止まる（前節参照）。
 3. **検証する** — 後述の `validate_skill.py` を通す。
 4. **発火を確認する** — 新規セッションを立て、想定する言い回しで実際に呼ばれるか試す。既存セッションでは読み込まれない。
 5. **コミットする** — 1スキル1コミット。
@@ -258,7 +247,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 検査するのは2系統。
 
 - **仕様適合** — frontmatter の許可キー（`name` / `description` / `license` / `allowed-tools` / `metadata` / `compatibility`）、`name` の kebab-case と64文字以内、`description` の山括弧禁止と1024文字以内
-- **構造** — `name` とディレクトリ名の一致、`metadata.web-description` の有無と200文字以内、`description` の300文字目安（超過は WARN）、リンク切れ、孤児ファイル、SKILL.md 500行以内、`scripts/` の使い方が文書化されているか
+- **構造** — `name` とディレクトリ名の一致、`description` の200文字以内（超過は ERROR）、廃止した `metadata.web-description` の残り（WARN）、リンク切れ、孤児ファイル、SKILL.md 500行以内、`scripts/` の使い方が文書化されているか
 
 依存は標準ライブラリのみ。Claude Code 以外の環境にそのまま持ち出せる。
 
@@ -326,7 +315,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 仕組み（なぜ増やしても重くならないか）
 
-段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。2026-10-03 時点の実測では、`skills/` の35本（git 管理外の取り込みスキルを含む）の description は1本 99〜570 文字、合計約 8,600 文字ある。一方、SKILL.md 本文は合計約 5,600 行、`references/` は合計約 7,500 行あるが、これらは使ったスキルの分しか読まれない。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
+段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。2026-10-03 時点の実測では、`skills/` の35本（git 管理外の取り込みスキルを含む）の description は合計約 5,600 文字ある（200文字以内へ統一する前は約 8,600 文字）。一方、SKILL.md 本文は合計約 5,600 行、`references/` は合計約 7,500 行あるが、これらは使ったスキルの分しか読まれない。description が長くなるほど毎セッションの固定費が増えるので、**200 文字以内に収め、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
 
 だから**資料が何千行あってもコンテキストのコストはかからない**。本文を500行以内に保ち、長い資料を `references/` に逃がすのが推奨されるのはこのため。
 

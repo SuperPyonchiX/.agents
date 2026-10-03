@@ -1,8 +1,6 @@
 ---
 name: cpp14-code-review
-description: 組込み C++14（AUTOSAR C++14 / CERT C++）の既存コードや git 差分をレビューする工程スキル。規約違反候補をスキャナで機械抽出し、機械で拾えない観点を目視で当て、指摘を ID 付き台帳に記録して全件クローズするまで完了としない。「このコードをレビューして」「差分を見て」「AUTOSAR 準拠か確認して」「プルリクを確認して」で使う。設計書からの新規実装は nextdesign-cpp14-implementation、静的解析指摘の仕分けは static-analysis-triage、動かない原因の究明は cpp14-defect-analysis。
-metadata:
-  web-description: 組込みC++14（AUTOSAR C++14 / CERT C++）の既存コードやgit差分をレビューする。規約違反をスキャナで機械抽出し、指摘をID付き台帳に記録して全件クローズするまで完了としない。「このコードをレビューして」「差分を見て」と言われたら使う。
+description: 組込みC++14（AUTOSAR C++14 / CERT C++）の既存コードやgit差分をレビューする。規約違反をスキャナで抽出し、指摘を台帳で全件クローズするまで完了としない。「このコードをレビューして」「差分を見て」で使う。原因究明は cpp14-defect-analysis、静的解析指摘の仕分けは static-analysis-triage。
 ---
 
 # 組込み C++14 コードレビュー

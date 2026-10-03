@@ -23,7 +23,7 @@
 改変したのは frontmatter だけで、本文は上流のまま英語で保持している。
 
 - `description` を日本語に差し替えた。上流は英語のみで、日本語の依頼では発火しないため。あわせて `markdown-doc` との棲み分けを1文追加（2026-09-03 に統合前の `markdown-explanation-doc` から改名）
-- `metadata.web-description` を追加（claude.ai の 200 文字制限用。このリポジトリ独自の仕組み）
+- 2026-10-03 に `description` を200文字以内へ短縮し、`metadata.web-description` を削除した（CLI 用と WEB 用を1本に統一）
 - `license: MIT` を追加
 
 ### ui-ux-pro-max
@@ -41,7 +41,7 @@
 
 - 本文中のスクリプト呼び出し11箇所を `python "${CLAUDE_PLUGIN_ROOT}/.claude/skills/ui-ux-pro-max/scripts/search.py"` から `python scripts/search.py` に置き換えた（Claude Code プラグイン専用の変数と配置前提を外すため。AGENTS.md の移植性の規約）。データの場所はスクリプト自身の位置から解決されるので、実行ディレクトリには依存しない
 - `description` を日本語に差し替えた。上流は英語のみで 497 文字あり、日本語の依頼での発火と常駐コストの両面で合わないため。あわせて `ui-visual-verify` との棲み分けを1文追加
-- `metadata.web-description` と `license: MIT` を追加
+- `license: MIT` を追加。2026-10-03 に `description` を200文字以内へ短縮し、一時期置いていた `metadata.web-description` を削除した
 - 除外: `scripts/tests/`（上流の開発用テスト）、`scripts/validate_data.py`（上流のデータ保守用）。どちらも SKILL.md から参照されない。上流リポジトリの他スキル（banner-design・brand・design・design-system）、`cli/`、`.claude-plugin/` も取り込んでいない
 - `validate_skill.py` は `core.py` `design_system.py` `reasoning_contract.py` に使い方の記載が無いと WARN を出すが、`search.py` から import される内部モジュールで直接は呼ばないため、そのままにしている
 

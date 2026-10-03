@@ -1,12 +1,10 @@
 ---
 name: show-me
-description: いま会話している話題を、その場で視覚的に示すスキル。簡潔な図、擬似コードや呼び出しツリーによるコードの形のスケッチ、要点を絞った HTML のうち、いちばん小さく伝わるものを選んで出す。「図で説明して」「図解して」「構造を見せて」「どういう流れか見せて」で使うほか、文章だけでは伝わりにくいと判断したときにも使う。まとまった説明資料を Markdown ファイルとして作るのは markdown-doc。
+description: いま話している内容を、簡潔な図・コードの形のスケッチ・小さな HTML で視覚的に示す。「図で説明して」「図解して」「構造を見せて」で使うほか、文章だけでは伝わりにくいときにも使う。Markdown の説明資料は markdown-doc、編集できる図は drawio-diagram。
 license: MIT
-metadata:
-  web-description: いま話している内容を、簡潔な図・コードの形のスケッチ・小さな HTML で視覚的に示す。「図で説明して」「図解して」「構造を見せて」と言われたら使う。Markdown の説明資料は markdown-doc の担当。
 ---
 
-<!-- 本文は上流（MIT）のまま英語で保持している。改変は frontmatter の description / metadata.web-description / license のみ。出典は vendor/NOTICE.md を参照。 -->
+<!-- 本文は上流（MIT）のまま英語で保持している。改変は frontmatter の description / license のみ。出典は vendor/NOTICE.md を参照。 -->
 
 Help the user understand the current topic of conversation visually. Skip the preamble and keep prose brief. Pick the smallest view that makes the key point clear.
 

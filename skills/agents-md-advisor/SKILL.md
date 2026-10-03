@@ -1,8 +1,6 @@
 ---
 name: agents-md-advisor
-description: リポジトリの AGENTS.md / CLAUDE.md（エージェントが常時読む指示ファイル）を整える工程スキル。2モード。未整備なら「導入診断」で言語・ビルド・テスト・CI・定型作業を解析し、AGENTS.md 草案・スキル候補・運用ルールをツール非依存の提案書にまとめる。整備済みなら「監査」で導出可能な情報・曖昧な指示・手順書に育った節・重複を台帳化し、1件ずつ判定を得てから適用する。「AIエージェントを導入したい」「AGENTS.mdを整備したい」「導入診断して」「CLAUDE.mdを見直したい」「AGENTS.mdが肥大化してきた」「常時読み込みのコンテキストを減らしたい」で使う。skills ディレクトリの横断検査は skill-portfolio-audit。
-metadata:
-  web-description: AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案と運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得て適用する。「AIエージェントを導入したい」「CLAUDE.mdを見直したい」で使う。
+description: AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案と運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得て適用する。「AIエージェントを導入したい」「CLAUDE.mdを見直したい」で使う。skills ディレクトリの横断検査は skill-portfolio-audit。
 ---
 
 # AGENTS.md / CLAUDE.md Advisor

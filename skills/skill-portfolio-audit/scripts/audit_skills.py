@@ -10,8 +10,9 @@ A1（機械検査）で実行する。1スキル単位の検証（validate_skill
                            [--readme <README.md のパス>]
 
 検査するもの:
-    1. web-description   欠落 / 200文字超過 / 山括弧の混入（pack_skill.py の判定条件と同じ）
-    2. frontmatter       name とディレクトリ名の一致、description の長さと山括弧
+    1. frontmatter       name とディレクトリ名の一致、description の200文字以内と山括弧
+                         （pack_skill.py の判定条件と同じ。廃止した web-description の残りは WARN）
+    2. （欠番。旧 web-description 検査は 1 に統合）
     3. 個別検証の集約    --validator を渡すと各スキルに対して実行し、結果を1表にまとめる
     4. 発火競合          description のトリガー文言と特徴語が重なるスキルのペアを候補として出す
     5. 棲み分け宣言      競合候補が互いの description で名指しの振り分けをしているか
@@ -178,16 +179,20 @@ def load_skill(skills_dir, name, rep):
         if "<" in desc or ">" in desc:
             rep.error(where, "description に山括弧が含まれる。仕様で弾かれる")
 
+    # claude.ai の上限。200文字を超えるなら、旧方式の web-description がある
+    # git 管理外の取り込みスキルだけ許す（pack_skill.py の判定条件と同じ）
     web = skill["web_description"]
-    if not web:
-        rep.error(where, "metadata.web-description がない。"
-                         "pack_skill.py が終了コード1で止まり、claude.ai へ配布できない")
-    else:
-        if len(web) > WEB_DESC_LIMIT:
-            rep.error(where, "metadata.web-description が %d 文字。上限 %d 文字"
-                      % (len(web), WEB_DESC_LIMIT))
-        if "<" in web or ">" in web:
-            rep.error(where, "metadata.web-description に山括弧が含まれる")
+    if desc and len(desc) > WEB_DESC_LIMIT:
+        if not web:
+            rep.error(where, "description が %d 文字。上限 %d 文字。"
+                             "pack_skill.py が止まり、claude.ai へ配布できない"
+                      % (len(desc), WEB_DESC_LIMIT))
+        elif len(web) > WEB_DESC_LIMIT or "<" in web or ">" in web:
+            rep.error(where, "description が %d 文字で、代わりの metadata.web-description も"
+                             "上限 %d 文字超過か山括弧を含む" % (len(desc), WEB_DESC_LIMIT))
+    elif web:
+        rep.warn(where, "metadata.web-description は廃止した。description が %d 文字以内なので削除すること"
+                 % WEB_DESC_LIMIT)
 
     if body_lines > SKILL_BODY_LIMIT:
         rep.warn(where, "SKILL.md が %d 行。%d 行を超えたら references/ に分割すること"
@@ -382,9 +387,10 @@ def dump(report, rep):
     print()
 
     print("スキル %d 件" % len(report["skills"]))
-    missing_web = [s["name"] for s in report["skills"] if not s["web_description"]]
-    if missing_web:
-        print("  web-description 欠落: %s" % ", ".join(missing_web))
+    over = [s["name"] for s in report["skills"]
+            if len(s["description"]) > WEB_DESC_LIMIT and not s["web_description"]]
+    if over:
+        print("  description %d 文字超過: %s" % (WEB_DESC_LIMIT, ", ".join(over)))
     if report["conflicts"]:
         print("競合候補 %d 組（A2 で1組ずつ判断すること）" % len(report["conflicts"]))
         for c in report["conflicts"][:10]:

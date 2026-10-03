@@ -11,8 +11,8 @@ WARN のみなら合格（0）だが、内容は表示する。
 
 1. **仕様適合** — frontmatter の許可キー、name の kebab-case と長さ、
    description の山括弧禁止と長さ。Agent Skill の公式仕様に基づく。
-2. **構造** — name とディレクトリ名の一致、metadata.web-description の有無と
-   200 文字以内、description の 300 文字目安（超過は WARN）、リンク切れ、
+2. **構造** — name とディレクトリ名の一致、description の 200 文字以内
+   （claude.ai の上限。超過は ERROR）、廃止した metadata.web-description の残り、リンク切れ、
    同梱ファイル（references/ templates/ examples/ assets/）の孤児、行数。
    references/review-checklist.md と AGENTS.md に基づく、この置き場固有の検査。
 
@@ -54,12 +54,10 @@ TOC_REQUIRED_LINES = 300
 SKILL_MD_MAX_LINES = 500
 # description がこの文字数未満なら、発火の手がかりとして短すぎるとみなす
 DESCRIPTION_MIN_CHARS = 60
-# description がこの文字数を超えたら WARN。全スキル分が毎セッション読み込まれる
-# 固定費になるため、300 文字を目安にする（AGENTS.md「SKILL.md の規約」）
-DESCRIPTION_GUIDE_CHARS = 300
-# claude.ai（WEB版）の description 上限。metadata.web-description はこの長さ以内で必須
+# この置き場の description の上限。claude.ai（WEB版）の上限に合わせ、超えたら ERROR。
+# 全スキル分が毎セッション読み込まれる固定費でもある（AGENTS.md「SKILL.md の規約」）
 # （tools/pack_skill.py と skill-portfolio-audit の audit_skills.py と同じ判定条件）
-WEB_DESCRIPTION_MAX_CHARS = 200
+DESCRIPTION_LOCAL_MAX_CHARS = 200
 # 孤児検査の対象ディレクトリ（再帰的に走査する）。SKILL.md からも references/ からも
 # 参照されない同梱ファイルは、読ませる導線がないので置いていないのと変わらない。
 ORPHAN_SCAN_DIRS = ("references", "templates", "examples", "assets")
@@ -259,35 +257,22 @@ def check_frontmatter(skill_dir, skill_md_text, rep):
                 f"description が {len(desc)} 文字と短い。"
                 "「何をするか」と「いつ使うか」の両方が書かれているか確認すること",
             )
-        elif len(desc) > DESCRIPTION_GUIDE_CHARS:
-            rep.warn(
+        elif len(desc) > DESCRIPTION_LOCAL_MAX_CHARS:
+            rep.error(
                 "SKILL.md",
-                f"description が {len(desc)} 文字。目安は {DESCRIPTION_GUIDE_CHARS} 文字。"
-                "毎セッション読み込まれる固定費になるので、定型句と不要な名指しを削ること",
+                f"description が {len(desc)} 文字。この置き場の上限は {DESCRIPTION_LOCAL_MAX_CHARS} 文字。"
+                "claude.ai の上限であり、毎セッション読み込まれる固定費でもあるので、"
+                "定型句と不要な名指しを削ること",
             )
 
-    # --- claude.ai 配布用の短縮 description（このリポジトリ固有の規約）---
+    # 旧方式の短縮版。description を 200 文字以内の1本に統一したので置かない
     meta = fields.get("metadata")
-    web = meta.get("web-description") if isinstance(meta, dict) else None
-    if not web:
-        rep.error(
+    if isinstance(meta, dict) and "web-description" in meta:
+        rep.warn(
             "SKILL.md",
-            "frontmatter に `metadata.web-description` がない。"
-            f"claude.ai 用に {WEB_DESCRIPTION_MAX_CHARS} 文字以内の短縮版を置くこと"
-            "（無いと pack_skill.py が終了コード 1 で止まる）",
+            "`metadata.web-description` は廃止した。description を "
+            f"{DESCRIPTION_LOCAL_MAX_CHARS} 文字以内にして、このキーは削除すること",
         )
-    else:
-        if len(web) > WEB_DESCRIPTION_MAX_CHARS:
-            rep.error(
-                "SKILL.md",
-                f"metadata.web-description が {len(web)} 文字。"
-                f"上限は {WEB_DESCRIPTION_MAX_CHARS} 文字",
-            )
-        if "<" in web or ">" in web:
-            rep.error(
-                "SKILL.md",
-                "metadata.web-description に山括弧（< >）を含めてはいけない",
-            )
 
     compat = fields.get("compatibility")
     if compat and len(compat) > COMPATIBILITY_MAX_CHARS:

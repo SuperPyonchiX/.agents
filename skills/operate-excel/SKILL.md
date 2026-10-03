@@ -1,8 +1,6 @@
 ---
 name: operate-excel
-description: Excel ブック（.xlsx・.xlsm）を読む・作る・直すスキル。構造の把握、openpyxl での作成・編集、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う。「Excel を作って」「この xlsx を読んで集計して」「表を Excel にまとめて」「数式を直して」「このブックに追記して」で使う。
-metadata:
-  web-description: Excel ブック（.xlsx・.xlsm）を読む・作る・直す。構造の把握、openpyxl での作成・編集、数式の再計算とエラー検出、編集前後の差分確認、見た目の確認まで行う。「Excel を作って」「この xlsx を集計して」「数式を直して」で使う。
+description: Excel ブック（.xlsx・.xlsm）を読む・作る・直す。構造の把握、openpyxl での作成・編集、数式の再計算とエラー検出、編集前後の差分確認、見た目の確認まで行う。「Excel を作って」「この xlsx を集計して」「数式を直して」で使う。
 ---
 
 # Excel ブックの操作

@@ -1,8 +1,6 @@
 ---
 name: drawio-diagram
-description: 構成図・フロー図・スイムレーン図・シーケンス図・状態遷移図・クラス図・ER図を、人が後から直せる draw.io 形式（.drawio）で作り、PNG・SVG・PDF に書き出すスキル。「draw.io で図を作って」「構成図を作って」「シーケンス図を作って」「編集できる図がほしい」「資料に貼る図を作って」で使う。会話中にその場で見せるだけの図は show-me。
-metadata:
-  web-description: 構成図・フロー図・シーケンス図・状態遷移図・クラス図・ER図などを編集できる draw.io 形式（.drawio）で作り、PNG・SVG・PDF に書き出す。「draw.io で図を作って」「シーケンス図を作って」で使う。
+description: 構成図・フロー図・シーケンス図・状態遷移図・クラス図・ER図などを編集できる draw.io 形式（.drawio）で作り、PNG・SVG・PDF に書き出す。「draw.io で図を作って」「シーケンス図を作って」で使う。会話中にその場で見せるだけの図は show-me。
 ---
 
 # draw.io で編集できる図を作る

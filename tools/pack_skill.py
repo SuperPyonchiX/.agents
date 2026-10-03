@@ -3,8 +3,11 @@
 
 claude.ai は zip のルート直下に `<skill-name>/` が来ることを要求する。
 また description の上限が 200 文字と、Agent Skills 仕様（1024 文字）より厳しい。
-本リポジトリの description は CLI 系での発火精度を優先して長く書いてあるため、
-zip に入れる SKILL.md だけ frontmatter の `metadata.web-description` に差し替える。
+本リポジトリの description は 200 文字以内の1本に統一してあるので、SKILL.md は
+そのまま zip に入れる。
+
+git 管理外の取り込みスキルなど、description が 200 文字を超えていて旧方式の
+`metadata.web-description` を持つものに限り、zip 内の description をそれに差し替える。
 実体（skills/ 配下）は一切書き換えない。
 
 使い方:
@@ -14,7 +17,7 @@ zip に入れる SKILL.md だけ frontmatter の `metadata.web-description` に�
 
 終了コード:
     0  成功
-    1  検証エラー（web-description が無い / 200 文字超過 など）
+    1  検証エラー（description が 200 文字超過で web-description も無い など）
     2  引数の指定ミス
 
 依存は標準ライブラリのみ。特定のディレクトリ配置を前提にしない。
@@ -105,10 +108,13 @@ def build_web_skill_md(text):
 
     if "description" not in keys:
         raise SkillError("frontmatter に `description` がない")
+    desc = dict(blocks)["description"][0].split(":", 1)[1].strip()
+    if len(desc) <= WEB_DESCRIPTION_MAX_CHARS and "<" not in desc and ">" not in desc:
+        return text
     if "metadata" not in keys:
         raise SkillError(
-            "frontmatter に `metadata.web-description` がない。"
-            f"claude.ai 用に {WEB_DESCRIPTION_MAX_CHARS} 文字以内の description を書くこと"
+            f"description が {len(desc)} 文字で上限 {WEB_DESCRIPTION_MAX_CHARS} 文字を超え、"
+            "`metadata.web-description` も無い。description を短くすること"
         )
 
     web_desc = None
@@ -124,8 +130,8 @@ def build_web_skill_md(text):
 
     if web_desc is None:
         raise SkillError(
-            "frontmatter に `metadata.web-description` がない。"
-            f"claude.ai 用に {WEB_DESCRIPTION_MAX_CHARS} 文字以内の description を書くこと"
+            f"description が {len(desc)} 文字で上限 {WEB_DESCRIPTION_MAX_CHARS} 文字を超え、"
+            "`metadata.web-description` も無い。description を短くすること"
         )
     if len(web_desc) > WEB_DESCRIPTION_MAX_CHARS:
         raise SkillError(

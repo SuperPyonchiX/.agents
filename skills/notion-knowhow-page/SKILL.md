@@ -1,8 +1,6 @@
 ---
 name: notion-knowhow-page
-description: Notion の「DB_ノウハウまとめ」にノウハウ記事ページを追加するスキル。会話で得た知見を記事に整理する場合と、既存 Markdown を変換する場合の両方に対応し、タイトル・カテゴリ・アイコン・本文案の承認を得てから notion-api 経由で書き込む。「Notion に追加して」「ノウハウまとめに載せて」「今の知見を Notion に残して」で使う。ローカルに Markdown で残すなら markdown-doc（AIノウハウ記録）。
-metadata:
-  web-description: Notionの「DB_ノウハウまとめ」データベースにノウハウ記事ページを追加する。会話の知見の整理と既存Markdownの変換の両方に対応。「Notionに追加して」「ノウハウまとめに載せて」と言われたら使う。承認を得てから書き込む。
+description: Notionの「DB_ノウハウまとめ」にノウハウ記事ページを追加する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから書き込む。「Notionに追加して」「ノウハウまとめに載せて」で使う。ローカルに Markdown で残すなら markdown-doc。
 ---
 
 # notion-knowhow-page

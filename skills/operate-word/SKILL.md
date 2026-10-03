@@ -1,8 +1,6 @@
 ---
 name: operate-word
-description: Word 文書（.docx）を読む・作る・直すスキル。構造と本文の抽出、python-docx での作成（A4・和文フォント・見出し・表・ページ番号）、書式を保った文字列置換、コメントと変更履歴の付与、PDF にしての見た目確認まで行う。「Word で報告書を作って」「この docx を読んで」「Word の文言を置換して」「コメントを付けて」「変更履歴付きで直して」で使う。Markdown で書く文書は markdown-doc。
-metadata:
-  web-description: Word 文書（.docx）を読む・作る・直す。本文の抽出、python-docx での作成（A4・和文フォント・表・ページ番号）、書式を保った置換、コメント・変更履歴、見た目の確認まで行う。「Word で作って」「docx を読んで」「置換して」で使う。
+description: Word 文書（.docx）を読む・作る・直す。本文の抽出、python-docx での作成（A4・和文フォント・表・ページ番号）、書式を保った置換、コメント・変更履歴、見た目の確認まで行う。「Word で作って」「docx を読んで」「置換して」で使う。Markdown の文書は markdown-doc。
 ---
 
 # Word 文書の操作

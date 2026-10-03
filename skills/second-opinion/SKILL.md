@@ -1,8 +1,6 @@
 ---
 name: second-opinion
-description: 判断・選定・トレードオフなど意見が割れそうなテーマで、Codex CLI（GPT）に同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させて Claude の見解と突き合わせるスキル。Codex が使えなければ ChatGPT をブラウザで操作する。「Codex に相談して」「GPT にも聞いて」「セカンドオピニオンを取って」「別の AI と議論させて」で使う。後戻りコストが高い判断（設計方針・データ構造・ライブラリ選定）で確度が中以下なら Claude から使う。調べれば分かる事実や好みの問題には使わない。大量資料の読み込みは notebooklm。
-metadata:
-  web-description: 意見が割れそうな判断で GPT にも同じ問いを投げ、相違点を反論させて Claude の見解と突き合わせる。「GPTにも聞いて」「セカンドオピニオンを取って」「別のAIと議論させて」で使う。WEB版ではChatGPTをブラウザ操作する。
+description: 意見が割れそうな判断で Codex CLI（GPT）にも同じ問いを投げ、相違点を反論させて Claude の見解と突き合わせる。Codex が使えなければ ChatGPT をブラウザ操作する。「Codex に相談して」「GPTにも聞いて」「セカンドオピニオンを取って」で使う。大量資料の読み込みは notebooklm。
 ---
 
 # セカンドオピニオン（Claude × GPT の対話）

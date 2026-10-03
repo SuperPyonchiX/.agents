@@ -1,8 +1,6 @@
 ---
 name: nextdesign-extension
-description: Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る工程スキル。最初にバージョンを、新規なら方式も尋ね、拡張ポイントを決めて実装し、配置前に manifest を機械検査して実機で動作確認する。「Next Design の拡張機能を作りたい」「リボンにボタンを追加したい」「DLL で拡張を作りたい」「作ったエクステンションが動かない」で使う。設計データから C++ を作るのは nextdesign-cpp14-implementation。
-metadata:
-  web-description: Next Design の拡張機能をC#スクリプトかDLL（.NET SDK、VS不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査する。「拡張機能を作りたい」「リボンにボタンを追加したい」「DLLで拡張を作りたい」で使う。
+description: Next Design の拡張機能をC#スクリプトかDLL（.NET SDK、VS不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査する。「拡張機能を作りたい」「リボンにボタンを追加したい」「作ったエクステンションが動かない」で使う。
 ---
 
 # Next Design 拡張機能の開発

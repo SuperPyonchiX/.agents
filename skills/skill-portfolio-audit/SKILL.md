@@ -1,8 +1,6 @@
 ---
 name: skill-portfolio-audit
-description: Agent Skills の置き場（skills ディレクトリ）を横断検査して是正する工程スキル。frontmatter・web-description・README 収録表を機械検査し、description の発火競合ペアを1組ずつ判定する。モデル更新時は全スキル本文から古いモデル前提・過剰な強調・確認なしの危険操作・時点依存の記述を拾って見直す。「スキルを棚卸ししたい」「意図しないスキルが発火する」「README とずれている」「モデルを更新したのでスキルを見直したい」で使う。1本の設計は workflow-skill-architect。
-metadata:
-  web-description: スキル置き場を横断検査する。web-description 欠落・README との乖離・発火競合ペアを判定し、モデル更新時は本文の古い前提や確認なしの危険操作を見直す。「スキルを棚卸ししたい」「モデルを更新したのでスキルを見直したい」で使う。
+description: スキル置き場を横断検査する。frontmatter・README との乖離・発火競合ペアを判定し、モデル更新時は本文の古い前提や確認なしの危険操作を見直す。「スキルを棚卸ししたい」「意図しないスキルが発火する」「モデルを更新したのでスキルを見直したい」で使う。1本の設計は workflow-skill-architect。
 ---
 
 # スキル置き場の横断検査
@@ -78,7 +76,7 @@ graph TD
 
    `--validator` と `--readme` は A0 で確認できたものだけ渡す。
 2. ERROR と WARN の件数、競合候補の組数を確認する。**この時点で是正しない。** ERROR も含めて A3 の報告まで持ち越す。
-3. ERROR のうち、**判断を要さないもの**（`SKILL.md` がない、`name` がディレクトリ名と不一致、`web-description` の欠落・超過）はそのまま A3 の是正候補に載せる。これらは競合判断の対象ではない。
+3. ERROR のうち、**判断を要さないもの**（`SKILL.md` がない、`name` がディレクトリ名と不一致、`description` の200文字超過）はそのまま A3 の是正候補に載せる。これらは競合判断の対象ではない。
 
 **完了条件**: `audit_skills.py` が終了コード 0 または 1 で終わり、`work/audit-report.json` が生成されていること。
 
@@ -117,7 +115,7 @@ else:
 
 1. `work/audit-report.md` を仕上げ、ユーザーに提示する。**都合の悪い項目を省かない。**
    - 検査したスキル数と、実行できなかった検査（`--validator` / `--readme` を渡せなかった場合）
-   - ERROR の全件。特に **`web-description` の欠落は配布が止まる**ので個別に挙げる
+   - ERROR の全件。特に **`description` の200文字超過は claude.ai への配布が止まる**ので個別に挙げる
    - 競合候補の組数と、処置別の内訳。「問題なし」の件数も出す
    - README 突合の結果（一覧の漏れ、行数のズレ）。`.gitignore` で除外して意図的に載せていないスキルがあれば、それも明記する
    - 未判定として残した候補の件数と一覧
@@ -133,7 +131,7 @@ else:
 
 1. 是正対象を**1件ずつ**扱う。まとめて一括変更しない。
 2. `description` を変更する場合、**変更前後を並べて提示し、個別に了承を得る**。発火挙動が変わる。
-3. `web-description` の追加は、対応する `description` の要点を 200 文字以内に圧縮する。**独立した文章を新しく書かない**（発火語がずれる）。
+3. `description` の短縮は、種別や方式の説明を本文へ移し、発火語を代表的なものに絞って 200 文字以内にする。**発火語を言い換えない**（発火がずれる）。
 4. README の収録スキル表は、実体に合わせて更新する。行数は実測値を入れる。
 5. 是正後、A1 のスクリプトを再実行して ERROR が減ったことを確認する。
 6. **新たな ERROR が出ていないか**を確認する。出ていれば A2 に戻る。
@@ -209,7 +207,7 @@ python scripts/audit_skills.py <skills-dir> [-o <出力先.json>] [--validator <
 | `--validator` | `validate_skill.py` のパス。渡すと各スキルに対して実行し、結果を集約する |
 | `--readme` | `README.md` のパス。渡すと収録スキル表と実体・行数を突き合わせる |
 
-検査するのは、web-description の欠落と長さ超過と山括弧、`name` とディレクトリ名の一致、`description` の長さと山括弧、個別検証の集約、発火競合の候補抽出、棲み分け宣言の有無、README 突合の8項目。終了コードは 0（ERROR なし。WARN のみでも 0）/ 1（ERROR あり）/ 2（引数の指定ミス）。依存は標準ライブラリのみ。
+検査するのは、`name` とディレクトリ名の一致、`description` の200文字超過と山括弧（廃止した web-description の残りは WARN）、個別検証の集約、発火競合の候補抽出、棲み分け宣言の有無、README 突合の8項目。終了コードは 0（ERROR なし。WARN のみでも 0）/ 1（ERROR あり）/ 2（引数の指定ミス）。依存は標準ライブラリのみ。
 
 ```
 python scripts/scan_bodies.py <skills-dir> [-o work/body-scan.json] [--skills a,b,c]

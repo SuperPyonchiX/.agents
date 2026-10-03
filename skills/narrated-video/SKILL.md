@@ -1,8 +1,6 @@
 ---
 name: narrated-video
-description: 台本からナレーション音声を作り、Remotion の動画に尺を合わせて字幕つきの MP4 にする動画作成スキル。解説動画と、ビートに合わせて動く告知・CM 風のモーショングラフィックスの両方を作る。音声は Gemini TTS（感情・テンションを指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender か Three.js。「ナレーション付きの動画を作って」「解説動画にして」「告知動画を作って」「CM っぽい動画を作って」「ずんだもんに読ませて」で使う。Remotion の書き方そのものは remotion-best-practices。
-metadata:
-  web-description: 台本からナレーションを作り Remotion で尺を合わせて字幕つき MP4 にする。解説動画とビート同期の告知・CM 動画に対応。音声は Gemini TTS か VOICEVOX、3D は Blender か Three.js。「解説動画にして」「告知動画を作って」で使う。
+description: 台本からナレーションを作り Remotion で尺を合わせて字幕つき MP4 にする。解説動画とビート同期の告知・CM 動画に対応。音声は Gemini TTS か VOICEVOX、3D は Blender か Three.js。「解説動画にして」「告知動画を作って」で使う。Remotion の書き方は remotion-best-practices。
 ---
 
 # ナレーション付きの動画を作る
