@@ -30,11 +30,11 @@ Notion を REST API で操作するための基盤。ワークフローは持た
 | スクリプト | 用途 |
 | --- | --- |
 | `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで）。コードフェンスの `csharp` `cpp` などは Notion の言語名（`c#` `c++`）へ直す |
-| `scripts/notion_page.py` | `create`（ページ作成。本文の先頭に目次ブロックを必ず入れる。100ブロック超は自動追送）/ `set-icon`（既存ページのアイコン設定）/ `archive`（ゴミ箱送り） |
+| `scripts/notion_page.py` | `create`（目次付きページ作成と分割追送）/ `append`（読み戻しで照合した不足分の追送）/ `set-icon` / `archive`。create/appendは `--progress <json>` で途中結果を保存する |
 | `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ。`--compact` は `icon` も返す）/ `blocks`（本文読み戻し） |
 
 終了コードは3本とも共通: **0=成功 / 1=APIエラー（レスポンス本文を stderr に表示）/
-2=引数・トークン・入力の不備**（md2blocks.py は API を呼ばないので 0 か 2 のみ）。
+2=引数・トークン・入力の不備**（md2blocks.py は API を呼ばないので 0 か 2 のみ）。notion_page.pyには **3=部分成功・結果不明・進捗保存失敗** もある。stdoutのstatusとidを必ず確認する。
 
 呼び出し例:
 
@@ -45,7 +45,7 @@ python scripts/notion_query.py schema --data-source-id <uuid>
 # Markdown 本文つきでページ作成
 python scripts/md2blocks.py --file body.md --out blocks.json
 python scripts/notion_page.py create --data-source-id <uuid> \
-  --properties props.json --blocks blocks.json --icon "📜"
+  --properties props.json --blocks blocks.json --icon "📜" --progress progress.json
 
 # アイコンの付け忘れを後から直す
 python scripts/notion_page.py set-icon --page-id <page-id> --icon "📜"
@@ -80,6 +80,16 @@ python scripts/notion_query.py query --data-source-id <uuid> --compact
 
 一括投入では、投入済み記録を持ち、二重投入を防ぐ。作法は `references/api-guide.md` の
 「重複排除の作法」を読む。
+
+終了3のときはcreateを繰り返さない。`partial`は作成済みIDあり、`unknown`は作成結果未確認。`complete`でも進捗保存失敗なら終了3になるため、まず読み戻す。`confirmed_blocks`は応答を確認した件数で、`pending_blocks`の成否は未確定。DBを一意キーで照合し、既存本文と元のblocksを内容・順序まで比較する。確認できた不足分だけを `remaining.json` に書き、次を実行する。
+
+強制終了・Ctrl+Cなどでは終了3や最終JSONを返せない。終了コードによらず、進捗の`creating`は結果不明、`sending`／`appending`は部分成功と同じ復旧手順で扱う。`--progress`を付け、親フォルダを先に作る。進捗を失った場合もDBを一意キーで照合するまで再作成しない。createのAPIエラーは保守的に結果不明の終了3として返す。共通HTTP処理の自動再試行は429に対する最大2回だけで、タイムアウトや5xxの作成・追送は自動再試行しない。
+
+```
+python scripts/notion_page.py append --page-id <id> --blocks remaining.json --expected-count <読み戻した直下ブロック数> --progress progress.json
+```
+
+appendは件数が変わっていれば終了2で止まる。同じ件数の編集や確認後の同時更新は検出できないので、同じページへの並行書き込みを止めて実行し、追送後にも読み戻す。目次はcreateが加えるため、復旧時の比較にも含める。
 
 ## references/ を読むタイミング
 
