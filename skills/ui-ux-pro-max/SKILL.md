@@ -40,12 +40,10 @@ For the full rule list per category (all 119 UX guidelines with rationale), read
 The search script lives inside this skill's own directory, not the project directory. Always invoke it by its full path — do not assume a particular working directory:
 
 ```bash
-python scripts/search.py "<query>" --domain <domain>
+python "<skill-dir>/scripts/search.py" "<query>" --domain <domain>
 ```
 
-If `python` is not found, try `python3`, then `py -3`. Requires Python 3.x, no external dependencies (see README for install instructions if Python is missing).
-
-## Workflow
+If `python` is not found, try `python3`, then `py -3`. Requires Python 3.x, no external dependencies (install Python using the environment's standard setup if it is missing).
 
 ## Query Contract
 
@@ -76,14 +74,14 @@ Extract from the user request:
 Use `--design-system` when the task needs a coherent product-wide visual direction:
 
 ```bash
-python scripts/search.py "<product_type> <industry> <keywords>" --design-system [-p "Project Name"]
+python "<skill-dir>/scripts/search.py" "<product_type> <industry> <keywords>" --design-system [-p "Project Name"]
 ```
 
 This aggregates product/style/color/landing/typography matches, applies reasoning rules from `ui-reasoning.csv`, and returns pattern, style, colors, typography, effects, and anti-patterns to avoid.
 
 **Example:**
 ```bash
-python scripts/search.py "beauty spa wellness service" --design-system -p "Serenity Spa"
+python "<skill-dir>/scripts/search.py" "beauty spa wellness service" --design-system -p "Serenity Spa"
 ```
 
 ### Step 2b: Persist Design System (Master + Overrides Pattern)
@@ -91,7 +89,7 @@ python scripts/search.py "beauty spa wellness service" --design-system -p "Seren
 To save the design system for retrieval across sessions, add `--persist` **and always pass `--output-dir` pointed at the project root** — without it, files are written relative to whatever directory the tool happens to run from:
 
 ```bash
-python scripts/search.py "<query>" --design-system --persist -p "Project Name" --output-dir "<project-root>"
+python "<skill-dir>/scripts/search.py" "<query>" --design-system --persist -p "Project Name" --output-dir "<project-root>"
 ```
 
 This creates:
@@ -114,7 +112,7 @@ Read an existing `MASTER.md` before deciding whether `--force` is justified. Nev
 Three optional 1-10 sliders that tune `--design-system` output without changing your query. Add any combination of them to the same command:
 
 ```bash
-python scripts/search.py "<query>" --design-system --variance <1-10> --motion <1-10> --density <1-10>
+python "<skill-dir>/scripts/search.py" "<query>" --design-system --variance <1-10> --motion <1-10> --density <1-10>
 ```
 
 | Dial | Low (1-3) | Mid (4-7) | High (8-10) |
@@ -129,13 +127,13 @@ python scripts/search.py "<query>" --design-system --variance <1-10> --motion <1
 
 **Example:**
 ```bash
-python scripts/search.py "internal analytics dashboard" --design-system --variance 8 --motion 7 --density 8 -p "Ops Console"
+python "<skill-dir>/scripts/search.py" "internal analytics dashboard" --design-system --variance 8 --motion 7 --density 8 -p "Ops Console"
 ```
 
 ### Step 3: Supplement with Detailed Searches (as needed)
 
 ```bash
-python scripts/search.py "<keyword>" --domain <domain> [-n <max_results>]
+python "<skill-dir>/scripts/search.py" "<keyword>" --domain <domain> [-n <max_results>]
 ```
 
 | Need | Domain | Example |
@@ -158,7 +156,7 @@ Domain is auto-detected from the query if `--domain` is omitted — but auto-det
 ### Step 4: Stack Guidelines
 
 ```bash
-python scripts/search.py "<keyword>" --stack <stack>
+python "<skill-dir>/scripts/search.py" "<keyword>" --stack <stack>
 ```
 
 **Available stacks:** `react`, `nextjs`, `vue`, `svelte`, `astro`, `nuxtjs`, `nuxt-ui`, `angular`, `laravel`, `swiftui`, `react-native`, `flutter`, `jetpack-compose`, `html-tailwind`, `shadcn`, `threejs`, `javafx`, `wpf`, `winui`, `avalonia`, `uno`, `uwp`. Use the stack detected in Step 1.
@@ -178,13 +176,13 @@ Do not fabricate output. Instead:
 
 ```bash
 # Step 2: design system
-python scripts/search.py "AI search tool modern minimal" --design-system -p "AI Search"
+python "<skill-dir>/scripts/search.py" "AI search tool modern minimal" --design-system -p "AI Search"
 
 # Step 3: supplement
-python scripts/search.py "keyboard focus modal" --domain ux
+python "<skill-dir>/scripts/search.py" "keyboard focus modal" --domain ux
 
 # Step 4: stack guidelines
-python scripts/search.py "suspense streaming bundle" --stack nextjs
+python "<skill-dir>/scripts/search.py" "suspense streaming bundle" --stack nextjs
 ```
 
 Then synthesize the design system + detailed searches and implement.
@@ -213,3 +211,7 @@ Then synthesize the design system + detailed searches and implement.
 ## Before Delivering App UI
 
 Read `references/pro-rules.md` and run through its canonical Pre-Delivery Checklist. It covers icon/visual-element discipline, interaction feedback, light/dark contrast, safe-area layout, and accessibility — scoped to native/mobile app UI (iOS/Android/React Native/Flutter).
+
+## Script entry point and internal modules
+
+Replace `<skill-dir>` in every command with the absolute directory containing this SKILL.md. Run `scripts/search.py` as the CLI entry point; exit 0 means success, 2 means invalid arguments. It uses `scripts/core.py` (CSV search), `scripts/design_system.py` (design system generation), and `scripts/reasoning_contract.py` (decision rule parsing, imported by design_system). These three files are internal modules, not standalone commands. All use the Python standard library.

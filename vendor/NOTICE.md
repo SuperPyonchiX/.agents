@@ -38,13 +38,13 @@ frontmatterと、環境依存の表示手順を改変している。本文の記
 | 改変 | **あり**（下記） |
 
 取り込んだのは `SKILL.md`・`data/`・`references/`・`scripts/` の `core.py` `design_system.py` `reasoning_contract.py` `search.py` だけ。
-本文は上流のまま英語で保持している。
+本文の記述言語は英語で保持し、実行パスと内部モジュールの説明を改変している。
 
 - 本文中のスクリプト呼び出し11箇所を `python "${CLAUDE_PLUGIN_ROOT}/.claude/skills/ui-ux-pro-max/scripts/search.py"` から `python scripts/search.py` に置き換えた（Claude Code プラグイン専用の変数と配置前提を外すため。AGENTS.md の移植性の規約）。データの場所はスクリプト自身の位置から解決されるので、実行ディレクトリには依存しない
 - `description` を日本語に差し替えた。上流は英語のみで 497 文字あり、日本語の依頼での発火と常駐コストの両面で合わないため。あわせて `ui-visual-verify` との棲み分けを1文追加
 - `license: MIT` を追加。2026-10-03 に `description` を200文字以内へ短縮し、一時期置いていた `metadata.web-description` を削除した
 - 除外: `scripts/tests/`（上流の開発用テスト）、`scripts/validate_data.py`（上流のデータ保守用）。どちらも SKILL.md から参照されない。上流リポジトリの他スキル（banner-design・brand・design・design-system）、`cli/`、`.claude-plugin/` も取り込んでいない
-- `validate_skill.py` は `core.py` `design_system.py` `reasoning_contract.py` に使い方の記載が無いと WARN を出すが、`search.py` から import される内部モジュールで直接は呼ばないため、そのままにしている
+- 2026-10-03に呼び出し例を実体ディレクトリの絶対パスへ統一し、同梱されないREADMEへの参照と空のWorkflow見出しを除いた。`core.py` `design_system.py` `reasoning_contract.py` は内部モジュールとして用途を明記し、個別CLIとは扱わない
 
 **更新するとき**: 上流を clone し、上の範囲だけをコピーし直してから改変を当て直す。`grep CLAUDE_PLUGIN_ROOT skills/ui-ux-pro-max/SKILL.md` が0件になることを確かめる。
 
