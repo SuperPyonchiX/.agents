@@ -100,6 +100,8 @@ M6 完了報告
 
 ### M5: 次の回のシートを切り出す
 
+修正の影響で既存のOK項目が壊れうる場合は、理由と元のIDをメモに残し、切り出し前のr<N>へ新しいR-行として追加する。`sheet.py next`がR-の全行をr<N+1>へ引き継ぐ。影響のないOK項目は戻さない。
+
 ```
 python scripts/sheet.py next work/test-sheet-r<N>.md -o work/test-sheet-r<N+1>.md --round <N+1>
 ```
