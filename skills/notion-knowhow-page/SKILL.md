@@ -13,6 +13,10 @@ Notion データベース「DB_ノウハウまとめ」にノウハウ記事ペ�
                                   （修正指示があれば戻る）
 ```
 
+## 依存スキルの解決
+
+利用可能なスキル一覧から notion-api の実体ディレクトリを解決し、以下の `<notion-api-dir>` をその絶対パスへ置き換える。作業ディレクトリや隣接配置を仮定しない。不在なら保存用本文とプロパティを残し、Notion保存は未完として必要なスキルを案内する。createの終了コード3では再作成せず、notion-apiの復旧手順に従う。
+
 ## 対象データベース
 
 | 項目 | 値 |
@@ -33,7 +37,7 @@ Notion データベース「DB_ノウハウまとめ」にノウハウ記事ペ�
 ## 前提: notion-api スキル（環境変数 NOTION_TOKEN）
 
 Notion への読み書きはすべて `notion-api` スキルのスクリプト
-（`skills/notion-api/scripts/` の `notion_query.py` / `md2blocks.py` / `notion_page.py`）で行う。
+（`<notion-api-dir>/scripts/` の `notion_query.py` / `md2blocks.py` / `notion_page.py`）で行う。
 トークンは環境変数 `NOTION_TOKEN` から読まれ、未設定ならスクリプトが終了コード2で止まり
 設定手順を出す。その場合は工程2の時点で作業を中断し、案内をそのままユーザーに伝えること。
 **トークンが無いまま代替手段（手動貼り付け用テキストの出力など）で「投稿した」ことに
@@ -57,7 +61,7 @@ Notion への読み書きはすべて `notion-api` スキルのスクリプト
 取得する（本ファイルには写しを置かない。毎回取得した一覧を正とする）。
 
 ```bash
-python skills/notion-api/scripts/notion_query.py schema --data-source-id 20b2ccbf-51c2-804f-9d9a-000bfe60fbca
+python "<notion-api-dir>/scripts/notion_query.py" schema --data-source-id 20b2ccbf-51c2-804f-9d9a-000bfe60fbca
 ```
 
 完了条件: カテゴリ選択肢一覧を取得できたこと。
@@ -98,14 +102,14 @@ AIくさい言い回しを除去する。コードブロック、引用、Notion
 `notion_page.py create` で作成する。
 
 ```bash
-python skills/notion-api/scripts/md2blocks.py --file body.md --out blocks.json
-python skills/notion-api/scripts/notion_page.py create \
+python "<notion-api-dir>/scripts/md2blocks.py" --file body.md --out blocks.json
+python "<notion-api-dir>/scripts/notion_page.py" create \
   --data-source-id 20b2ccbf-51c2-804f-9d9a-000bfe60fbca \
-  --properties props.json --blocks blocks.json --icon "<承認された絵文字>"
+  --properties props.json --blocks blocks.json --icon "<承認された絵文字>" --progress progress.json
 ```
 
 - properties: `名前`（title）と `カテゴリ`（multi_select）のみ。値の JSON の形は
-  notion-api スキルの api-guide.md（`skills/notion-api/references/` 配下）に従う。承認済みの新規カテゴリは
+  notion-api スキルの api-guide.md（`<notion-api-dir>/references/` 配下）に従う。承認済みの新規カテゴリは
   そのまま値として渡せば選択肢に追加される
 - 成功すると作成ページの `id` と `url` が JSON で返る。両方控える
 

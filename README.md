@@ -62,7 +62,7 @@ graph LR
 | `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 89行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 363行 |
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 107行 |
-| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 129行 |
+| `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 133行 |
 | `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 129行 |
 | `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
 | `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 331行 |
