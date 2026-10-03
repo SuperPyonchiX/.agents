@@ -73,11 +73,11 @@ else:
 
 ### 4. 見た目を確かめる（印刷・配布するもの）
 
-レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。隣の `operate-pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
+レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。`operate-pdf` スキルのスクリプトを使う。
 
 ```
-python ../operate-pdf/scripts/to_pdf.py <xlsx> --outdir <作業フォルダ>
-python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python "<operate-pdf-dir>/scripts/to_pdf.py" <xlsx> --outdir <作業フォルダ>
+python "<operate-pdf-dir>/scripts/pdf_to_png.py" <作業フォルダ>/<名前>.pdf
 ```
 
 列幅不足の `###`、ページからのはみ出し、改ページ位置の崩れを見て直す。直し方と周回の上限は `operate-pdf` の「見た目の確認ループ」に従う。
@@ -108,3 +108,7 @@ python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 `recalc_check.py` の再計算エンジンは `--engine auto`（既定）で、LibreOffice があればそれを、無ければ Windows の MS Excel を使う。`--write-back` を付けると Excel で元のファイル自体を再計算して保存する（計算結果を読む別のプログラムに渡すとき用。Windows の Excel のみ）。
 
 PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+
+## PDF変換の依存先
+
+このスキルのzipにoperate-pdfは含まれない。利用可能なスキル一覧からoperate-pdfの実体パスを解決し、`<operate-pdf-dir>`を置き換える。未導入なら、利用可能なOfficeのPDF出力と画像表示で同じ観点を確認する。変換・画像表示のどちらかが使えなければ、構造検査までの結果と「見た目未確認」を明示し、完成扱いにしない。確認済みとするために必要な依存先を案内する。
