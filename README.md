@@ -110,11 +110,11 @@ git clone <このリポジトリ> ~/.agents
 
 ```bat
 mkdir "%USERPROFILE%\.claude"
-mklink /D "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
+mklink /J "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
 ```
 
 `.claude` が既にある場合、1行目は「既に存在します」と出るが無視してよい。
-`mklink` は**開発者モードが有効なら一般ユーザーで実行できる**。有効にしていない場合は、コマンドプロンプトを管理者として実行する。
+`mklink /J`（ジャンクション）は**管理者権限も開発者モードも要らない**。`mklink /D`（シンボリックリンク）はどちらかが無いと権限不足で失敗する。
 
 **Linux / macOS / WSL**
 
@@ -321,7 +321,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 同上 | frontmatter が壊れている | `validate_skill.py` を通す |
 | 意図しない場面で発火する | `description` が広すぎる | 対象範囲を絞る |
 | 手順を飛ばす | 完了条件がない | 完了条件を判定可能な形で書く。必須ゲートは hooks / CI で担保する |
-| Windows でリンクが作れない | 開発者モードが無効 | 設定で開発者モードを有効化するか、コマンドプロンプトを管理者として実行する |
+| Windows でリンクが作れない（権限不足） | `mklink /D` を開発者モード無効の環境で実行した | `mklink /J` で作り直す。権限なしで作れる |
 | Ubuntu 側でスキルが見えない | ホームディレクトリが別 | VM とホストは独立しているので、両方でセットアップを実行する |
 
 ## 仕組み（なぜ増やしても重くならないか）
