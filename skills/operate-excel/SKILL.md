@@ -1,5 +1,5 @@
 ---
-name: excel
+name: operate-excel
 description: Excel ブック（.xlsx・.xlsm）を読む・作る・直すスキル。構造の把握、openpyxl での作成・編集、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う。「Excel を作って」「この xlsx を読んで集計して」「表を Excel にまとめて」「数式を直して」「このブックに追記して」で使う。
 metadata:
   web-description: Excel ブック（.xlsx・.xlsm）を読む・作る・直す。構造の把握、openpyxl での作成・編集、数式の再計算とエラー検出、編集前後の差分確認、見た目の確認まで行う。「Excel を作って」「この xlsx を集計して」「数式を直して」で使う。
@@ -75,14 +75,14 @@ else:
 
 ### 4. 見た目を確かめる（印刷・配布するもの）
 
-レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。隣の `pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
+レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。隣の `operate-pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
 
 ```
-python ../pdf/scripts/to_pdf.py <xlsx> --outdir <作業フォルダ>
-python ../pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python ../operate-pdf/scripts/to_pdf.py <xlsx> --outdir <作業フォルダ>
+python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 ```
 
-列幅不足の `###`、ページからのはみ出し、改ページ位置の崩れを見て直す。直し方と周回の上限は `pdf` の「見た目の確認ループ」に従う。
+列幅不足の `###`、ページからのはみ出し、改ページ位置の崩れを見て直す。直し方と周回の上限は `operate-pdf` の「見た目の確認ループ」に従う。
 
 ## 完了条件
 
@@ -109,4 +109,4 @@ python ../pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 
 `recalc_check.py` の再計算エンジンは `--engine auto`（既定）で、LibreOffice があればそれを、無ければ Windows の MS Excel を使う。`--write-back` を付けると Excel で元のファイル自体を再計算して保存する（計算結果を読む別のプログラムに渡すとき用。Windows の Excel のみ）。
 
-PDF 化と画像化は `pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。

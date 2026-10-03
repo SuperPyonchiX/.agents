@@ -1,5 +1,5 @@
 ---
-name: pdf
+name: operate-pdf
 description: PDF を読む・加工する・作るスキル。テキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入、Word・Excel・PowerPoint からの PDF 化、ページの画像化を Python スクリプトで行う。「PDF から文字を抜いて」「PDF を結合して」「ページを分けて」「PDF のフォームに記入して」「PDF にして」「スキャンした PDF を読みたい」で使う。
 metadata:
   web-description: PDF の抽出（テキスト・表・画像）、結合・分割・回転・透かし・暗号化、フォーム記入、Office ファイルの PDF 化とページの画像化を行う。「PDF から文字を抜いて」「PDF を結合して」「フォームに記入して」「PDF にして」で使う。
@@ -10,7 +10,7 @@ metadata:
 PDF の読み取り・ページ操作・フォーム記入・新規作成を、`scripts/` の4本で行う。
 失敗しやすいのは3点。スキャン PDF に気づかず「空でした」と返す、入力ファイルを上書きして元に戻せなくする、和文を reportlab で直接組んで文字化けさせる。
 
-`to_pdf.py` と `pdf_to_png.py` は `excel` `word` `powerpoint` からも見た目の確認に使う。
+`to_pdf.py` と `pdf_to_png.py` は `operate-excel` `operate-word` `operate-powerpoint` からも見た目の確認に使う。
 
 ## 手順
 
@@ -60,8 +60,8 @@ python scripts/pdf_extract.py meta <pdf>
 
 和文の PDF を reportlab で直接組むのは既定にしない。フォント登録を誤ると文字が化けるか欠ける。次の順で選ぶ。
 
-1. 文書・帳票 → `word` で Word を作り `to_pdf.py` で変換する
-2. 表計算の帳票 → `excel` で作り `to_pdf.py`
+1. 文書・帳票 → `operate-word` で Word を作り `to_pdf.py` で変換する
+2. 表計算の帳票 → `operate-excel` で作り `to_pdf.py`
 3. 図や装飾の多い1枚もの → HTML を書き、ブラウザの印刷（Playwright の `page.pdf()` など）で PDF にする
 4. それでも reportlab を使うなら、和文 TrueType フォント（例 `C:\Windows\Fonts\msgothic.ttc`、`ipaexg.ttf`）を `TTFont` で登録してから使う
 

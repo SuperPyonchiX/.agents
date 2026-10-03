@@ -1,5 +1,5 @@
 ---
-name: word
+name: operate-word
 description: Word 文書（.docx）を読む・作る・直すスキル。構造と本文の抽出、python-docx での作成（A4・和文フォント・見出し・表・ページ番号）、書式を保った文字列置換、コメントと変更履歴の付与、PDF にしての見た目確認まで行う。「Word で報告書を作って」「この docx を読んで」「Word の文言を置換して」「コメントを付けて」「変更履歴付きで直して」で使う。Markdown で書く文書は markdown-doc。
 metadata:
   web-description: Word 文書（.docx）を読む・作る・直す。本文の抽出、python-docx での作成（A4・和文フォント・表・ページ番号）、書式を保った置換、コメント・変更履歴、見た目の確認まで行う。「Word で作って」「docx を読んで」「置換して」で使う。
@@ -48,14 +48,14 @@ python scripts/docx_replace.py <in.docx> <out.docx> --find 旧 --replace 新 [--
 
 ### 3. 見た目を確かめる
 
-作った・直した文書は PDF にして画像で見る。隣の `pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
+作った・直した文書は PDF にして画像で見る。隣の `operate-pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
 
 ```
-python ../pdf/scripts/to_pdf.py <docx> --outdir <作業フォルダ>
-python ../pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python ../operate-pdf/scripts/to_pdf.py <docx> --outdir <作業フォルダ>
+python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 ```
 
-見るもの: 用紙と余白、和文フォント、見出しの階層、表の列幅とはみ出し、改ページ位置、空の段落や記号だけの行、ヘッダー・フッター・ページ番号。崩れがあれば原因の箇所だけを直して作り直す。周回の上限（3周）と諦め方は `pdf` の「見た目の確認ループ」に従う。
+見るもの: 用紙と余白、和文フォント、見出しの階層、表の列幅とはみ出し、改ページ位置、空の段落や記号だけの行、ヘッダー・フッター・ページ番号。崩れがあれば原因の箇所だけを直して作り直す。周回の上限（3周）と諦め方は `operate-pdf` の「見た目の確認ループ」に従う。
 
 ## 完了条件
 
@@ -88,4 +88,4 @@ python ../pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 
 `docx_replace.py` は段落をまたぐ文字列、脚注・テキストボックスの中、削除済みの変更履歴の文字は置換しない。置換後の文字は、一致した範囲の先頭の書式になる。
 
-PDF 化と画像化は `pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
