@@ -4,6 +4,9 @@ __pycache__/
 # pack_skill.py が生成する claude.ai 配布用 zip（生成物なのでコミットしない）
 dist/
 
+# 監査・検証の作業ログと確認用生成物（手元に保持する）
+/work/
+
 # ライセンスが付与されていない取り込みスキル。このリポジトリは公開されているため
 # コミットは再配布にあたる。出典と扱いは vendor/NOTICE.md を参照。
 skills/obsidian/
