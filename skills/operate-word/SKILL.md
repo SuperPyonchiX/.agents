@@ -46,11 +46,11 @@ python scripts/docx_replace.py <in.docx> <out.docx> --find 旧 --replace 新 [--
 
 ### 3. 見た目を確かめる
 
-作った・直した文書は PDF にして画像で見る。隣の `operate-pdf` スキルのスクリプトを使う（パスはこのスキルのディレクトリからの相対）。
+作った・直した文書は PDF にして画像で見る。`operate-pdf` スキルのスクリプトを使う。
 
 ```
-python ../operate-pdf/scripts/to_pdf.py <docx> --outdir <作業フォルダ>
-python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python "<operate-pdf-dir>/scripts/to_pdf.py" <docx> --outdir <作業フォルダ>
+python "<operate-pdf-dir>/scripts/pdf_to_png.py" <作業フォルダ>/<名前>.pdf
 ```
 
 見るもの: 用紙と余白、和文フォント、見出しの階層、表の列幅とはみ出し、改ページ位置、空の段落や記号だけの行、ヘッダー・フッター・ページ番号。崩れがあれば原因の箇所だけを直して作り直す。周回の上限（3周）と諦め方は `operate-pdf` の「見た目の確認ループ」に従う。
@@ -87,3 +87,7 @@ python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
 `docx_replace.py` は段落をまたぐ文字列、脚注・テキストボックスの中、削除済みの変更履歴の文字は置換しない。置換後の文字は、一致した範囲の先頭の書式になる。
 
 PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+
+## PDF変換の依存先
+
+このスキルのzipにoperate-pdfは含まれない。利用可能なスキル一覧からoperate-pdfの実体パスを解決し、`<operate-pdf-dir>`を置き換える。未導入なら、利用可能なOfficeのPDF出力と画像表示で同じ観点を確認する。変換・画像表示のどちらかが使えなければ、構造検査までの結果と「見た目未確認」を明示し、完成扱いにしない。確認済みとするために必要な依存先を案内する。
