@@ -92,6 +92,8 @@ def check(path, rep):
 
     id_col = status_col = severity_col = reason_col = None
     seen_table = False
+    width = 0
+    seen_ids = set()
     for n, line in enumerate(lines, 1):
         s = line.strip()
         if not s.startswith("|"):
@@ -116,9 +118,13 @@ def check(path, rep):
                 id_col = status_col = severity_col = reason_col = None
             else:
                 seen_table = True
+                width = len(cells)
+                if reason_col is None:
+                    rep.error("%s:%d" % (path, n), "必須の対応/理由列がない")
             continue
 
-        if max(id_col, status_col) >= len(cells):
+        if len(cells) != width:
+            rep.error("%s:%d" % (path, n), "列数が見出しと一致しない")
             continue
         rid = cells[id_col]
         raw_status = cells[status_col]
@@ -127,6 +133,9 @@ def check(path, rep):
 
         status = normalize_status(raw_status)
         where = "%s:%d" % (path, n)
+        if rid in seen_ids:
+            rep.error(where, "指摘IDが重複している: %s" % rid)
+        seen_ids.add(rid)
         if status is None:
             rep.error(where, "指摘 %s の状態が不正: '%s'（open / fixed / accepted / rejected のいずれか）"
                       % (rid, raw_status))
