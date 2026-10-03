@@ -352,3 +352,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 - [Claude Code — Extend Claude with skills](https://code.claude.com/docs/en/skills)
 - [GitHub Docs — Adding agent skills for GitHub Copilot](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/add-skills)
 - [OpenAI — Codex skills](https://developers.openai.com/codex/skills/)
+
+## 監査修正の回帰検査
+
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限を確認する。標準ライブラリのみで動き、外部通信はモックする。終了コード0は全件成功、1はテスト失敗。
