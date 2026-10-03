@@ -119,9 +119,7 @@ function expandSkill(command: string): string {
 
 - For a visual UI, layout, state comparison, or concept too dense for Mermaid, write one focused HTML file — a diagram, an infographic, or a short slide deck, whichever fits the point. Match the product's colors, type, spacing, and components; use real labels and data; support desktop and mobile. Then open it for the user:
 
-```
-Bash(open path/to/show-me-{description}.html)
-```
+Use the host app's file or HTML preview tool with the absolute file path. If no preview tool is available, use the OS file association: PowerShell `Start-Process -FilePath '<absolute-path>'` on Windows, `open '<absolute-path>'` on macOS, or `xdg-open '<absolute-path>'` on Linux. If opening is unavailable, return a file link and state that the visual has not been displayed. Do not assume Bash or macOS is available.
 
 ### guidance
 

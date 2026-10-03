@@ -20,11 +20,12 @@
 | 取得日 | 2026-08-29 |
 | 改変 | **あり**（下記） |
 
-改変したのは frontmatter だけで、本文は上流のまま英語で保持している。
+frontmatterと、環境依存の表示手順を改変している。本文の記述言語は英語で保持している。
 
 - `description` を日本語に差し替えた。上流は英語のみで、日本語の依頼では発火しないため。あわせて `markdown-doc` との棲み分けを1文追加（2026-09-03 に統合前の `markdown-explanation-doc` から改名）
 - 2026-10-03 に `description` を200文字以内へ短縮し、`metadata.web-description` を削除した（CLI 用と WEB 用を1本に統一）
 - `license: MIT` を追加
+- 2026-10-03にmacOS専用のBash(open)手順を、ホストのプレビューとOS別の表示手順へ置き換えた
 
 ### ui-ux-pro-max
 
