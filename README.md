@@ -197,7 +197,7 @@ python tools/pack_skill.py skills/<name>  # 1件だけならこちら
 
 ### 制約
 
-- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火文言を含めるため 200〜340 文字あり、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
+- **`description` は 200 文字以内。** Agent Skills 仕様の 1024 文字より厳しい。このリポジトリの description は発火文言を含めるため多くが 200 文字を超え（2026-10-03 時点で 99〜570 文字）、そのままでは通らない。そこで **各 SKILL.md の frontmatter に `metadata.web-description`（200文字以内）を置き、`pack_skill.py` が zip 内の `description:` をそれに差し替える**。実体側は書き換えないので、CLI 系の発火精度は落ちない。
 
   ```yaml
   ---
@@ -326,7 +326,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 仕組み（なぜ増やしても重くならないか）
 
-段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。このリポジトリの description は日本語で 200〜340 文字（1本あたり 200〜300 トークン程度）なので、20本で 5,000 トークン前後になる。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
+段階的情報開示（Progressive Disclosure）により、起動時に読まれるのは `name` と `description` だけ。2026-10-03 時点の実測では、`skills/` の35本（git 管理外の取り込みスキルを含む）の description は1本 99〜570 文字、合計約 8,600 文字ある。一方、SKILL.md 本文は合計約 5,600 行、`references/` は合計約 7,500 行あるが、これらは使ったスキルの分しか読まれない。description が長くなるほど毎セッションの固定費が増えるので、**300 文字を目安に、名指しの振り分けは取り違えが実際に起きる相手だけに絞る**。本文が読まれるのは実際に使うときだけで、`references/` はさらに参照された瞬間まで読まれない。
 
 だから**資料が何千行あってもコンテキストのコストはかからない**。本文を500行以内に保ち、長い資料を `references/` に逃がすのが推奨されるのはこのため。
 
