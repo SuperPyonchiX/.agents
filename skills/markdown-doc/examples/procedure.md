@@ -1,214 +1,99 @@
-# 1. はじめに
+# はじめに
 
-本手順書は、新規メンバーが社内VPNに接続するための初期セットアップ手順をまとめたものである。
-本手順を完了すると、リモート環境から社内ネットワークへ安全にアクセスできるようになる。
+新しい PC に個人用スキル置き場 `~/.agents` を導入し、Claude Code と Codex から同じスキルを使える状態にする。作業はコマンド1回と Claude Code の再起動だけである。
 
 | 項目 | 内容 |
 |---|---|
-| 対象環境 | Windows 11 / macOS 14、VPNクライアント v3.2 以降 |
-| 動作確認日 | 2026-08-11 |
-| 想定読者 | 入社直後の新規メンバー |
+| 終わるとできること | Claude Code の `/` メニューと Codex に、`~/.agents/skills` のスキルが出る |
+| 対象環境 | Windows 11、コマンドプロンプト |
+| 動作確認日 | 2026-10-03（作業用フォルダで clone・リンク作成・削除を確認。Claude Code での表示はジャンクションでは未確認） |
 
-# 2. インプット資料
+# 始める前に
 
-| # | 資料名 | リンク / 格納場所 | 備考 |
-|---|--------|------------------|------|
-| 1 | VPNクライアントダウンロードページ | https://internal.example.com/vpn/download | 社内ネットワークからのみアクセス可 |
-| 2 | 証明書発行申請フォーム | https://internal.example.com/cert-request | 初回のみ必要 |
-| 3 | ネットワーク部門FAQ | https://confluence.example.com/net/faq | よくある質問集 |
+| 必要なもの | 用途 | 確認方法 |
+|---|---|---|
+| Git | リポジトリの取得 | `git --version` |
+| Claude Code または Codex | スキルを使う側 | 起動できること |
+| Python 3（任意） | 一部スキルのスクリプト実行。導入自体には不要 | `python --version` |
 
-# 3. 前提条件
+まとめて確認するなら、コマンドプロンプトで次を実行する。両方のバージョンが表示されればよい。
 
-- [ ] 社員番号が発行されていること
-- [ ] 情シス部門から証明書ファイル（`.p12`）を受領していること
-- [ ] PCの管理者権限を保有していること
-- [ ] インターネットに接続できる環境であること
+```bat
+git --version && python --version
+```
 
-<details>
-<summary>補足：証明書ファイルの受領方法</summary>
+管理者権限・開発者モードは要らない。リンクにジャンクション（`mklink /J`）を使うためである。
 
-証明書ファイルは、入社時またはPC交換時に情シス部門から配布される。
-未受領の場合は、上記インプット資料の「証明書発行申請フォーム」から申請する。
-通常、申請から1〜2営業日で発行される。
-
-</details>
-
-# 4. 手順
-
-## 4.1 概要
-
-以下にVPN接続に関わるネットワーク構成と、セットアップ作業の流れを示す。
-
-**ネットワーク構成図**
+# 全体の流れ
 
 ```mermaid
-graph LR
-    subgraph リモート環境
-        PC[作業PC<br>VPNクライアント]
-    end
-    subgraph インターネット
-        VPN[VPNゲートウェイ<br>vpn.example.com:443]
-    end
-    subgraph 社内ネットワーク
-        APP[業務アプリサーバー]
-        DB[(データベース)]
-        WIKI[社内Wiki / Confluence]
-    end
-    PC -- "TLS暗号化トンネル" --> VPN
-    VPN --> APP
-    VPN --> DB
-    VPN --> WIKI
+flowchart LR
+    A["GitHub<br/>SuperPyonchiX/.agents"] -->|git clone| B["%USERPROFILE%\.agents<br/>（実体）"]
+    B -->|ジャンクション| C["%USERPROFILE%\.claude\skills"]
+    C --> D[Claude Code]
+    B --> E[Codex]
 ```
 
-**作業フロー**
+Claude Code は `~/.claude/skills` しか見ないので、そこから実体へリンクを張る。Codex は `~/.agents/skills` を直接読むので、リンクは要らない。全2ステップである。
 
-```mermaid
-flowchart TD
-    A[開始] --> B[ステップ1: クライアントインストール]
-    B --> C[ステップ2: 証明書インポート]
-    C --> D[ステップ3: プロファイル設定]
-    D --> E[ステップ4: 接続テスト]
-    E --> F{接続成功?}
-    F -->|Yes| G[完了]
-    F -->|No| H[トラブルシューティング参照]
-    H --> E
+# 手順
+
+## ステップ1：取得とリンクを一度に行う
+
+コマンドプロンプト（PowerShell ではない）に、次の1行を貼って実行する。
+
+```bat
+git clone https://github.com/SuperPyonchiX/.agents.git "%USERPROFILE%\.agents" && (if not exist "%USERPROFILE%\.claude" mkdir "%USERPROFILE%\.claude") && mklink /J "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
 ```
 
-作業PCにVPNクライアントをインストールし、証明書認証を設定することで、
-インターネット経由でVPNゲートウェイに接続し、社内の各サーバーにアクセス可能となる。
-全4ステップで、所要時間は約15〜20分である。
+この1行がしていることは3つである。
 
-## 4.2 ステップ1：VPNクライアントのインストール
+1. リポジトリを `%USERPROFILE%\.agents` に取得する
+2. `%USERPROFILE%\.claude` が無ければ作る
+3. `%USERPROFILE%\.claude\skills` から `%USERPROFILE%\.agents\skills` へジャンクションを張る
 
-VPN接続に必要なクライアントソフトをインストールする。
-
-1. インプット資料のダウンロードページにアクセスし、OS に合ったインストーラーをダウンロードする
-
-2. ダウンロードしたインストーラーを実行する
-
-   ```powershell
-   # Windows の場合（ダウンロードフォルダで実行）
-   .\VPNClient-Setup.exe /silent
-   ```
-
-3. インストール完了後、PCを再起動する
-
-**完了条件**：再起動後、スタートメニュー（macOS はアプリケーションフォルダ）に「VPNClient」が表示されること。
+**完了条件**：最後に `... <<===>> ...\.agents\skills` の形で「Junction created for」と表示されること。
 
 <details>
-<summary>補足：サイレントインストールオプションについて</summary>
+<summary>補足：なぜシンボリックリンク（mklink /D）ではないのか</summary>
 
-`/silent` オプションを付けると、GUIのウィザードを経由せずにデフォルト設定でインストールされる。
-カスタムインストールが必要な場合はオプションを外して実行すること。
+`mklink /D` は開発者モードか管理者権限が無いと `You do not have sufficient privilege to perform this operation.` で失敗する。ジャンクションは同じ PC 内のフォルダ同士なら権限なしで作れ、読む側からは普通のフォルダに見える。
 
 </details>
 
-<details>
-<summary>補足：インストールを元に戻す方法</summary>
+## ステップ2：Claude Code を再起動して確認する
 
-Windows は「設定」→「アプリ」→「インストールされているアプリ」から「VPNClient」をアンインストールする。
-macOS はアプリケーションフォルダから削除したうえで、`~/Library/Application Support/VPNClient` を削除する。
-証明書は次のステップでインポートするため、この時点では残らない。
+スキルは起動時にしか読み込まれない。起動中の Claude Code があれば終了し、起動し直す。
 
-</details>
+1. 次を実行し、`<JUNCTION>` の行に `skills` が出ることを確かめる
 
-## 4.3 ステップ2：証明書のインポート
-
-VPN認証に使用する証明書をインポートする。
-
-1. VPNクライアントを起動する
-
-2. メニューから「設定」→「証明書管理」→「インポート」を選択する
-
-3. 情シス部門から受領した `.p12` ファイルを選択する
-
-4. 証明書のパスワードを入力する（受領時にメールで通知されたもの）
-
-5. 「インポート成功」のメッセージが表示されることを確認する
-
-**完了条件**：証明書管理画面の一覧に、受領した証明書が「有効」と表示されること。
-
-## 4.4 ステップ3：接続プロファイルの設定
-
-接続先の情報を設定する。
-
-1. VPNクライアントの「接続先設定」画面を開く
-
-2. 以下の情報を入力する
-
-   | 項目 | 値 |
-   |------|-----|
-   | プロファイル名 | `社内VPN` |
-   | サーバーアドレス | `vpn.example.com` |
-   | ポート | `443` |
-   | 認証方式 | `証明書認証` |
-
-3. 「保存」をクリックする
-
-**完了条件**：接続先の一覧に「社内VPN」プロファイルが表示されること。
-
-## 4.5 ステップ4：接続テスト
-
-VPN接続を実施し、正常に通信できることを確認する。
-
-1. VPNクライアントで「社内VPN」プロファイルを選択し、「接続」をクリックする
-
-2. ステータスが「接続済み」になることを確認する
-
-3. 社内サイトにアクセスして表示されることを確認する
-
-   ```bash
-   # ターミナルからの確認方法
-   ping -c 4 internal.example.com
+   ```bat
+   dir "%USERPROFILE%\.claude" | findstr skills
    ```
 
-4. 正常に応答があれば、セットアップは完了となる
+2. Claude Code を起動し、`/` を打つ
 
-**完了条件**：`ping` が4回とも応答し、ブラウザから社内Wikiが表示されること。
+**完了条件**：`/` の候補に `markdown-doc` などのスキルが並ぶこと。
 
-<details>
-<summary>補足：接続状態の確認コマンド</summary>
+# うまくいかないとき
 
-接続中のVPN情報を詳しく確認するには以下のコマンドを使用する。
+| 症状 | 原因 | 対処 |
+|---|---|---|
+| `Cannot create a file when that file already exists.`（既に存在します） | `%USERPROFILE%\.claude\skills` が既にある | 中身を確かめる。古いリンクなら下の「元に戻す」で消してから、ステップ1の `mklink /J ...` の部分だけを再実行する。実フォルダなら退避してから消す |
+| `fatal: destination path ... already exists` | `%USERPROFILE%\.agents` が既にある | 既存のものが同じリポジトリなら `git -C "%USERPROFILE%\.agents" pull` で更新し、`mklink /J` だけを実行する |
+| スキルが `/` に出ない | Claude Code を再起動していない | 終了してから起動し直す |
+| 同上 | frontmatter が壊れている | `python "%USERPROFILE%\.agents\skills\workflow-skill-architect\scripts\validate_skill.py" "%USERPROFILE%\.agents\skills\<スキル名>"` で検査する |
 
-```bash
-# Windows
-ipconfig /all | findstr "VPN"
+# 元に戻す
 
-# macOS / Linux
-ifconfig | grep -A 5 "tun0"
+リンクだけを消す。スキルの実体（`%USERPROFILE%\.agents`）は残る。
+
+```bat
+rmdir "%USERPROFILE%\.claude\skills"
 ```
 
-</details>
+**`rmdir /S` を付けない。** 付けるとリンク先の実体まで消える危険がある。実体も不要なら、リンクを消した後に `%USERPROFILE%\.agents` をエクスプローラーで削除する。
 
-# 5. トラブルシューティング
+# 参考資料
 
-## 症状：「証明書が無効です」と表示される
-
-**原因**：証明書の有効期限が切れている、またはインポートが正しく行われていない可能性がある。
-
-**対処法**：
-
-1. VPNクライアントの「証明書管理」画面で証明書の有効期限を確認する
-2. 有効期限切れの場合は、インプット資料の申請フォームから再発行を申請する
-3. 有効期限内の場合は、証明書を一度削除し、ステップ2からやり直す
-
-## 症状：接続後に社内サイトにアクセスできない
-
-**原因**：DNSの設定が正しく反映されていない可能性がある。
-
-**対処法**：
-
-1. VPNが「接続済み」になっていることを再確認する
-2. DNSキャッシュをクリアする
-
-   ```bash
-   # Windows
-   ipconfig /flushdns
-
-   # macOS
-   sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
-   ```
-
-3. ブラウザを再起動して再度アクセスする
-4. 解消しない場合はネットワーク部門に問い合わせる
+- リポジトリの [README.md](https://github.com/SuperPyonchiX/.agents/blob/main/README.md)：Linux / macOS / WSL でのリンクの張り方（`ln -s`）、Obsidian の無い PC での使い方、claude.ai への反映手順

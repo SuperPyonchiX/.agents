@@ -85,6 +85,6 @@ python scripts/check_knowhow.py <knowhow.md> [--index <INDEX.md>]
 | ファイル | 種別 |
 |---|---|
 | `examples/explanation.md` | 説明資料（スクラム開発の基本と進め方） |
-| `examples/procedure.md` | 手順書（VPN接続セットアップ） |
+| `examples/procedure.md` | 手順書（新しい PC への ~/.agents の導入） |
 | `examples/readme.md` | README 型（nextdesign-extension スキルの紹介） |
 | `examples/knowhow.md` | AIノウハウ記録（会議の書き起こしから議事メモを作る） |
