@@ -29,6 +29,7 @@ A1（機械検査）で実行する。1スキル単位の検証（validate_skill
 """
 
 import argparse
+import hashlib
 import itertools
 import json
 import os
@@ -270,8 +271,8 @@ def find_conflicts(skills, rep):
             reason = ("同一のトリガー文言 %s を持つ" % shared_triggers) if shared_triggers \
                 else ("description の特徴語が %.0f%% 重なる" % (jaccard * 100))
             rep.warn("%s / %s" % (a["name"], b["name"]),
-                     "%s が、どちらの description にも相手の名前が出てこない。"
-                     "棲み分けを名指しで書くか、対象範囲を狭めること" % reason)
+                     "%s。入力・成果物の違いと併用の意図をA2で確認すること。"
+                     "名前の相互記載がないことだけでは競合と断定しない" % reason)
 
     candidates.sort(key=lambda c: -c["score"])
     return candidates
@@ -295,9 +296,9 @@ def run_validator(validator, skills_dir, names):
         out = (proc.stdout or "") + (proc.stderr or "")
         results[name] = {
             "exit_code": proc.returncode,
-            "errors": len(re.findall(r"^ERROR\b", out, re.M)),
-            "warns": len(re.findall(r"^WARN\b", out, re.M)),
-            "output": out.strip().splitlines()[-6:],
+            "errors": len(re.findall(r"^ERROR {2,}\S", out, re.M)),
+            "warns": len(re.findall(r"^WARN {2,}\S", out, re.M)),
+            "output": out.strip().splitlines(),
         }
     return results
 
@@ -388,6 +389,8 @@ def dump(report, rep):
     print()
 
     print("スキル %d 件" % len(report["skills"]))
+    if report.get("changed_files") is not None:
+        print("前回からの変更 %d 件（削除を含む）" % len(report["changed_files"]))
     over = [s["name"] for s in report["skills"]
             if len(s["description"]) > WEB_DESC_LIMIT and not s["web_description"]]
     if over:
@@ -411,12 +414,35 @@ def dump(report, rep):
         print("合格。ただし競合候補の採否は A2 で判断すること。")
 
 
+def fingerprint(skills_dir, names, validator=None, readme=None):
+    """内容変更・追加・削除を検出する。ローカル資料・実行環境は読まない。"""
+    result = {}
+    excluded = {"local", "node_modules", "__pycache__", ".git"}
+    for name in names:
+        root = os.path.join(skills_dir, name)
+        for current, dirs, files in os.walk(root, followlinks=False):
+            dirs[:] = [d for d in dirs if d not in excluded and not os.path.islink(os.path.join(current, d))]
+            for filename in sorted(files):
+                path = os.path.join(current, filename)
+                if os.path.islink(path) or filename.endswith(".pyc"):
+                    continue
+                with open(path, "rb") as f:
+                    key = os.path.relpath(path, skills_dir).replace(os.sep, "/")
+                    result[key] = hashlib.sha256(f.read()).hexdigest()
+    for name, path in (("@validator", validator), ("@readme", readme)):
+        if path:
+            with open(path, "rb") as f:
+                result[name] = hashlib.sha256(f.read()).hexdigest()
+    return result
+
+
 def main(argv):
     ap = argparse.ArgumentParser(description="スキル置き場の横断検査")
     ap.add_argument("skills_dir", help="skills/ のパス")
     ap.add_argument("-o", "--output", help="検査結果の JSON 出力先")
     ap.add_argument("--validator", help="validate_skill.py のパス。渡すと各スキルに対して実行する")
     ap.add_argument("--readme", help="README.md のパス。渡すと収録スキル表と突き合わせる")
+    ap.add_argument("--compare", help="前回のJSON。内容ハッシュから変更ファイルを列挙する")
     args = ap.parse_args(argv)
 
     if not os.path.isdir(args.skills_dir):
@@ -436,10 +462,29 @@ def main(argv):
         return 2
 
     rep = Report()
+    try:
+        snapshot = fingerprint(args.skills_dir, names, args.validator, args.readme)
+        changed = None
+        if args.compare:
+            with open(args.compare, encoding="utf-8") as f:
+                previous = json.load(f)
+            if not isinstance(previous, dict):
+                raise ValueError("前回JSONはオブジェクトである必要がある")
+            old = previous.get("fingerprints")
+            if not isinstance(old, dict):
+                rep.warn(args.compare, "前回に内容ハッシュがない。全件を再判定すること")
+                changed = sorted(snapshot)
+            else:
+                changed = sorted(k for k in set(old) | set(snapshot) if old.get(k) != snapshot.get(k))
+    except (OSError, ValueError) as exc:
+        print("ERROR  入力を読めない: %s" % exc)
+        return 2
     skills = [s for s in (load_skill(args.skills_dir, n, rep) for n in names) if s]
 
     report = {
         "skills_dir": os.path.abspath(args.skills_dir),
+        "fingerprints": snapshot,
+        "changed_files": changed,
         "skills": skills,
         "conflicts": find_conflicts(skills, rep),
         "validation": run_validator(args.validator, args.skills_dir,
@@ -453,6 +498,9 @@ def main(argv):
                           % (r["exit_code"], r.get("errors", "?")))
             elif r.get("exit_code") is None:
                 rep.warn(name, "validate_skill.py を実行できなかった (%s)" % r.get("error"))
+            for line in r.get("output", []):
+                if re.match(r"^WARN {2,}\S", line):
+                    rep.warn(name, line.strip())
 
     report["errors"] = rep.errors
     report["warns"] = rep.warns
