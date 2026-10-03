@@ -34,7 +34,8 @@ SOURCE_SUFFIXES = {".h", ".hpp", ".hh", ".hxx"}
 # レビュー記録の列名の候補（表記揺れを吸収する）
 COL_REVIEW_ID = {"id", "指摘id", "no", "no."}
 COL_REVIEW_STATUS = {"状態", "ステータス", "status"}
-OPEN_STATUSES = {"open", "未対応", "対応中"}
+OPEN_STATUSES = {"open", "未対応", "対応中", "pending", "逸脱承認待ち"}
+CLOSED_STATUSES = {"fixed", "修正済", "accepted", "承認済", "rejected", "不採用"}
 
 
 class Report:
@@ -101,6 +102,8 @@ def check_review_log(path, rep):
     counts = {"open": 0, "closed": 0}
     id_col = status_col = None
     seen_table = False
+    width = 0
+    seen_ids = set()
     for n, line in enumerate(lines, 1):
         s = line.strip()
         if not s.startswith("|"):
@@ -120,13 +123,18 @@ def check_review_log(path, rep):
                 id_col = status_col = None
             else:
                 seen_table = True
+                width = len(cells)
             continue
-        if max(id_col, status_col) >= len(cells):
+        if len(cells) != width:
+            rep.error(f"{path}:{n}", "列数が見出しと一致しない")
             continue
         rid = cells[id_col]
         status = cells[status_col].lower()
         if not rid or "<" in rid:
             continue
+        if rid in seen_ids:
+            rep.error(f"{path}:{n}", f"指摘IDが重複している: {rid}")
+        seen_ids.add(rid)
         if status in OPEN_STATUSES:
             counts["open"] += 1
             rep.error(
@@ -134,11 +142,15 @@ def check_review_log(path, rep):
                 f"レビュー指摘 {rid} が {cells[status_col]} のまま残っている"
                 "（修正するか、ユーザーの了承を得て accepted にすること）",
             )
-        else:
+        elif status in CLOSED_STATUSES:
             counts["closed"] += 1
+        else:
+            rep.error(f"{path}:{n}", f"レビュー指摘 {rid} の状態が不正: {status!r}")
 
     if not seen_table:
         rep.error(path, "ID 列と状態列を持つ指摘一覧が読めない。テンプレートの表形式を確認すること")
+    elif not seen_ids:
+        rep.error(path, "指摘一覧に実データがない。指摘なしの場合も所見を1行記録すること")
     return counts
 
 
