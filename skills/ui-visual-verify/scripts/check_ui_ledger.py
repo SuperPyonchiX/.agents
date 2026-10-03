@@ -26,7 +26,7 @@ def parse_rows(lines):
         if not s.startswith("|"):
             continue
         cells = [c.strip() for c in s.strip("|").split("|")]
-        if len(cells) < 11 or not cells[COL_ID].startswith("UI-"):
+        if not cells[COL_ID].startswith("UI-"):
             continue
         rows.append((n, cells))
     return rows
@@ -48,11 +48,18 @@ def main(argv):
     rows = parse_rows(lines)
     errors = []
     counts = {s: 0 for s in STATES}
+    seen_ids = set()
 
     if not rows:
         errors.append("台帳に UI-xxx の行が1件も無い")
 
     for n, c in rows:
+        if len(c) != 11:
+            errors.append(f"L{n} {c[COL_ID]}: 列数が不正（11列必要、実際は{len(c)}列）")
+            continue
+        if c[COL_ID] in seen_ids:
+            errors.append(f"L{n}: IDが重複: {c[COL_ID]}")
+        seen_ids.add(c[COL_ID])
         state = c[COL_STATE]
         if state not in STATES:
             errors.append(f"L{n} {c[COL_ID]}: 状態 '{state}' は不正（{'/'.join(sorted(STATES))}）")
