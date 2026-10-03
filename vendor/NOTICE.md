@@ -89,7 +89,7 @@
 - `{{VAULT_PATH}}` `{{VAULT_ID}}` `{{VAULT_NAME}}` を自環境の値へ展開
 - CLI 本体・設定ファイル・トラブルシュートを Windows 向けに修正。`_SETUP.md` に OS 差の表を追加
 - デイリーノートの位置を実測値（`01_日記/YYYY-MM-DD.md`）に修正
-- `metadata.web-description` を追加
+- `description` を200文字以内に短縮（2026-10-03。一時期置いていた `metadata.web-description` は削除）
 
 **vault 側のセットアップ（2026-08-29 実施済み）**: このスキルは vault 内の設定にも依存する。
 新しい環境では `_SETUP.md` の Phase 6・7 をやり直すこと。
@@ -121,7 +121,7 @@
 改変の内訳:
 
 - `description` を日本語の発火条件つきに書き換え（元は `Router for all Remotion skills`）
-- `version` を `metadata.version` へ移し、`metadata.web-description` を追加
+- `version` を `metadata.version` へ移した。一時期置いていた `metadata.web-description` は 2026-10-03 に削除
 - 12本のうちルーターの1本だけを入れた。ほかの11本は `remotion-*/REFERENCE.md` としてこの中に同梱されているため、別スキルとして入れると description が重複するだけになる
 
 **利用条件の注意**: Remotion 本体は、個人・従業員3人以下の営利組織・非営利組織なら無料（商用可）。それを超える営利組織で使うには Company License が要る。**業務（社内向けの動画など）で使う前に、会社でのライセンスを確認する。**

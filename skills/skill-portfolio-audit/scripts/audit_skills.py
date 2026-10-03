@@ -39,6 +39,7 @@ import sys
 WEB_DESC_LIMIT = 200      # claude.ai の description 上限
 DESC_LIMIT = 1024         # Agent Skills 仕様の上限
 NAME_LIMIT = 64
+IGNORED_DIRS = {"synced"}  # スキル置き場の外のものが着地するディレクトリ
 SKILL_BODY_LIMIT = 500
 
 JACCARD_THRESHOLD = 0.18  # 特徴語の重なりで競合候補とみなす下限
@@ -425,8 +426,11 @@ def main(argv):
         print("ERROR  %s: validate_skill.py が見つからない" % args.validator)
         return 2
 
+    # synced/ は Claude Code が claude.ai から同期するスキルのキャッシュで、
+    # スキル置き場の一部ではない（~/.claude/skills がこの置き場へのリンクのため着地する）
     names = sorted(d for d in os.listdir(args.skills_dir)
-                   if os.path.isdir(os.path.join(args.skills_dir, d)) and not d.startswith("."))
+                   if os.path.isdir(os.path.join(args.skills_dir, d))
+                   and not d.startswith(".") and d not in IGNORED_DIRS)
     if not names:
         print("ERROR  %s: スキルが1件もない" % args.skills_dir)
         return 2
