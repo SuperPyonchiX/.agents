@@ -73,7 +73,7 @@ graph LR
 | `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 228行 |
 | `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 128行 |
 | `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Claude経路は通常のツール・MCPを使用し、第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 165行 |
-| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 323行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 319行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 84行 |
 | `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 60行 |
 | `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
