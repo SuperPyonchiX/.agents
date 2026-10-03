@@ -67,7 +67,7 @@ python scripts/layout_from_spec.py <名前>.spec.json -o <名前>.drawio
 ```
 for 周回 in 1..3:
     D2: python scripts/check_drawio.py <名前>.drawio --spec <名前>.spec.json
-        終了コード 1 → spec.json を直して D1 からやり直す（この周に数えない）
+        終了コード 1 → この周を消費する。残りの周があれば spec.json を直して D1 から再生成し、次の周の D2 へ進む。3周目なら未達として止める
     D3: python scripts/export_drawio.py <名前>.drawio -f png --all-pages
         python scripts/export_drawio.py <名前>.drawio -f svg --all-pages
         終了コード 3 → draw.io が無い。導入を案内して止まる
