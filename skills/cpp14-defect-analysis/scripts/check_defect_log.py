@@ -107,6 +107,8 @@ def check(path, rep):
 
     cols = {}
     seen_table = False
+    width = 0
+    seen_ids = set()
     for n, line in enumerate(lines, 1):
         s = line.strip()
         if not s.startswith("|"):
@@ -133,9 +135,14 @@ def check(path, rep):
             if "status" in found and "id" in found:
                 cols = found
                 seen_table = True
+                width = len(cells)
+                missing = {"method", "result"} - set(cols)
+                if missing:
+                    rep.error("%s:%d" % (path, n), "必須列がない: %s" % ", ".join(sorted(missing)))
             continue
 
-        if max(cols["id"], cols["status"]) >= len(cells):
+        if len(cells) != width:
+            rep.error("%s:%d" % (path, n), "列数が見出しと一致しない")
             continue
         hid = cells[cols["id"]]
         raw_status = cells[cols["status"]]
@@ -144,6 +151,9 @@ def check(path, rep):
 
         status = normalize_status(raw_status)
         where = "%s:%d" % (path, n)
+        if hid in seen_ids:
+            rep.error(where, "仮説IDが重複している: %s" % hid)
+        seen_ids.add(hid)
         if status is None:
             rep.error(where, "仮説 %s の状態が不正: '%s'"
                              "（open / running / confirmed / rejected / deferred のいずれか）"
