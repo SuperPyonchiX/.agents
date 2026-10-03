@@ -45,11 +45,11 @@ python scripts/inspect_pptx.py <pptx> [--layouts] [--slides 1-3] [--check]
 
 ```
 python scripts/inspect_pptx.py <pptx> --check
-python ../operate-pdf/scripts/to_pdf.py <pptx> --outdir <作業フォルダ>
-python ../operate-pdf/scripts/pdf_to_png.py <作業フォルダ>/<名前>.pdf
+python "<operate-pdf-dir>/scripts/to_pdf.py" <pptx> --outdir <作業フォルダ>
+python "<operate-pdf-dir>/scripts/pdf_to_png.py" <作業フォルダ>/<名前>.pdf
 ```
 
-`to_pdf.py` と `pdf_to_png.py` は隣の `operate-pdf` スキルのもの（パスはこのスキルのディレクトリからの相対）。
+`to_pdf.py` と `pdf_to_png.py` は`operate-pdf` スキルのもの。
 
 ```
 for 周回 in 1..3:
@@ -96,3 +96,7 @@ else:
 位置は mm で出る。1 mm 以下のはみ出し・重なりは無視する。
 
 PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
+
+## PDF変換の依存先
+
+このスキルのzipにoperate-pdfは含まれない。利用可能なスキル一覧からoperate-pdfの実体パスを解決し、`<operate-pdf-dir>`を置き換える。未導入なら、利用可能なOfficeのPDF出力と画像表示で同じ観点を確認する。変換・画像表示のどちらかが使えなければ、構造検査までの結果と「見た目未確認」を明示し、完成扱いにしない。確認済みとするために必要な依存先を案内する。

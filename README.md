@@ -90,7 +90,7 @@ graph LR
 | `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 113行 |
 | `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 114行 |
 | `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 89行 |
-| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 98行 |
+| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 102行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
