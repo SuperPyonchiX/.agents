@@ -1,6 +1,6 @@
 ---
 name: notebooklm
-description: 重い読み込み仕事をNotebookLMに外注してトークンを節約するスキル。資料が3件以上、または合計1万字を超えそうな読み込み・要約・比較のときは、名指しされなくても必ずこのスキルの利用を検討する。
+description: 資料が3件以上、または合計1万字を超える読み込み・要約・比較をNotebookLMへ任せる。「NotebookLMで調べて」「資料群を要約して」「複数資料を比較して」で使う。リポジトリ内のコード読解は対象外。
 ---
 
 # NotebookLM連携スキル
@@ -33,7 +33,7 @@ description: 重い読み込み仕事をNotebookLMに外注してトークンを
 ```
 nlm login --check
 ```
-切れていたら「Chromeを完全終了してから再ログインします」と伝えてから `nlm login` を実行する。Googleログインは人間の担当。**パスワードは絶対に聞かない。**
+切れていたら `nlm login --help` で導入済み版の方法を確認し、`nlm login` でユーザーにログインしてもらう。普段のChromeを勝手に終了せず、同じ認証方法の再試行は1回までにする。Googleログインは人間の担当。**パスワードは絶対に聞かない。**
 
 保存済みCookieは数週間持つ。401等は3層の自動リカバリが走るので、`unverified` が出ただけで期限切れと決めつけて再ログインしない。
 
@@ -45,13 +45,15 @@ nlm notebook create "YYYY-MM-DD_テーマ"
 同じテーマの既存ノートがあれば `nlm notebook list` で探して再利用する。
 
 ### 3. 資料を投入する
+
+送る資料とGoogleへの送信範囲を明らかにする。会話で承認済みなら再確認は不要。自動発火しても未承認の資料は送信せず、必要な範囲の許可を得る。機密・個人情報はソース化しない。
 ```
 nlm source add <notebook-id> --url "https://..." --wait
 nlm source add <notebook-id> --file /path/to/doc.pdf --wait
 nlm source add <notebook-id> --text "本文" --title "タイトル"
 nlm source add <notebook-id> --drive <doc-id> --type doc
 ```
-- YouTube専用フラグは無い。YouTubeのURLも `--url` に渡す
+- YouTubeのURLは `--url` に渡す。導入済み版のhelpに `--youtube` があればそれも使える
 - `--wait` を付けると処理完了まで待つ。付けないと未処理のまま次に進んでしまう
 - 対応拡張子: .pdf .txt .md .docx .csv .pptx .epub、画像・音声・動画各種
 - 投入後は `nlm source list <notebook-id>` で入ったか確認する
@@ -113,18 +115,11 @@ nlm download quiz <notebook-id> <artifact-id> --format markdown
 
 内容は**結論・根拠・出典の3点**を最低限含める。NotebookLM が返した出典は消さない。
 
-保存は obsidian CLI 経由で行う。本文が長いので、いったん作業ファイルに書いてから流し込む。
+保存方法はobsidianスキルを正本とする。vault直下のAGENTS.mdを読み、本文全体はvault内の確定パスへ直接書く。既存ファイルがあれば内容と上書き意図を確認する。CLIが使えれば `obsidian file path="..."` で反映を確認する。長文を `content=` へ流し込まない。
 
-```
-（下書きを draft.md に書く）
-obsidian create path="リサーチ/YYYY-MM-DD_テーマ名.md" content="$(cat draft.md)" overwrite
-```
+**完了条件**: `obsidian read path="リサーチ/YYYY-MM-DD_テーマ名.md"` で読み戻し（CLI不通時はファイルを直接読む）、obsidian スキルの references/page-review.md の手順で検証して PASS になったこと。FIX なら指摘どおり直して読み戻す。**上限3周**。3周しても PASS にならなければ、残った指摘をそのままユーザーに提示して判断を仰ぐ。「保存した」で終わらせない。
 
-`content=` は本文中の `\n` `\t` という2文字を実改行・実タブに変換する。バックスラッシュを含むコードブロックを載せる回だけは CLI で書くと壊れるので、vault 内のパスへ直接書き、`obsidian file path="..."` で反映を確認する。
-
-**完了条件**: `obsidian read path="リサーチ/YYYY-MM-DD_テーマ名.md"` で読み戻し、obsidian スキルの references/page-review.md の手順で検証して PASS になったこと。FIX なら指摘どおり直して読み戻す。**上限3周**。3周しても PASS にならなければ、残った指摘をそのままユーザーに提示して判断を仰ぐ。「保存した」で終わらせない。
-
-**フォールバック**: CLI が `Vault not found.` を返す、または10秒以上無応答なら、**Obsidian を勝手に起動しない**。同じファイル名でカレントディレクトリに保存し、「vault に入れられなかったのでカレントに置いた」と明示して報告する。黙って切り替えない。
+**フォールバック**: CLI が不通ならObsidianを勝手に起動せず、確定済みvaultパスへの直接書き込み・読み戻しで続行し、代替した旨を報告する。vault自体へ書けない場合は作業フォルダに下書きを保管し、vault保存未完と伝える。
 
 ## 注意（守らないと事故る）
 - 機密・個人情報はソース化しない（Googleに送られる）
