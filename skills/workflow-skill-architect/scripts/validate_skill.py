@@ -13,7 +13,8 @@ WARN のみなら合格（0）だが、内容は表示する。
    description の山括弧禁止と長さ。Agent Skill の公式仕様に基づく。
 2. **構造** — name とディレクトリ名の一致、description の 200 文字以内
    （claude.ai の上限。超過は ERROR）、廃止した metadata.web-description の残り、リンク切れ、
-   同梱ファイル（references/ templates/ examples/ assets/）の孤児、行数。
+   同梱ファイル（references/ templates/ examples/ assets/）の孤児、行数、
+   evals/evals.json の形式（ファイルがある場合のみ。不備は WARN）。
    references/review-checklist.md と AGENTS.md に基づく、この置き場固有の検査。
 
 依存は標準ライブラリのみ。Claude Code 以外の環境（Codex 等）へこのスキルを
@@ -39,6 +40,7 @@ scripts/quick_validate.py が上記 1 と同じ範囲を見る（あちらは Py
 当てる前に潰せる機械的な不備がゼロ、という意味でしかない。
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -347,6 +349,52 @@ def check_scripts_documented(skill_dir, all_text, rep):
             )
 
 
+def check_evals(skill_dir, rep):
+    """evals/evals.json がある場合だけ、評価ケースとして回せる形かを見る。
+
+    形式は skill-creator の evals.json と同じ。無いスキルには何も言わない
+    （評価ケースは改修のときに作る運用で、全スキルに一斉には求めない）。
+    """
+    path = skill_dir / "evals" / "evals.json"
+    if not path.is_file():
+        return
+    where = "evals/evals.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeDecodeError) as e:
+        rep.warn(where, f"JSON として読めない: {e}")
+        return
+    if not isinstance(data, dict) or not isinstance(data.get("evals"), list):
+        rep.warn(where, "最上位が {\"skill_name\": ..., \"evals\": [...]} の形になっていない")
+        return
+    if data.get("skill_name") != skill_dir.name:
+        rep.warn(where, f"skill_name が {data.get('skill_name')!r}。ディレクトリ名 {skill_dir.name!r} と一致させる")
+    if not data["evals"]:
+        rep.warn(where, "evals が空。ケースを 3〜5 件置く")
+        return
+    seen = set()
+    for i, case in enumerate(data["evals"]):
+        label = f"{where} evals[{i}]"
+        if not isinstance(case, dict):
+            rep.warn(label, "オブジェクトになっていない")
+            continue
+        cid = case.get("id")
+        if cid is None:
+            rep.warn(label, "id がない")
+        elif cid in seen:
+            rep.warn(label, f"id {cid} が重複している")
+        seen.add(cid)
+        prompt = case.get("prompt")
+        if not isinstance(prompt, str) or not prompt.strip():
+            rep.warn(label, "prompt が空か、ない")
+        exp = case.get("expectations")
+        if not isinstance(exp, list) or not any(isinstance(x, str) and x.strip() for x in exp):
+            rep.warn(label, "expectations が空か、ない。判定できる合否基準を書く")
+        for f in case.get("files") or []:
+            if not (skill_dir / f).exists():
+                rep.warn(label, f"files の参照先が存在しない: {f}")
+
+
 def main(argv):
     if len(argv) != 2:
         print(__doc__)
@@ -379,6 +427,7 @@ def main(argv):
     check_orphans(skill_dir, all_text, rep)
     check_lengths(skill_dir, rep)
     check_scripts_documented(skill_dir, all_text, rep)
+    check_evals(skill_dir, rep)
 
     return rep.dump()
 
