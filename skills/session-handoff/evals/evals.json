@@ -1,0 +1,24 @@
+{
+  "skill_name": "session-handoff",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このリポジトリの作業状態を次のセッションに渡したいので、引き継ぎ書を作って",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "今日の学びを日記に残して。ビルドが遅かった原因はウイルス対策ソフトのリアルタイムスキャンだった",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（daily-capture の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}
