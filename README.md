@@ -49,6 +49,7 @@ graph LR
         ├── assets/            ← 出力テンプレート
         ├── templates/         ← 同上（assets の別名として使っているスキルあり）
         ├── examples/          ← 出力例
+        ├── evals/             ← 評価ケース（evals.json）。改修時の退行チェックに使う。claude.ai 用 zip には入れない
         ├── local/             ← git 管理外の資料置き場（cpp14-rule-reference のみ。骨組みだけコミット）
         └── LICENSE            ← 外部から取り込んだスキルのみ。元のライセンス全文（ルートの LICENSE とは別物）
 ```
@@ -69,7 +70,7 @@ graph LR
 | `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
 | `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 285行 |
 | `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 255行 |
-| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む | 198行 |
+| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む。評価ケースを evals/ に残し、改修時に全件回して退行を確かめる | 233行 |
 | `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 228行 |
 | `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 128行 |
 | `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Claude経路は通常のツール・MCPを使用し、第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 165行 |
@@ -247,9 +248,13 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 検査するのは2系統。
 
 - **仕様適合** — frontmatter の許可キー（`name` / `description` / `license` / `allowed-tools` / `metadata` / `compatibility`）、`name` の kebab-case と64文字以内、`description` の山括弧禁止と1024文字以内
-- **構造** — `name` とディレクトリ名の一致、`description` の200文字以内（超過は ERROR）、廃止した `metadata.web-description` の残り（WARN）、リンク切れ、孤児ファイル、SKILL.md 500行以内、`scripts/` の使い方が文書化されているか
+- **構造** — `name` とディレクトリ名の一致、`description` の200文字以内（超過は ERROR）、廃止した `metadata.web-description` の残り（WARN）、リンク切れ、孤児ファイル、SKILL.md 500行以内、`scripts/` の使い方が文書化されているか、`evals/evals.json` の形式（ある場合のみ。不備は WARN）
 
 依存は標準ライブラリのみ。Claude Code 以外の環境にそのまま持ち出せる。
+
+### 評価ケース（退行チェック）
+
+`skills/<name>/evals/evals.json` に、そのスキルへの代表的な依頼と合否基準を 3〜5 件置く（形式は `skill-creator` と同じ）。スキルを直したら全ケースを回し、前回合格のケースが落ちていないことを確かめる。全スキルに一斉には作らず、そのスキルを次に直すときに作る。手順は `workflow-skill-architect` のステップ7と「改修時の入口」。
 
 > **合格 = 良いスキル、ではない。** 機械判定できない項目（description の押しの強さ、ループに成功条件・上限・諦め条件がそろっているか、並列枝の担当範囲が重複していないか、初見のエージェントが推測を挟まず実行できるか）は対象外。これらは `skills/workflow-skill-architect/references/review-checklist.md` を目視で当てる。
 

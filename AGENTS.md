@@ -102,6 +102,8 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 終了コード0（合格）になるまで直す。**ERROR が残ったままコミットしない。**
 
+`skills/<name>/evals/evals.json` があるスキルを直したら、**全ケースを回して前回合格のケースが落ちていないこと**を確かめる（退行チェック）。無いスキルを直すときは、今回直す振る舞いをケースにして作る。手順は `workflow-skill-architect` の「改修時の入口」。
+
 合格は「機械判定できる不備がゼロ」という意味でしかない。主観項目は
 `skills/workflow-skill-architect/references/review-checklist.md` を目視で当てる。
 
