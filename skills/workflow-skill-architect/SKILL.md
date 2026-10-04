@@ -157,7 +157,15 @@ python scripts/validate_skill.py <スキルディレクトリ>
 
 4. 保存したら `scripts/validate_skill.py` をもう一度実行し、`evals.json` の WARN を 0 件にする（ステップ6の時点では evals がまだ無いため）
 5. 全件を実行する。サブエージェントが使える環境なら並列で、使えない環境（Claude.ai など）なら自分で SKILL.md を読んで順に実行する。成果物を作るケースは作業用のディレクトリで回し、スキル置き場に書き込ませない
-   - **発火させないケース**（`should_trigger: false`）は、スキルを名指しせずに新しいセッションで依頼し、どのスキルが呼ばれたかで判定する。Claude Code なら `claude -p "<依頼文>" --output-format stream-json --verbose --max-turns 4` の出力から `"name":"Skill"` の呼び出しを探す。まだ配置していないスキルは、作業用ディレクトリの `.claude/skills/<name>/` に複製してからそのディレクトリで実行する（一覧に載らないと判定にならない）。CLI が無い環境では新しいチャットで手で依頼し、使われたスキルを見る。SKILL.md を読ませてから実行するやり方では判定できない
+   - **発火させないケース**（`should_trigger: false`）は、スキルを名指しせずに新しいセッションで依頼し、どのスキルが使われたかで判定する。SKILL.md を読ませてから実行するやり方では判定できない。まだ配置していないスキルは作業用ディレクトリに複製し、そのディレクトリで実行する（一覧に載らないと判定にならない）
+
+     | 環境 | 実行 | 未配置スキルの置き場 | 使われたスキルの見分け方 |
+     |---|---|---|---|
+     | Claude Code | `claude -p "<依頼文>" --output-format stream-json --verbose --max-turns 4` | `.claude/skills/<name>/` | `"name":"Skill"` の呼び出しの `skill` |
+     | Codex | `codex exec --json --skip-git-repo-check -s read-only -C <作業用ディレクトリ> "<依頼文>"` | `.agents/skills/<name>/` | `command_execution` で読まれた `skills/<name>/SKILL.md` |
+     | CLI が無い | 新しいチャットで手で依頼する | 環境の配置手順に従う | 使われたスキルを目で見る |
+
+   - 成果物を作るケースも、上の CLI で1件ずつ新しいセッションとして回せる（Codex なら `-s workspace-write`）。非対話の実行ではユーザー確認の手順でそこで止まるので、確認を省いてよいことを依頼文に添える（「確認は不要」）。確認して止まること自体を確かめるケースでは添えない
 6. 結果を「ケースID / 合否 / 根拠」の表で示す。**根拠は実物か検査の出力で示す。** 実行したモデルの「できました」は根拠にしない
 7. 不合格があれば直して、**全件**を回し直す。1件だけ見て直すと、そのケース専用の指示になる（`references/loop-engineering.md` の「評価ループ」）
 
