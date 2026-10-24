@@ -7,6 +7,7 @@ H1（機械集計）で実行する。全発話をエージェントに読ませ
 
     python extract_history.py [--claude-history <history.jsonl>]
                               [--codex-sessions <sessions ディレクトリ>]
+                              [--antigravity-dir <antigravity-cli ディレクトリ>]
                               [--days 30] [-o work/history-summary.json]
                               [--dump work/prompts.jsonl]
 
@@ -14,6 +15,10 @@ H1（機械集計）で実行する。全発話をエージェントに読ませ
     Claude Code  ~/.claude/history.jsonl（1行1発話。display / timestamp[ms] / project / sessionId）
     Codex        ~/.codex/sessions/**/*.jsonl（event_msg の user_message。
                  source が subagent のセッションは除外する）
+    Antigravity  ~/.gemini/antigravity-cli/（brain/<会話ID>/.system_generated/logs/transcript.jsonl の
+                 USER_INPUT。<USER_REQUEST> の中身だけを取る。作業ディレクトリは
+                 conversation_summaries.db の workspace_uris から引く。second-opinion スキルが
+                 自動で投げた相談（作業コピー second-opinion-agy-*）は除外する）
 
 集計するもの:
     by_project        プロジェクト（作業ディレクトリ）ごとの発話数とセッション数
@@ -41,7 +46,10 @@ import glob
 import json
 import os
 import re
+import sqlite3
 import sys
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 SNIPPET = 160            # 例として残す発話の最大文字数
 REPEAT_KEY_LEN = 24      # 反復判定に使う先頭文字数
@@ -67,6 +75,10 @@ MASK_RES = [
     (re.compile(r"\d+"), "0"),
     (re.compile(r"\s+"), " "),
 ]
+USER_REQUEST_RE = re.compile(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", re.S)
+# second-opinion の ask_antigravity.py が作る作業コピー。人の発話ではないので数えない
+AGY_AUTOMATED_WORKSPACE = "second-opinion-agy-"
+AGY_AUTOMATED_PREFIX = "あなたは second-opinion スキルの相談先。"
 TERM_RE = re.compile(r"[一-鿿]{2,}|[゠-ヿ]{3,}|[A-Za-z][A-Za-z0-9+#.\-]{2,}")
 STOP_TERMS = frozenset([
     "お願い", "下さい", "ください", "します", "して", "これ", "それ", "確認", "対応",
@@ -150,6 +162,106 @@ def read_codex(root, since):
     return out
 
 
+def uri_to_path(uri):
+    u = urlparse(uri)
+    if u.scheme != "file":
+        return uri
+    path = unquote(u.path)
+    if re.match(r"/[A-Za-z]:", path):  # file:///D:/... → D:/...
+        path = path[1:]
+    return path
+
+
+def agy_workspaces(root):
+    """会話ID → 作業ディレクトリ。DB が読めなければ cache/last_conversations.json で補う。"""
+    out = {}
+    cache = os.path.join(root, "cache", "last_conversations.json")
+    try:
+        with open(cache, encoding="utf-8") as f:
+            for ws, cid in json.load(f).items():
+                out[cid] = ws
+    except (OSError, ValueError, AttributeError):
+        pass
+    db = os.path.join(root, "conversation_summaries.db")
+    if os.path.isfile(db):
+        try:
+            con = sqlite3.connect(Path(db).resolve().as_uri() + "?mode=ro", uri=True)
+            try:
+                for cid, uris in con.execute(
+                        "SELECT conversation_id, workspace_uris FROM conversation_summaries"):
+                    try:
+                        first = (json.loads(uris) or [None])[0]
+                    except ValueError:
+                        first = None
+                    if first:
+                        out[cid] = uri_to_path(first)
+            finally:
+                con.close()
+        except sqlite3.Error as e:
+            print("WARN  %s: 読めない（%s）。作業ディレクトリは分かる範囲だけ埋める" % (db, e))
+    return out
+
+
+def agy_user_text(content):
+    m = USER_REQUEST_RE.search(content or "")
+    return m.group(1) if m else (content or "")
+
+
+def read_antigravity(root, since):
+    workspaces = agy_workspaces(root)
+    out = []
+    for path in glob.glob(os.path.join(root, "brain", "*", ".system_generated", "logs",
+                                       "transcript.jsonl")):
+        cid = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(path))))
+        project = workspaces.get(cid) or "?"
+        if AGY_AUTOMATED_WORKSPACE in project:
+            continue
+        full = None
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if d.get("type") != "USER_INPUT" or d.get("source") != "USER_EXPLICIT":
+                    continue
+                content = d.get("content", "")
+                if "content" in (d.get("truncated_fields") or []):
+                    if full is None:
+                        full = read_agy_full(path)
+                    content = full.get(d.get("step_index"), content)
+                text, image = strip_image(agy_user_text(content))
+                if text.startswith(AGY_AUTOMATED_PREFIX):
+                    continue
+                try:
+                    when = dt.datetime.fromisoformat(str(d.get("created_at")).replace("Z", "+00:00"))
+                except ValueError:
+                    continue
+                if when < since or not ok_prompt(text):
+                    continue
+                out.append({"tool": "antigravity", "time": when, "project": project,
+                            "session": cid, "text": text, "image": image})
+    return out
+
+
+def read_agy_full(path):
+    """transcript.jsonl で切り詰められた発話を transcript_full.jsonl から引く。"""
+    full = {}
+    try:
+        with open(os.path.join(os.path.dirname(path), "transcript_full.jsonl"),
+                  encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                if d.get("type") == "USER_INPUT":
+                    full[d.get("step_index")] = d.get("content", "")
+    except OSError:
+        pass
+    return full
+
+
 def dedupe(prompts):
     seen, out = set(), []
     for p in sorted(prompts, key=lambda x: x["time"]):
@@ -220,6 +332,7 @@ def main(argv):
     ap = argparse.ArgumentParser(description="セッション履歴のユーザー発話を集計する")
     ap.add_argument("--claude-history", help="Claude Code の history.jsonl")
     ap.add_argument("--codex-sessions", help="Codex の sessions ディレクトリ")
+    ap.add_argument("--antigravity-dir", help="Antigravity CLI のデータディレクトリ（antigravity-cli）")
     ap.add_argument("--days", type=int, default=30, help="遡る日数（既定 30）")
     ap.add_argument("-o", "--output", default="work/history-summary.json", help="集計結果 JSON")
     ap.add_argument("--dump", help="期間内の全発話を JSONL で書き出す先（語で絞り込むとき用）")
@@ -228,14 +341,18 @@ def main(argv):
     except SystemExit:
         return 2
 
-    if not args.claude_history and not args.codex_sessions:
-        print("ERROR  --claude-history か --codex-sessions のどちらかを指定する")
+    if not (args.claude_history or args.codex_sessions or args.antigravity_dir):
+        print("ERROR  --claude-history / --codex-sessions / --antigravity-dir のどれかを指定する")
         return 2
     if args.claude_history and not os.path.isfile(args.claude_history):
         print("ERROR  %s: ファイルがない" % args.claude_history)
         return 2
     if args.codex_sessions and not os.path.isdir(args.codex_sessions):
         print("ERROR  %s: ディレクトリがない" % args.codex_sessions)
+        return 2
+    if args.antigravity_dir and not os.path.isdir(os.path.join(args.antigravity_dir, "brain")):
+        print("ERROR  %s: brain ディレクトリがない（antigravity-cli のディレクトリを指定する）"
+              % args.antigravity_dir)
         return 2
     if args.days <= 0:
         print("ERROR  --days は 1 以上")
@@ -247,6 +364,8 @@ def main(argv):
         prompts += read_claude(args.claude_history, since)
     if args.codex_sessions:
         prompts += read_codex(args.codex_sessions, since)
+    if args.antigravity_dir:
+        prompts += read_antigravity(args.antigravity_dir, since)
     prompts = dedupe(prompts)
     if not prompts:
         print("期間内（直近 %d 日）の発話が0件" % args.days)

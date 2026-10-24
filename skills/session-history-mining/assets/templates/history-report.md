@@ -5,7 +5,7 @@
 | 項目 | 値 |
 |---|---|
 | 期間 | YYYY-MM-DD 〜 YYYY-MM-DD（直近 N 日） |
-| 読んだ履歴 | Claude Code history.jsonl / Codex sessions（読めなかったものはここに書く） |
+| 読んだ履歴 | Claude Code history.jsonl / Codex sessions / Antigravity CLI（読めなかったものはここに書く） |
 | 発話 / セッション | N 件 / N 件 |
 | 画像つき発話 | N 件 |
 | 指摘候補（機械抽出） | N 件（うち指摘と判断 N 件） |

@@ -33,6 +33,7 @@ audit = load('audit', 'skill-portfolio-audit/scripts/audit_skills.py')
 claude = load('ask_claude', 'second-opinion/scripts/ask_claude.py')
 agy = load('ask_antigravity', 'second-opinion/scripts/ask_antigravity.py')
 codex = load('ask_codex', 'second-opinion/scripts/ask_codex.py')
+history = load('extract_history', 'session-history-mining/scripts/extract_history.py')
 sys.path.insert(0, str(ROOT / 'skills/notion-api/scripts'))
 import notion_page as notion
 recalc = load('recalc_check', 'operate-excel/scripts/recalc_check.py')
@@ -384,6 +385,52 @@ class ConsoleEncodingTests(unittest.TestCase):
             with self.subTest(module=module.__name__):
                 self.assertEqual(self.write(module, 932, {'PYTHONIOENCODING': 'utf-8'})[0][0], 'utf-8')
                 self.assertEqual(self.write(module, 0, start='cp932')[0][0], 'cp932')
+
+
+class HistoryMiningTests(TemporaryCase):
+    """Antigravity CLI の履歴から人の発話だけを拾う。second-opinion の自動相談は数えない。"""
+
+    def transcript(self, cid, rows, full=None):
+        logs = self.folder/'agy'/'brain'/cid/'.system_generated'/'logs'
+        logs.mkdir(parents=True)
+        (logs/'transcript.jsonl').write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in rows), encoding='utf-8')
+        if full:
+            (logs/'transcript_full.jsonl').write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in full), encoding='utf-8')
+
+    def user(self, text, when, **extra):
+        return dict({'step_index': 0, 'source': 'USER_EXPLICIT', 'type': 'USER_INPUT', 'created_at': when,
+                     'content': '<USER_REQUEST>\n%s\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: x\n</ADDITIONAL_METADATA>' % text}, **extra)
+
+    def test_reads_user_requests_and_skips_automated_consults(self):
+        import datetime as dt
+        import sqlite3
+        now = dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        root = self.folder/'agy'
+        self.transcript('human', [self.user('図の線がまた崩れてる', now),
+                                  {'step_index': 1, 'source': 'MODEL', 'type': 'PLANNER_RESPONSE', 'content': '直します'}])
+        self.transcript('cut', [self.user('切り詰め', now, truncated_fields=['content'])],
+                        full=[self.user('切り詰められる前の全文', now)])
+        self.transcript('consult', [self.user('何でも', now)])
+        self.transcript('prefix', [self.user(history.AGY_AUTOMATED_PREFIX + 'ワークスペース直下の質問', now)])
+        self.transcript('old', [self.user('古い発話', '2000-01-01T00:00:00Z')])
+        con = sqlite3.connect(str(root/'conversation_summaries.db'))
+        con.execute('CREATE TABLE conversation_summaries (conversation_id text, workspace_uris text)')
+        con.executemany('INSERT INTO conversation_summaries VALUES (?, ?)', [
+            ('human', '["file:///D:/Users/me/proj%20a"]'),
+            ('consult', '["file:///D:/Temp/second-opinion-agy-abc/workspace"]')])
+        con.commit()
+        con.close()
+        since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+        got = {p['session']: p for p in history.read_antigravity(str(root), since)}
+        self.assertEqual(sorted(got), ['cut', 'human'])
+        self.assertEqual(got['human']['text'], '図の線がまた崩れてる')
+        self.assertEqual(got['human']['project'], 'D:/Users/me/proj a')
+        self.assertEqual(got['cut']['text'], '切り詰められる前の全文')
+        self.assertEqual(got['cut']['project'], '?')
+
+    def test_antigravity_dir_without_brain_is_usage_error(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(history.main(['--antigravity-dir', str(self.folder)]), 2)
 
 
 class ExcelTests(TemporaryCase):
