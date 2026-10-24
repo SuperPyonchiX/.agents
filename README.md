@@ -90,7 +90,7 @@ graph LR
 | `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
 | `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 129行 |
 | `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 113行 |
-| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 93行 |
+| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換（テキストボックス・脚注・全ヘッダーを含み、変更履歴付きの置換もできる）、コメント・変更履歴、PDF にしての見た目確認まで行う。長い文書は見出し一覧から節ごとに読む | 119行 |
 | `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレート（.potx）のレイアウト利用、はみ出し・重なり・空の枠・あふれの疑いの検査、全スライドの画像確認まで行う | 118行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
@@ -360,4 +360,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
