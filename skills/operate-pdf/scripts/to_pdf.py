@@ -39,6 +39,7 @@ PPT_EXT = {".pptx", ".ppt", ".potx", ".odp"}
 # 入出力パスは環境変数で渡す。PowerShell の引用符処理にパスを通さないため
 PS_WORD = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject Word.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -51,6 +52,7 @@ try {
 
 PS_EXCEL = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject Excel.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -63,6 +65,7 @@ try {
 
 PS_PPT = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject PowerPoint.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -120,7 +123,7 @@ def convert_office(src, outdir):
         script = PS_PPT
     out = outdir / (src.stem + ".pdf")
     env = dict(os.environ, TOPDF_IN=str(src), TOPDF_OUT=str(out))
-    r = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], env=env)
+    r = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], env=env, encoding="utf-8")
     if r is None:
         return None
     if r.returncode != 0 or not out.is_file():
@@ -135,10 +138,12 @@ def convert_office(src, outdir):
 NO_ENGINE = object()
 
 
-def run(cmd, env=None):
-    # 日本語 Windows の PowerShell は cp932 で出力する。読めないバイトで読み取りスレッドが落ちないよう置き換える
+def run(cmd, env=None, encoding=None):
+    # 読めないバイトで読み取りスレッドが落ちないよう置き換える。PowerShell はコンソールのコードページ
+    # （日本語 Windows なら cp932、chcp 65001 なら UTF-8）で出すので、スクリプト側で UTF-8 に固定して渡す
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env, timeout=300)
+        return subprocess.run(cmd, capture_output=True, text=True, encoding=encoding, errors="replace",
+                              env=env, timeout=300)
     except subprocess.TimeoutExpired:
         sys.stderr.write("変換が300秒で終わらなかった（ダイアログで止まっている可能性がある）\n")
         return None
