@@ -94,7 +94,7 @@ description を短くするのではなく、**限定する語を足す**。
 `work/audit-report.md` の判定表に1行で書く。次回同じ組を見たときに、**同じ結論へ到達できる情報**を残すこと。
 
 ```markdown
-| markdown-doc / show-me | 問題なし | 成果物が「Markdown ファイル」と「会話中の図」で分かれ、双方が名指しで振り分けている |
+| markdown-doc / notion-knowhow-page | 問題なし | 保存先が「ローカルの Markdown」と「Notion」で分かれ、notion 側が名指しで振り分けている |
 | cpp14-code-review / cpp14-defect-analysis | 問題なし | 入力が「読むコード」と「動かない現象」で異なる。defect 側が名指し済み |
 | foo-doc / bar-doc | 棲み分けを書く | 成果物は違うが bar 側に名指しがない。bar の description 末尾に1文を追加する |
 ```

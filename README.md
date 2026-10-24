@@ -72,7 +72,6 @@ graph LR
 | `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 255行 |
 | `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む。評価ケースを evals/ に残し、改修時に全件回して退行を確かめる | 250行 |
 | `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 228行 |
-| `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 128行 |
 | `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ、指名があればどちらからもAntigravity CLI（Gemini）へ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Antigravityは作業コピー上で答えさせ、元のディレクトリに書き込ませない。第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 188行 |
 | `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 319行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 66行 |
@@ -342,7 +341,6 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 対象 | 適用されるライセンス |
 | --- | --- |
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
-| `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
