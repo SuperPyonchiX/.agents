@@ -16,21 +16,27 @@ doc.add_comment(paragraph.runs, text="対象範囲を明記すること", author
 
 **文言の置き換えは `docx_replace.py --track 校閲者名` を使う。** run の分割・書式の複写・`w:delText` への変換・番号の採番をスクリプトが行う。ここに書くのは、置換では表せない変更（段落を足す・消す）だけ。
 
-python-docx には API が無いので XML を直接組む。変更履歴は `w:ins`（挿入）と `w:del`（削除）で run を包み、`w:id`（文書内で一意な番号）・`w:author`・`w:date`（UTC）を付ける。
+python-docx には API が無いので XML を直接組む。変更履歴は `w:ins`（挿入）と `w:del`（削除）で run を包み、`w:id`（文書内で一意な番号）・`w:author`・`w:date`（現地時刻に Z を付ける。下のコードの注記を参照）を付ける。
 
 ```python
 import datetime
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
-NOW = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")   # Word は UTC として読む
+# Word は w:date を現地時刻として読み書きする（末尾の Z に反して）。本物の UTC を書くと日本では
+# Word の表示が9時間ずれる（Word 2021 で確認）。Word に合わせて現地時刻に Z を付ける
+NOW = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def next_rev_id(doc):
-    """文書内の既存の w:id（変更履歴・コメント・ブックマーク）より大きい番号を返す。"""
-    ids = [int(v) for el in doc.element.body.iter() if isinstance(el.tag, str)
-           for v in [el.get(qn("w:id"))] if v and v.isdigit()]
-    return max(ids, default=0) + 1
+    """文書内の既存の w:id（変更履歴・コメント・ブックマーク）より大きい番号を返す。
+    本文だけでなく、ヘッダー・フッター・脚注・コメントの部品も見る。"""
+    import re
+    ids = [0]
+    for part in doc.part.package.iter_parts():
+        if str(part.partname).startswith("/word/") and str(part.partname).endswith(".xml"):
+            ids += [int(v) for v in re.findall(rb'w:id="(\d+)"', part.blob)]
+    return max(ids) + 1
 
 
 _rev_id = [None]

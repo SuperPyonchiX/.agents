@@ -663,7 +663,7 @@ class WordTests(TemporaryCase):
         self.assertFalse(out.exists())
         real, out = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'Beta 3')
         self.assertEqual(real.returncode, 0, real.stderr)
-        line = '置換 7 件（本文 4、本文のテキストボックス 1、脚注 1、ヘッダー 1）'
+        line = '置換 7 件（本文 3、本文のテキストボックス 1、本文・他の変更履歴の挿入の中 1、脚注 1、ヘッダー 1）'
         self.assertIn(line, dry.stdout)
         self.assertIn(line, real.stdout)
         text = self.run_script('inspect_docx.py', out).stdout
@@ -719,7 +719,9 @@ class WordTests(TemporaryCase):
         self.assertEqual(dels, ['BC'])
         ins = next(body.iter(W+'ins'))
         self.assertIsNotNone(ins.find('.//' + W + 'b'))            # 一致範囲の先頭（太字）の書式
-        self.assertRegex(ins.get(W+'date'), r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+        # Word は w:date を現地時刻として扱う（Word 2021 で確認）。現地時刻に Z を付けて書く
+        import datetime
+        self.assertEqual(ins.get(W+'date')[:13], datetime.datetime.now().strftime('%Y-%m-%dT%H'))
         text = self.run_script('inspect_docx.py', out).stdout
         self.assertIn('AXD', text)
 
@@ -739,13 +741,82 @@ class WordTests(TemporaryCase):
         summary = self.run_script('inspect_docx.py', out).stdout
         self.assertIn('変更履歴の挿入 7、変更履歴の削除 6', summary)
 
-    def test_review_markup_helpers_use_utc_and_fresh_ids(self):
+    def xml_doc(self, name, body_xml, setup=None):
+        """本文の XML を差し込んだ文書を作る。"""
+        import docx
+        from docx.oxml import parse_xml
+        from docx.oxml.ns import nsdecls
+        d = docx.Document()
+        body = d.element.body
+        sect = body[-1]
+        for el in parse_xml('<w:body %s %s>%s</w:body>' % (nsdecls('w'), nsdecls('r'), body_xml)):
+            sect.addprevious(el)
+        if setup:
+            setup(d)
+        path = self.folder/name
+        d.save(str(path))
+        return path
+
+    def test_boundaries_from_review(self):
+        # フィールドの境目・リンクの境目をまたぐ一致は置換しない
+        src = self.xml_doc('field.docx',
+                           '<w:p><w:r><w:t>A</w:t></w:r><w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r>'
+                           '</w:fldSimple></w:p>'
+                           '<w:p><w:r><w:t>A</w:t></w:r><w:hyperlink r:id="rIdX"><w:r><w:t>B</w:t></w:r>'
+                           '</w:hyperlink></w:p>')
+        for find in ('A1', 'AB'):
+            result, out = self.replace(src, '--find', find, '--replace', 'X', '--track', 'R')
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn('置換しなかった 1 件', result.stdout)
+            self.assertFalse(out.exists())
+        # フィールドの結果の中だけの一致は置換し、場所に出す
+        result, _ = self.replace(src, '--find', '1', '--replace', '2', '--dry-run')
+        self.assertIn('本文・フィールドの結果 1', result.stdout)
+        # 空の w:t を挟んでも --track が落ちない
+        src = self.xml_doc('empty.docx', '<w:p><w:r><w:t>A</w:t></w:r><w:r><w:t/></w:r><w:r><w:t>B</w:t></w:r></w:p>')
+        result, _ = self.replace(src, '--find', 'AB', '--replace', 'X', '--track', 'R')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('変更履歴: 挿入 1・削除 1', result.stdout)
+        # 削除済みのテキストボックスの中は対象外
+        box = ('<w:p><w:del w:id="5" w:author="a" w:date="2026-01-01T00:00:00Z"><w:r><w:pict><v:rect '
+               'xmlns:v="urn:schemas-microsoft-com:vml"><v:textbox><w:txbxContent><w:p><w:r><w:t>AB</w:t></w:r>'
+               '</w:p></w:txbxContent></v:textbox></v:rect></w:pict></w:r></w:del></w:p>')
+        result, _ = self.replace(self.xml_doc('delbox.docx', box), '--find', 'AB', '--replace', 'X')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('置換 0 件', result.stdout)
+
+    def test_inspect_tables_headings_and_long_plain_text(self):
+        cell = '<w:tc><w:p><w:r><w:t>%s</w:t></w:r></w:p></w:tc>'
+        nested = ('<w:tbl><w:tr><w:tc><w:p><w:r><w:t>OUTER</w:t></w:r></w:p><w:tbl><w:tr>' + cell % 'INNER' +
+                  '</w:tr></w:tbl><w:p/></w:tc></w:tr></w:tbl>'
+                  '<w:tbl><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid><w:tr>' + cell % 'H1' + cell % 'H2' +
+                  '</w:tr><w:tr><w:trPr><w:gridBefore w:val="1"/></w:trPr>' + cell % 'VALUE' + '</w:tr></w:tbl>'
+                  '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr></w:p>'
+                  '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>本当の見出し</w:t></w:r></w:p>')
+        src = self.xml_doc('tables.docx', nested)
+        out = self.run_script('inspect_docx.py', src).stdout
+        self.assertIn('| OUTER [表: INNER] |', out)
+        self.assertIn('|  | VALUE |', out)
+        self.assertIn('§1 # 本当の見出し', self.run_script('inspect_docx.py', src, '--outline').stdout)
+        # 見出しの無い長い文書は先頭だけを出す
+        import docx
+        d = docx.Document()
+        for _ in range(30):
+            d.add_paragraph('本文' * 400)
+        long = self.folder/'plain.docx'
+        d.save(str(long))
+        out = self.run_script('inspect_docx.py', long).stdout
+        self.assertIn('見出しが無いので先頭', out)
+        self.assertLess(len(out), 25000)
+
+    def test_review_markup_helpers_use_local_time_and_fresh_ids(self):
         import re
         import docx
         md = (WORD/'references/review-markup.md').read_text(encoding='utf-8')
         g = {}
         exec(re.findall(r"```python\n(.*?)```", md, re.S)[1], g)
-        self.assertTrue(g['NOW'].endswith('Z'))
+        import datetime
+        self.assertTrue(g['NOW'].startswith(datetime.datetime.now().strftime('%Y-%m-%dT%H')))
         d = docx.Document(str(self.MANUAL))
         p = d.add_paragraph('消す文')
         g['tracked_insert'](d, p, '足す文', 'R')

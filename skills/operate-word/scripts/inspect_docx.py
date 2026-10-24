@@ -5,20 +5,24 @@
     python inspect_docx.py <docx> [--outline] [--section N] [--full] [--out FILE]
 
 出力:
-    - 冒頭: 用紙・向き・余白とヘッダー・フッターの文字（セクションごと。先頭ページ用・偶数ページ用を含む）、
+    - 冒頭: 用紙・向き・余白とヘッダー・フッターの文字（セクションごと。先頭ページ用・偶数ページ用は
+      その設定が有効なときだけ。60字で切る）、
       使われている段落スタイル、表・画像（行内と浮動）・テキストボックス・脚注・文末脚注・コメント・
       変更履歴（挿入・削除。本文・ヘッダー・フッター・脚注の合計）・フィールドの数、本文の文字数
     - 本文: 段落と表を文書の順に。見出し（見出しスタイルか、スタイル・段落のアウトラインレベル）は #、
       箇条書き・段落番号は -、それ以外は [スタイル名] を前に付ける（標準スタイルは付けない）。
       変更履歴で挿入した文字は含め、削除した文字は含めない。コンテンツコントロールの中も出す。
       テキストボックスの文字は [テキストボックス] として段落の後に、脚注は [^番号] で本文に残し末尾に出す。
-      表は Markdown の表。横に結合したセルは ←、縦に結合したセルは ↑ と出す
+      表は Markdown の表。横に結合したセルは ←、縦に結合したセルは ↑ と出す。セルの中の入れ子の表と
+      テキストボックスは [表: …] [テキストボックス: …] としてセルの中に出す
     --outline     見出しだけを §番号 付きで出す
-    --section N   §N の見出しから、同じか上の階層の次の見出しの手前までを出す
+    --section N   §N の見出しから、同じか上の階層の次の見出しの手前までと、そこで参照する脚注だけを出す
+                  （冒頭の集計は出さない）
     --full        本文が長くても省略しない
     --out FILE    出力をファイルに書き、標準出力にはパスだけを出す
 
-本文が LIMIT（2万字）を超え、--section / --full / --out のどれも無いときは、本文の代わりに見出しの一覧を出す。
+本文（脚注を含む）が LIMIT（2万字）を超え、--section / --full / --out のどれも無いときは、本文の代わりに
+見出しの一覧を出す。見出しが1つも無い文書では、先頭から2万字までを出す。
 
 終了コード:
     0  出力した
@@ -35,7 +39,8 @@ import zipfile
 from collections import Counter
 from pathlib import Path
 
-LIMIT = 20000
+LIMIT = 20000          # これを超える本文（脚注を含む）は、既定では見出しの一覧だけを出す
+HEADER_CHARS = 60      # ヘッダー・フッターの文字はこの字数で切る
 HEADING_RE = re.compile(r"^(Heading|見出し)\s*(\d)$")
 TITLE_STYLES = {"Title", "表題"}
 LIST_HINTS = ("List", "リスト", "箇条書き", "段落番号")
@@ -52,6 +57,7 @@ class Reader:
                 self.styles[s.get(w("styleId"))] = s
         self.default = next((sid for sid, s in self.styles.items() if s.get(w("default")) in ("1", "true")), None)
         self.cache = {}
+        self.used = Counter()      # 本文で使われている段落スタイル（文字のある段落だけ）
 
     def style_info(self, sid):
         """スタイルの名前・アウトラインレベル・番号付きかを、基にしたスタイルまでさかのぼって決める。"""
@@ -59,7 +65,7 @@ class Reader:
         w = self.w
         if sid in self.cache:
             return self.cache[sid]
-        name, outline, numbered = "", None, False
+        name, outline, numbered = "", None, None
         seen, cur = set(), sid
         while cur and cur not in seen and cur in self.styles:
             seen.add(cur)
@@ -71,11 +77,13 @@ class Reader:
             if ppr is not None:
                 if outline is None and ppr.find(w("outlineLvl")) is not None:
                     outline = int(ppr.find(w("outlineLvl")).get(w("val")))
-                if ppr.find(w("numPr")) is not None:
-                    numbered = True
+                num = ppr.find(w("numPr"))
+                if numbered is None and num is not None:      # 近いスタイルの指定が勝つ（numId 0 は番号なし）
+                    numid = num.find(w("numId"))
+                    numbered = numid is None or numid.get(w("val")) != "0"
             based = s.find(w("basedOn"))
             cur = based.get(w("val")) if based is not None else None
-        self.cache[sid] = (name or "Normal", outline, numbered)   # 既定のスタイルが無い文書は標準扱い
+        self.cache[sid] = (name or "Normal", outline, bool(numbered))   # 既定のスタイルが無い文書は標準扱い
         return self.cache[sid]
 
     def para(self, p):
@@ -106,54 +114,74 @@ def para_line(reader, p):
     from wordml import pieces, visible_text
     text = visible_text(pieces(p))
     style, level, numbered = reader.para(p)
+    if not text.strip():
+        return text, 0, ""
+    reader.used[style] += 1
     if level:
         return text, level, "#" * level + " " + text
     if numbered or any(h in style for h in LIST_HINTS):
-        return text, 0, "- " + text if text.strip() else ""
-    if not text.strip():
-        return text, 0, ""
+        return text, 0, "- " + text
     if style and style not in NORMAL_STYLES:
         return text, 0, "[%s] %s" % (style, text)
     return text, 0, text
 
 
 def cell_text(reader, tc):
-    from wordml import pieces, visible_text, w
-    texts = []
-    for p in tc.iter(w("p")):
-        if p.getparent() is not None and _owner_cell(p) is tc and not _in_textbox(p):
-            texts.append(visible_text(pieces(p)))
-    nested = sum(1 for t in tc.iter(w("tbl")) if t is not tc)
-    out = " ".join(t for t in texts if t.strip())
-    if nested:
-        out += " [入れ子の表 %d]" % nested
-    return out.replace("\n", " ").replace("\t", " ").replace("|", "\\|")
+    """セルの文字。入れ子の表は [表: …]、テキストボックスは [テキストボックス: …] としてセルの中に出す。"""
+    from wordml import pieces, textbox_paragraphs, visible_text, w
+    out = []
+    for b in blocks(tc):
+        if b.tag == w("tbl"):
+            rows = [" / ".join(cell_text(reader, c) for c in cells(r)) for r in rows_of(b)]
+            out.append("[表: %s]" % " // ".join(rows))
+            continue
+        t = visible_text(pieces(b))
+        if t.strip():
+            out.append(t)
+        for q in textbox_paragraphs(b):
+            t = visible_text(pieces(q))
+            if t.strip():
+                out.append("[テキストボックス: %s]" % t)
+    return " ".join(out).replace("\n", " ").replace("\t", " ").replace("|", "\\|")
 
 
-def _owner_cell(p):
+def rows_of(tbl):
+    """表の行。コンテンツコントロールで包まれた行（繰り返しセクションなど）の中も見る。"""
     from wordml import w
-    a = p.getparent()
-    while a is not None and a.tag != w("tc"):
+    return [el for el in tbl.iter(w("tr")) if _owner_table(el) is tbl]
+
+
+def cells(tr):
+    from wordml import w
+    return [el for el in tr.iter(w("tc")) if el.getparent() is tr or _owner_row(el) is tr]
+
+
+def _owner_table(el):
+    from wordml import w
+    a = el.getparent()
+    while a is not None and a.tag != w("tbl"):
         a = a.getparent()
     return a
 
 
-def _in_textbox(p):
+def _owner_row(el):
     from wordml import w
-    a = p.getparent()
-    while a is not None:
-        if a.tag == w("txbxContent"):
-            return True
+    a = el.getparent()
+    while a is not None and a.tag != w("tr"):
         a = a.getparent()
-    return False
+    return a
 
 
 def table_lines(reader, tbl):
     from wordml import w
     rows = []
-    for tr in tbl.findall(w("tr")):
+    for tr in rows_of(tbl):
         row = []
-        for tc in tr.findall(w("tc")):
+        trpr = tr.find(w("trPr"))
+        before = trpr.find(w("gridBefore")) if trpr is not None else None
+        if before is not None:                    # 行の左側の空き列
+            row += [""] * int(before.get(w("val")))
+        for tc in cells(tr):
             tcpr = tc.find(w("tcPr"))
             span, vcont = 1, False
             if tcpr is not None:
@@ -206,27 +234,27 @@ def body_entries(reader, body):
     return out
 
 
-def notes(doc, part_name, prefix):
-    from lxml import etree
+def notes(parts):
+    """脚注・文末脚注を [^n]: 本文 の行にする。区切り線用の脚注は出さない。"""
     from wordml import pieces, visible_text, w
-    for part in doc.part.package.iter_parts():
-        if str(part.partname) == part_name:
-            root = etree.fromstring(part.blob)
-            tag = w("footnote") if prefix == "" else w("endnote")
-            out = []
-            for n in root.findall(tag):
-                if n.get(w("type")) not in (None, "normal"):
-                    continue
-                text = " ".join(visible_text(pieces(p), notes=False) for p in n.iter(w("p"))).strip()
-                out.append("[^%s%s]: %s" % (prefix, n.get(w("id")), text))
-            return out
-    return []
+    out = {"": [], "e": []}
+    for label, root, _ in parts:
+        if label not in ("脚注", "文末脚注"):
+            continue
+        prefix, tag = ("", w("footnote")) if label == "脚注" else ("e", w("endnote"))
+        for n in root.findall(tag):
+            if n.get(w("type")) not in (None, "normal"):
+                continue
+            text = " ".join(visible_text(pieces(p), notes=False) for p in n.iter(w("p"))).strip()
+            out[prefix].append("[^%s%s]: %s" % (prefix, n.get(w("id")), text))
+    return out[""], out["e"]
 
 
-def summary(doc, path, reader, notes_count, chars):
+def summary(doc, path, reader, parts, notes_count, chars):
     from docx.oxml.ns import qn
-    from wordml import in_fallback, pieces, stories, visible_text, w
+    from wordml import in_fallback, pieces, visible_text, w
     lines = ["# %s" % path.name, ""]
+    even = doc.settings.odd_and_even_pages_header_footer
     for i, s in enumerate(doc.sections, 1):
         if s.page_width is None:
             continue
@@ -234,44 +262,41 @@ def summary(doc, path, reader, notes_count, chars):
             i, s.page_width.mm, s.page_height.mm,
             "横" if s.page_width > s.page_height else "縦",
             s.top_margin.mm, s.bottom_margin.mm, s.left_margin.mm, s.right_margin.mm))
-        for label, part in (("ヘッダー", s.header), ("フッター", s.footer),
-                            ("先頭ページのヘッダー", s.first_page_header), ("先頭ページのフッター", s.first_page_footer),
-                            ("偶数ページのヘッダー", s.even_page_header), ("偶数ページのフッター", s.even_page_footer)):
+        kinds = [("ヘッダー", s.header), ("フッター", s.footer)]
+        # 設定を外しても部品は残るので、表示される設定のときだけ出す
+        if s.different_first_page_header_footer:
+            kinds += [("先頭ページのヘッダー", s.first_page_header), ("先頭ページのフッター", s.first_page_footer)]
+        if even:
+            kinds += [("偶数ページのヘッダー", s.even_page_header), ("偶数ページのフッター", s.even_page_footer)]
+        for label, part in kinds:
             if part.is_linked_to_previous:
                 continue
             text = " / ".join(t for t in (visible_text(pieces(p)) for p in part._element.iter(w("p"))
                                           if not in_fallback(p)) if t.strip())
             if text:
-                lines.append("  - %s: %s" % (label, text))
-    body = doc.element.body
-    styles = Counter()
-    for p in body.iter(w("p")):
-        if _in_textbox(p) or not visible_text(pieces(p)).strip():
-            continue
-        styles[reader.para(p)[0]] += 1
-    lines.append("- 段落スタイル: " + ", ".join("%s(%d)" % kv for kv in styles.most_common()))
+                lines.append("  - %s: %s" % (label, text if len(text) <= HEADER_CHARS else text[:HEADER_CHARS] + "…"))
+    lines.append("- 段落スタイル: " + ", ".join("%s(%d)" % kv for kv in reader.used.most_common()))
 
-    roots = [root for _, root, _ in stories(doc)]
+    roots = [root for _, root, _ in parts]
+    body = doc.element.body
     fields = [f.get(qn("w:instr")) for r in roots for f in r.iter(qn("w:fldSimple"))]
     fields += [t.text for r in roots for t in r.iter(qn("w:instrText")) if t.text and t.text.strip()]
 
-    def count(tag, mark=False):
-        # 段落記号の変更（w:rPr の中の w:ins / w:del）は文字の変更と分けて数える
+    def count(tags, root_list, mark=None):
+        # 段落記号の変更（w:rPr の中の w:ins / w:del）は文字の変更と分けて数える。Fallback の複製は数えない
         n = 0
-        for r in roots:
-            for el in r.iter(w(tag)):
+        for r in root_list:
+            for el in r.iter(*tags):
                 if in_fallback(el):
                     continue
-                if (el.getparent().tag == w("rPr")) == mark:
+                if mark is None or (el.getparent().tag == w("rPr")) == mark:
                     n += 1
         return n
 
-    textboxes = sum(1 for p in body.iter(w("txbxContent")) if not in_fallback(p))
-    drawings = [d for d in body.iter("{http://schemas.openxmlformats.org/drawingml/2006/picture}pic")]
     counts = [
-        ("表", sum(1 for _ in body.iter(w("tbl")))),
-        ("画像", len(drawings)),
-        ("テキストボックス", textboxes),
+        ("表", count([w("tbl")], [body])),
+        ("画像", count(["{http://schemas.openxmlformats.org/drawingml/2006/picture}pic"], [body])),
+        ("テキストボックス", count([w("txbxContent")], [body])),
         ("脚注", notes_count[0]),
         ("文末脚注", notes_count[1]),
     ]
@@ -279,14 +304,14 @@ def summary(doc, path, reader, notes_count, chars):
         if "word/comments.xml" in z.namelist():
             from lxml import etree
             counts.append(("コメント", len(etree.fromstring(z.read("word/comments.xml")).findall(w("comment")))))
-    counts += [("変更履歴の挿入", count("ins")), ("変更履歴の削除", count("del"))]
-    marks = count("ins", True) + count("del", True)
+    counts += [("変更履歴の挿入", count([w("ins")], roots, False)), ("変更履歴の削除", count([w("del")], roots, False))]
+    marks = count([w("ins"), w("del")], roots, True)
     if marks:
         counts.append(("段落記号の挿入・削除", marks))
     lines.append("- " + "、".join("%s %d" % kv for kv in counts))
     kinds = Counter(f.strip().split()[0] for f in fields if f and f.strip())
     lines.append("- フィールド: " + (", ".join("%s(%d)" % kv for kv in kinds.most_common()) or "なし"))
-    lines.append("- 本文: %d 字" % chars)
+    lines.append("- 本文: %d 字（脚注を含む）" % chars)
     lines.append("")
     return lines
 
@@ -337,7 +362,7 @@ def main():
     try:
         import docx
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from wordml import pieces, visible_text
+        import wordml  # noqa: F401
     except ImportError:
         print("python-docx が必要: pip install python-docx", file=sys.stderr)
         return 2
@@ -354,11 +379,11 @@ def main():
         print("開けない: %s (%s)" % (path, e), file=sys.stderr)
         return 1
 
+    from wordml import stories
     reader = Reader(doc)
+    parts = stories(doc)
     entries = body_entries(reader, doc.element.body)
-    foot, end = notes(doc, "/word/footnotes.xml", ""), notes(doc, "/word/endnotes.xml", "e")
-    chars = sum(len(line) for _, lines in entries for line in lines)
-    head = summary(doc, path, reader, (len(foot), len(end)), chars)
+    foot, end = notes(parts)
 
     if args.section is not None:
         part = section(entries, args.section)
@@ -367,19 +392,34 @@ def main():
             return 2
         body = render(part)
         refs = set(re.findall(r"\[\^(e?\d+)\]", "\n".join(body)))
-        body += [""] + [n for n in foot + end if n[2:n.index("]")] in refs] if refs else []
-        head = []
-    elif args.outline:
-        body = outline(entries)
-    elif chars > LIMIT and not (args.full or args.out):
-        body = ["本文が %d 字あるので見出しの一覧だけを出す。--section N で節ごとに読むか、"
-                "--full か --out で全文を出す。" % chars, ""] + outline(entries)
+        used = [n for n in foot + end if n[2:n.index("]")] in refs]
+        text = "\n".join(body + ([""] + used if used else []))
     else:
-        body = render(entries)
+        rendered = render(entries)
         if foot or end:
-            body += ["", "## 脚注", ""] + foot + end
+            rendered += ["", "## 脚注", ""] + foot + end
+        chars = sum(len(line) for line in rendered)
+        head = summary(doc, path, reader, parts, (len(foot), len(end)), chars)
+        heads = outline(entries)
+        if args.outline:
+            body = heads
+        elif chars > LIMIT and not (args.full or args.out):
+            if heads:
+                body = ["本文が %d 字あるので見出しの一覧だけを出す。--section N で節ごとに読むか、"
+                        "--full か --out で全文を出す。" % chars, ""] + heads
+            else:   # 見出しの無い文書は、先頭から LIMIT 字まで出す
+                body, n = [], 0
+                for line in rendered:
+                    if n + len(line) > LIMIT:
+                        break
+                    body.append(line)
+                    n += len(line)
+                body += ["", "（見出しが無いので先頭 %d 字だけを出した。残り %d 字は --out FILE か --full で読む）"
+                         % (n, chars - n)]
+        else:
+            body = rendered
+        text = "\n".join(head + body)
 
-    text = "\n".join(head + body)
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
         print(args.out)

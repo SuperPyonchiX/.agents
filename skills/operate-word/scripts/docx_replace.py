@@ -11,14 +11,17 @@ Word は見た目が1語でも、内部では書式・校正記号・編集履�
 置換後の文字は一致範囲の先頭の書式になる。
 
 対象: 本文（表・コンテンツコントロール・テキストボックスの中を含む）、すべてのヘッダー・フッター、
-脚注、文末脚注。変更履歴で挿入された文字は対象、削除済みの文字は対象外。
+脚注、文末脚注。変更履歴で挿入された文字は対象（場所に「他の変更履歴の挿入の中」と出す）、削除済みの
+文字と削除済みのテキストボックスは対象外。フィールドの結果（目次・相互参照など）の文字も置換し、場所に
+「フィールドの結果」と出す（Word でフィールドを更新すると元の計算結果に戻る）。
 置換しないもの: 段落をまたぐ文字列、タブ・改行・図・脚注番号・フィールドの境目をまたぐ一致
-（またいだまま置き換えると、タブや改行が置換後の文字の後ろへずれる）。--track では、他の変更履歴の
-挿入の中にある一致も置換しない。いずれも件数と前後の文字を出す。
+（またいだまま置き換えると、タブや改行が置換後の文字の後ろへずれる）、リンク・コンテンツコントロール・
+変更履歴の境目をまたぐ一致（リンクの範囲が変わる）。--track では、他の変更履歴の挿入の中にある一致も
+置換しない。いずれも件数と前後の文字を出す。
 --find は上から順に適用する。前の置換結果に後の --find が当たる（連鎖する）ときは注意を出す。
 
 --track 校閲者名: 一致した文字を削除（w:del）、置換後の文字を挿入（w:ins）として記録する。
-    日時は UTC、番号は文書内の既存の番号と重ならないものを振る。
+    日時は Word と同じく現地時刻に Z を付けて書き、番号は文書内の既存の番号と重ならないものを振る。
 
 出力: --find ごとに、置換した件数と場所（本文・ヘッダー・脚注・テキストボックスなど）、置換しなかった
 件数と理由。--dry-run は書き出さず、一致箇所の前後の文字も出す（--find ごとに20件まで）。
@@ -62,28 +65,31 @@ def find_all(text, find):
     return out
 
 
-def layout(ps):
-    """検索用の文字列と、各要素の位置を返す。
+def search_text(ps):
+    """検索用の文字列。図・脚注番号・フィールドの境目は長さ0にする（「である。」が脚注番号を挟んでいても
+    見つかり、またぐ一致として報告できるように）。"""
+    return "".join(x.text for x in ps if x.kind in ("text", "char"))
 
-    図・脚注番号・フィールドの境目は検索用の文字列では長さ0にする（「である。」が脚注番号を挟んでいても
-    見つかり、またぐ一致として報告できるように）。表示用の文字列ではそれらを ▫ や [^n] で残す。
-    """
-    search, disp, where, pos_map = [], [], [], []
-    off = 0
+
+def layout(ps):
+    """表示用の文字列（境目を ▫ や [^n] で残す）、検索位置→表示位置の対応、各要素の検索上の位置を返す。"""
+    disp, where, pos_map = [], [], []
+    off = n = 0
     for x in ps:
         if x.kind in ("barrier", "note"):
             where.append((x, off, off))
-            disp.append("▫" if x.kind == "barrier" else x.text)
+            t = "▫" if x.kind == "barrier" else x.text
+            disp.append(t)
+            n += len(t)
             continue
         for ch in x.text:
-            pos_map.append(len("".join(disp)))
+            pos_map.append(n)
             disp.append({"\t": "⇥", "\n": "↵"}.get(ch, ch))
+            n += 1
         where.append((x, off, off + len(x.text)))
-        search.append(x.text)
         off += len(x.text)
-    disp = "".join(disp)
-    pos_map.append(len(disp))
-    return "".join(search), disp, pos_map, where
+    pos_map.append(n)
+    return "".join(disp), pos_map, where
 
 
 def show(disp, pos_map, s, e):
@@ -96,21 +102,11 @@ def spans(where, s, e):
     out = []
     for x, a, b in where:
         if a == b:
-            if s < a < e:
+            if x.kind != "text" and s < a < e:   # 空の w:t は含めない
                 out.append((x, 0, 0))
         elif a < e and b > s:
             out.append((x, max(s, a) - a, min(e, b) - a))
     return out
-
-
-def inside_revision(run, p):
-    from wordml import w
-    a = run.getparent()
-    while a is not None and a is not p:
-        if a.tag in (w("ins"), w("moveTo")):
-            return True
-        a = a.getparent()
-    return False
 
 
 class Tracker:
@@ -119,7 +115,9 @@ class Tracker:
     def __init__(self, author, roots):
         from wordml import w
         self.author = author
-        self.date = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        # Word は w:date を現地時刻として読み書きする（末尾の Z に反して）。本物の UTC を書くと、
+        # 日本では Word の表示が9時間ずれることを Word 2021 で確かめた。Word に合わせて現地時刻に Z を付ける
+        self.date = datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
         ids = [0]
         for root in roots:
             for el in root.iter():
@@ -191,6 +189,7 @@ def tracked_replace(hits, repl, tracker, count):
         else:
             groups.append([r])
     last_del = None
+    tracker.dels += count          # 間に校正記号などがあって w:del が分かれても、置換1件につき1と数える
     for g in groups:
         d = tracker.mark("w:del")
         g[0].addprevious(d)
@@ -198,7 +197,6 @@ def tracked_replace(hits, repl, tracker, count):
             for t in r.findall(w("t")):
                 t.tag = w("delText")
             d.append(r)
-        tracker.dels += count
         last_del = d
     if repl:
         ins = tracker.mark("w:ins")
@@ -224,33 +222,44 @@ def plain_replace(hits, repl):
         x.el.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
 
 
-def replace_in_paragraph(p, find, repl, tracker, result, label, count):
-    from wordml import pieces
-    text = layout(pieces(p))[0]
-    starts = find_all(text, find)
+def replace_in_paragraph(p, find, repl, tracker, result, label, count, fields):
+    from wordml import INSERTED, has_ancestor, pieces
+    ps = pieces(p)
+    starts = find_all(search_text(ps), find)
     if not starts:
         return
+    disp, pos_map, _ = layout(ps)
     where = location(label, p)
-    # 後ろの一致から置換すると、前の一致の位置がずれない
+    in_revision = has_ancestor(p, INSERTED)    # 変更履歴で挿入されたテキストボックスの中など
+    done, skipped = [], []
+    # 後ろの一致から置換すると、前の一致の位置がずれない。前後の文字は置換前の段落から出す
     for s in reversed(starts):
         e = s + len(find)
-        _, disp, pos_map, items = layout(pieces(p))
-        hits = spans(items, s, e)
+        hits = spans(layout(pieces(p))[2], s, e)
         ctx = show(disp, pos_map, s, e)
         if any(x.kind != "text" for x, _, _ in hits):
-            if count:
-                result["skipped"].append(("タブ・改行・図・脚注番号・フィールドの境目をまたぐ", where, ctx))
+            skipped.append(("タブ・改行・図・脚注番号・フィールドの境目をまたぐ", where, ctx))
             continue
-        if tracker is not None and any(inside_revision(x.run, p) for x, _, _ in hits):
-            if count:
-                result["skipped"].append(("他の変更履歴の挿入の中", where, ctx))
+        if len({id(x.run.getparent()) for x, _, _ in hits}) > 1:
+            skipped.append(("リンク・コンテンツコントロール・変更履歴の境目をまたぐ", where, ctx))
             continue
+        revised = in_revision or has_ancestor(hits[0][0].run, INSERTED, p)
+        if tracker is not None and revised:
+            skipped.append(("他の変更履歴の挿入の中", where, ctx))
+            continue
+        notes = []
+        if revised:
+            notes.append("他の変更履歴の挿入の中")
+        if any(x.el in fields for x, _, _ in hits):
+            notes.append("フィールドの結果")
         if tracker is not None:
             tracked_replace(hits, repl, tracker, count)
         else:
             plain_replace(hits, repl)
-        if count:
-            result["done"].append((where, ctx))
+        done.append((where + ("・" + "・".join(notes) if notes else ""), ctx))
+    if count:
+        result["done"] += reversed(done)
+        result["skipped"] += reversed(skipped)
 
 
 def main():
@@ -270,7 +279,7 @@ def main():
     try:
         import docx
         sys.path.insert(0, str(Path(__file__).resolve().parent))
-        from wordml import in_fallback, stories, w
+        from wordml import DELETED, field_results, has_ancestor, in_fallback, stories, w
     except ImportError:
         print("python-docx が必要: pip install python-docx", file=sys.stderr)
         return 2
@@ -298,7 +307,9 @@ def main():
 
     parts = stories(doc)
     tracker = Tracker(args.track, [root for _, root, _ in parts]) if args.track else None
-    paragraphs = [(label, p, not in_fallback(p)) for label, root, _ in parts for p in root.iter(w("p"))]
+    # 削除済みの変更履歴の中の段落（削除されたテキストボックスなど）は対象外
+    paragraphs = [(label, root, p, not in_fallback(p)) for label, root, _ in parts
+                  for p in root.iter(w("p")) if not has_ancestor(p, DELETED)]
 
     missing, skipped_any = [], False
     for i, (find, repl) in enumerate(zip(args.find, args.replace)):
@@ -307,8 +318,9 @@ def main():
             print("注意: 置換後の「%s」に後の --find「%s」が含まれる。上から順に適用するので連鎖して置換される"
                   % (repl, "」「".join(chained)))
         result = {"done": [], "skipped": []}
-        for label, p, count in paragraphs:
-            replace_in_paragraph(p, find, repl, tracker, result, label, count)
+        fields = {id(root): field_results(root) for _, root, _ in parts}   # 置換で w:t が作り直されるので毎回
+        for label, root, p, count in paragraphs:
+            replace_in_paragraph(p, find, repl, tracker, result, label, count, fields[id(root)])
         done, skipped = result["done"], result["skipped"]
         places = {}
         for where, _ in done:

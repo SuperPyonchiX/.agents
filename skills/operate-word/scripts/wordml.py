@@ -19,12 +19,14 @@ def w(tag):
 # 文字として読まない（削除済み・移動元・段落の設定）
 SKIP_CONTAINERS = {w("del"), w("moveFrom"), w("pPr"), w("sdtPr"), w("sdtEndPr"), w("customXmlPr"),
                    w("smartTagPr")}
-# 中へ降りて読む（挿入・移動先・リンク・コンテンツコントロール・単純フィールド）
+# 中へ降りて読む（挿入・移動先・リンク・コンテンツコントロール）。単純フィールド（w:fldSimple）は
+# 出入りに区切りを置いてから降りる
 DESCEND = {w("ins"), w("moveTo"), w("hyperlink"), w("smartTag"), w("sdt"), w("sdtContent"),
-           w("customXml"), w("fldSimple"), w("dir"), w("bdo")}
+           w("customXml"), w("dir"), w("bdo")}
 # run の中で、文字にも区切りにもならないもの
 RUN_IGNORE = {w("rPr"), w("lastRenderedPageBreak"), w("softHyphen"), w("instrText"), w("delText"),
-              w("delInstrText"), w("annotationRef"), w("separator"), w("continuationSeparator")}
+              w("delInstrText"), w("annotationRef"), w("separator"), w("continuationSeparator"),
+              w("footnoteRef"), w("endnoteRef")}
 
 BARRIER = "￼"   # 図・脚注番号・フィールドの境目など、文字の途中に挟まる非文字
 
@@ -70,6 +72,10 @@ def pieces(p):
                 run_children(c)
             elif tag in DESCEND:
                 walk(c)
+            elif tag == w("fldSimple"):
+                out.append(Piece("barrier", BARRIER, c, None))
+                walk(c)
+                out.append(Piece("barrier", BARRIER, c, None))
             elif tag.startswith("{http://schemas.openxmlformats.org/officeDocument/2006/math}"):
                 out.append(Piece("barrier", BARRIER, c, None))   # 数式
 
@@ -97,25 +103,60 @@ def textbox_paragraphs(p):
     return [q for q in p.iter(w("p")) if q is not p and not in_fallback(q)]
 
 
+def has_ancestor(el, tags, stop=None):
+    """el の祖先（stop の手前まで）に tags のどれかがあるか。"""
+    a = el.getparent()
+    while a is not None and a is not stop:
+        if a.tag in tags:
+            return True
+        a = a.getparent()
+    return False
+
+
+DELETED = {w("del"), w("moveFrom")}
+INSERTED = {w("ins"), w("moveTo")}
+
+
+def field_results(root):
+    """フィールドの結果（目次・相互参照・文書プロパティなどの表示文字）にある w:t の集合。
+
+    複合フィールドは begin…separate…end が段落をまたぐ（目次など）ので、部品全体を文書の順に見る。
+    """
+    out, stack = set(), []
+    for el in root.iter(w("fldChar"), w("t"), w("fldSimple")):
+        if el.tag == w("fldSimple"):
+            out.update(el.iter(w("t")))
+        elif el.tag == w("fldChar"):
+            kind = el.get(w("fldCharType"))
+            if kind == "begin":
+                stack.append("code")
+            elif kind == "separate" and stack:
+                stack[-1] = "result"
+            elif kind == "end" and stack:
+                stack.pop()
+        elif stack and stack[-1] == "result":
+            out.add(el)
+    return out
+
+
+REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
+STORY_RELS = {REL + "header": "ヘッダー", REL + "footer": "フッター", REL + "footnotes": "脚注",
+              REL + "endnotes": "文末脚注"}
+
+
 def stories(doc):
     """置換・集計の対象になる文書の部品を (ラベル, ルート要素, 保存関数) で返す。
 
-    本文、すべてのヘッダー・フッター、脚注、文末脚注。python-docx が型を持たない部品（脚注など）は
-    バイト列から解析し、保存関数で書き戻す。
+    本文と、本文から関係（relationship）でつながるヘッダー・フッター・脚注・文末脚注。部品名には頼らない。
+    python-docx が型を持たない部品（脚注など）はバイト列から解析し、保存関数で書き戻す。
     """
-    out = [("本文", doc.element.body, None)]
-    for part in doc.part.package.iter_parts():
-        name = str(part.partname)
-        if name.startswith("/word/header"):
-            label = "ヘッダー"
-        elif name.startswith("/word/footer"):
-            label = "フッター"
-        elif name == "/word/footnotes.xml":
-            label = "脚注"
-        elif name == "/word/endnotes.xml":
-            label = "文末脚注"
-        else:
+    out, seen = [("本文", doc.element.body, None)], set()
+    for rel in doc.part.rels.values():
+        label = STORY_RELS.get(rel.reltype)
+        if label is None or rel.is_external or id(rel.target_part) in seen:
             continue
+        part = rel.target_part
+        seen.add(id(part))
         if hasattr(part, "element"):
             out.append((label, part.element, None))
         else:
@@ -125,13 +166,3 @@ def stories(doc):
                 part._blob = etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
             out.append((label, root, save))
     return out
-
-
-def is_note_body(p):
-    """脚注部品の区切り線用の脚注（w:type が separator 等）の中の段落か。"""
-    a = p.getparent()
-    while a is not None:
-        if a.tag in (w("footnote"), w("endnote")):
-            return a.get(w("type")) not in (None, "normal")
-        a = a.getparent()
-    return False
