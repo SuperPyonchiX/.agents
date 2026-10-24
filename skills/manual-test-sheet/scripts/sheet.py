@@ -13,12 +13,14 @@
     結果   OK / NG / 未実施 / 保留 のどれか。空欄は未記入として扱う
 
 summary  件数・NG の ID・未記入の ID を JSON で標準出力へ出す
-next     NG・未実施・未記入の行と、回帰（R-）の全行を、結果を空にして書き出す。
-         OK と 保留 の行は載せない。前回のメモは「前回: 」を付けてメモ欄に残す
+next     スモーク（S-）と回帰（R-）の全行、および NG・未実施・未記入の本体の行を、
+         結果を空にして書き出す。OK と 保留 の本体の行は載せない。前回のメモは
+         「前回: 」を付けてメモ欄に残す。Markdown 同士なら表より前の説明文
+         （対象・環境・返し方・スモーク先行の注記）も引き継ぎ、見出しの回数を書き換える
 
 終了コード:
     0  summary: 全行が OK か保留（完了） / next: 書き出した
-    1  summary: NG・未実施・未記入が残っている / next: 載せる行が0件（完了済み）
+    1  summary: NG・未実施・未記入が残っている / next: NG・未実施・未記入が0件（完了済み。書き出さない）
     2  引数の指定ミス、表が見つからない、列が足りない、ID の重複、結果欄に不正な値
 
 依存は標準ライブラリのみ。
@@ -63,7 +65,7 @@ def read_md(text):
                 if not body.lstrip().startswith("|"):
                     break
                 rows.append(split_row(body))
-            return header, rows
+            return header, rows, lines[:i]
     raise SheetError("ID と 結果 の列を持つ表が見つからない")
 
 
@@ -71,7 +73,7 @@ def read_csv(text):
     reader = list(csv.reader(io.StringIO(text)))
     if not reader:
         raise SheetError("CSV が空")
-    return reader[0], reader[1:]
+    return reader[0], reader[1:], []
 
 
 def load(path):
@@ -80,7 +82,7 @@ def load(path):
     with open(path, encoding="utf-8-sig") as f:
         text = f.read()
     fmt = "csv" if path.lower().endswith(".csv") else "md"
-    header, rows = read_csv(text) if fmt == "csv" else read_md(text)
+    header, rows, preamble = read_csv(text) if fmt == "csv" else read_md(text)
     header = [h.strip() for h in header]
     missing = [c for c in COLUMNS if c not in header]
     if missing:
@@ -103,7 +105,7 @@ def load(path):
         items.append(item)
     if not items:
         raise SheetError("行が1件もない")
-    return fmt, items
+    return fmt, items, preamble
 
 
 def summarize(items):
@@ -123,7 +125,7 @@ def summarize(items):
     }
 
 
-def write(path, fmt, items, round_no):
+def write(path, fmt, items, round_no, preamble):
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     if fmt == "csv":
         with open(path, "w", encoding="utf-8-sig", newline="") as f:
@@ -133,9 +135,19 @@ def write(path, fmt, items, round_no):
                 w.writerow([i[c] for c in COLUMNS])
         return
     esc = lambda s: s.replace("|", "\\|").replace("\n", "<br>")
-    out = []
+    out = list(preamble)
+    while out and not out[-1].strip():
+        out.pop()
     if round_no:
-        out.append("# 確認シート 第%d回\n" % round_no)
+        heading = "# 確認シート 第%d回" % round_no
+        for k, line in enumerate(out):
+            if re.match(r"#\s*確認シート", line):
+                out[k] = heading
+                break
+        else:
+            out[:0] = [heading, ""] if out else [heading]
+    if out:
+        out.append("")
     out.append("| " + " | ".join(COLUMNS) + " |")
     out.append("|" + "---|" * len(COLUMNS))
     for i in items:
@@ -164,7 +176,7 @@ def main(argv):
         return 2
 
     try:
-        fmt, items = load(args.sheet)
+        fmt, items, preamble = load(args.sheet)
     except SheetError as e:
         print("ERROR  %s" % e)
         return 2
@@ -177,13 +189,15 @@ def main(argv):
     out_fmt = "csv" if args.output.lower().endswith(".csv") else "md"
     carried = []
     for i in items:
-        if i["結果"] in CARRY or i["ID"].startswith("R-"):
-            memo = ("前回: " + i["メモ"]) if i["メモ"] else ""
+        if i["結果"] in CARRY or i["ID"].startswith(("S-", "R-")):
+            memo = i["メモ"]
+            if memo and not memo.startswith("前回: "):
+                memo = "前回: " + memo
             carried.append(dict(i, 結果="", メモ=memo))
-    if not carried:
+    if not any(i["結果"] in CARRY for i in items):
         print("次の回に載せる行がない（全行が OK か保留）")
         return 1
-    write(args.output, out_fmt, carried, args.round)
+    write(args.output, out_fmt, carried, args.round, preamble if out_fmt == fmt else [])
     print("%d 行を書き出した: %s" % (len(carried), args.output))
     return 0
 

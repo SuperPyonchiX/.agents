@@ -1335,5 +1335,51 @@ class DrawioTests(TemporaryCase):
         self.assertNotIn('線「ok」', r.stdout)
 
 
+class ManualTestSheetTests(TemporaryCase):
+    SHEET = ROOT/'skills/manual-test-sheet/scripts/sheet.py'
+
+    def sheet(self, *args):
+        return subprocess.run([sys.executable, str(self.SHEET), *map(str, args)],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def round1(self, t01='NG', memo='落ちた'):
+        return self.file('r1.md', '# 確認シート 第1回\n\n返し方: 結果に OK / NG を入れる\n\n'
+                         '**スモーク（S-）を先に実行する。**\n\n'
+                         '| ID | 区分 | 確認すること | 手順 | 期待結果 | 結果 | メモ |\n|---|---|---|---|---|---|---|\n'
+                         '| S-01 | スモーク | 起動 | 起動する | 画面が出る | OK | |\n'
+                         '| T-01 | 本体 | 保存 | 保存する | 保存される | %s | %s |\n'
+                         '| T-02 | 本体 | 読込 | 開く | 開ける | OK | |\n'
+                         '| R-01 | 回帰 | 旧不具合 | 操作する | 落ちない | OK | |\n' % (t01, memo))
+
+    def test_next_keeps_smoke_and_preamble(self):
+        out = self.folder/'r2.md'
+        r = self.sheet('next', self.round1(), '-o', out, '--round', '2')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        text = out.read_text(encoding='utf-8')
+        self.assertIn('# 確認シート 第2回', text)
+        self.assertNotIn('第1回', text)
+        self.assertIn('返し方:', text)
+        self.assertIn('スモーク（S-）を先に実行する', text)
+        ids = [l.split('|')[1].strip() for l in text.splitlines() if l.startswith('| ') and '-0' in l]
+        self.assertEqual(ids, ['S-01', 'T-01', 'R-01'])
+        self.assertIn('| 前回: 落ちた |', text)
+        out3 = self.folder/'r3.md'
+        self.assertEqual(self.sheet('next', out, '-o', out3).returncode, 0)
+        self.assertNotIn('前回: 前回:', out3.read_text(encoding='utf-8'))
+
+    def test_next_on_finished_sheet_writes_nothing(self):
+        out = self.folder/'r2.md'
+        r = self.sheet('next', self.round1('OK', ''), '-o', out)
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertFalse(out.exists())
+
+    def test_csv_output_has_no_preamble(self):
+        out = self.folder/'r2.csv'
+        self.assertEqual(self.sheet('next', self.round1(), '-o', out).returncode, 0)
+        self.assertTrue(out.read_text(encoding='utf-8-sig').startswith('ID,区分,'))
+        self.assertEqual(self.sheet('summary', out).returncode, 1)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
