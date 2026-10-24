@@ -1,0 +1,37 @@
+{
+  "skill_name": "agents-md-advisor",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このリポジトリにAIエージェントを導入したい。AGENTS.md もまだ無いので提案書を作って",
+      "expected_output": "導入診断モードで提案書を作り、AGENTS.md 草案は書くが CLAUDE.md は作らない",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる",
+        "提案書の Phase 1 と AGENTS.md 草案に、AGENTS.md を参照するだけの CLAUDE.md を作る提案が含まれない",
+        "ツール固有の補足の Claude Code 節に、CLAUDE.md を置かない理由と v2.1.277 未満では AGENTS.md が読まれないことが書かれている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "AGENTS.md が長くなってきたので見直したい。ルートに @AGENTS.md と @README.md だけの CLAUDE.md もある",
+      "expected_output": "監査モードで台帳を作り、CLAUDE.md を「CLAUDE.md の残存」として積む",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる",
+        "台帳に CLAUDE.md の削除提案が1件あり、@README.md の取り込みが消えることを根拠欄に書いている",
+        "ユーザー判定を得る前に CLAUDE.md を削除していない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "skills ディレクトリの description が長すぎないか全部チェックして",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（skill-portfolio-audit の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}
