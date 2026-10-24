@@ -138,6 +138,7 @@ def cell_text(reader, tc):
         t = visible_text(pieces(b))
         if t.strip():
             out.append(t)
+            reader.used[reader.para(b)[0]] += 1     # 表の中の段落もスタイルの集計に入れる
         for q in textbox_paragraphs(b):
             t = visible_text(pieces(q))
             if t.strip():
