@@ -36,6 +36,18 @@
         "在庫あり・在庫なしを alt の operands で書いている",
         "check_drawio.py --spec と check_layout.py が終了コード0"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "検査ラインの構成図を作って。左にPLC、中央に検査PC（画像処理ソフトと判定ソフトが入っている）、右に品質管理サーバー。カメラ2台が検査PCにつながり、PLCと検査PCはEthernetで、検査PCと品質管理サーバーは社内LANでつながる",
+      "expected_output": "layout: free で、検査PCを枠にしてソフト2つを中に置き、PLC・検査PC・サーバーを左から並べた spec.json を書く。カメラは検査PCの近くに near で置く。検査を全部通してから PNG を目視して納品する",
+      "files": [],
+      "expectations": [
+        "draw.io の指名が無くても、このスキルで構成図を作っている（UML の型に当てはめていない）",
+        "全ての箱と枠に at か near を書き、左から PLC・検査PC・品質管理サーバーの順に並んでいる（PNG で確認）",
+        "接続の種類（Ethernet・社内LAN）を線のラベルに書いている",
+        "check_drawio.py --spec と check_layout.py が終了コード0"
+      ]
     }
   ]
 }
