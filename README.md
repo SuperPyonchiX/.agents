@@ -89,7 +89,7 @@ graph LR
 | `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 219行 |
 | `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
 | `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 113行 |
-| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 114行 |
+| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 113行 |
 | `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 93行 |
 | `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 102行 |
 
@@ -360,4 +360,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限を確認する。標準ライブラリのみで動き、外部通信はモックする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、Excel の再計算検査・構造把握・差分の誤判定を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
