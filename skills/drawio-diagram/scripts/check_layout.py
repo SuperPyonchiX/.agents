@@ -335,10 +335,11 @@ def main():
             hb = (x, y, band, h)
         else:   # 見出しが上の枠は、見出しの文字の上だけ（帯の文字の無い所を線が横切るのは構わない）
             # 中の箱の g は枠の g の内側に入れ子で出るので、見出しが空の枠では中の箱のラベルを拾ってしまう
-            title = label_box(groups[vid]) if vid in groups and (c.get("value") or "").strip() else None
-            if title is None:
+            if not (c.get("value") or "").strip():
                 continue
-            hb = (title[0] - 4, y, title[2] + 8, band)
+            title = label_box(groups[vid]) if vid in groups else None
+            # 文字の位置を SVG から取れないときは、帯全体を見る（取れないことを「問題なし」にしない）
+            hb = (title[0] - 4, y, title[2] + 8, band) if title else (x, y, w, band)
         for cid, (_, segs) in edges.items():
             if any(clip(s, t, hb, 1.0) for s, t in segs):
                 problems.append(f"HEADER   線「{cid}」が枠「{vid}」の見出し（{'帯' if st.get('horizontal') == '0' else '文字'}）を横切っている")

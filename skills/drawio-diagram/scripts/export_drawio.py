@@ -92,6 +92,7 @@ def launcher(exe):
     return pre, post
 
 
+TIMEOUT = 300   # Windows の draw.io 31 で PNG 1ページに最大 163 秒かかった（180 秒では打ち切られた）
 NOISE = ("dbus", "Checking for beta autoupdate", "Found package-type")
 
 
@@ -109,7 +110,11 @@ def run(exe, src, fmt, out, page, scale):
     if fmt == "pdf" and page == 0:
         cmd = pre + ["-x", "-f", fmt, "-o", out, "-a"]
     cmd += [src] + post
-    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"FAIL   {out}\ndraw.io が {TIMEOUT} 秒で終わらなかった")
+        return False
     ok = r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
     log = (r.stdout or "") + (r.stderr or "")
     if not ok and any(m in log for m in CRASH_MARKERS):

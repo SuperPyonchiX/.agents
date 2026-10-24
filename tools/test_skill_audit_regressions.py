@@ -1170,6 +1170,75 @@ class DrawioTests(TemporaryCase):
         a, b = self.ends(cells, 'e_pres_base')[0], self.ends(cells, 'e_pres_adc')[0]
         self.assertGreater(abs(a[0] - b[0]) + abs(a[1] - b[1]), 5)
 
+    def test_three_branches_use_three_vertices(self):
+        # 相手が全部右下にあると候補が右・下だけになり、3本目が使用済みの頂点から出ていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': '種別?', 'shape': 'decision', 'at': [0, 0]},
+            {'id': 'b', 'label': 'B', 'at': [300, 300]}, {'id': 'c', 'label': 'C', 'at': [480, 300]},
+            {'id': 'd', 'label': 'D', 'at': [660, 300]}],
+            'edges': [{'from': 'a', 'to': t, 'label': t} for t in ('b', 'c', 'd')]})
+        exits = [(self.style(c)['exitX'], self.style(c)['exitY']) for c in cells.values()
+                 if c.get('edge') == '1' and c.get('source') == 'a']
+        self.assertEqual(len(set(exits)), 3, exits)
+
+    def test_bidirectional_edge_does_not_share_port_with_one_way_edge(self):
+        # both を見た目の比較に入れていなかったので、分岐前の共通部分に逆向きの矢印が載った（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': 'A', 'at': [0, 100]}, {'id': 'b', 'label': 'B', 'at': [400, 0]},
+            {'id': 'c', 'label': 'C', 'at': [400, 200]}],
+            'edges': [{'from': 'a', 'to': 'b'}, {'from': 'a', 'to': 'c', 'both': True}]})
+        self.assertNotEqual(self.ends(cells, 'e_a_b')[0], self.ends(cells, 'e_a_c')[0])
+
+    def test_two_labeled_edges_into_one_box_keep_separate_arrowheads(self):
+        # 状態遷移の「リセット」と「電源ON」が矢じりを共有し、どちらの遷移か見分けられなかった
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'off', 'label': '停止', 'shape': 'state', 'at': [0, 0]},
+            {'id': 'idle', 'label': '待機', 'shape': 'state', 'near': {'right_of': 'off', 'gap': 180}},
+            {'id': 'err', 'label': '異常', 'shape': 'state', 'near': {'below': 'idle', 'gap': 140}}],
+            'edges': [{'from': 'off', 'to': 'idle', 'label': '電源ON'}, {'from': 'err', 'to': 'idle', 'label': 'リセット'},
+                      {'from': 'idle', 'to': 'err', 'label': '異常検出'}]})
+        self.assertNotEqual(self.ends(cells, 'e_off_idle')[1], self.ends(cells, 'e_err_idle')[1])
+
+    def test_odd_sized_diamond_connects_at_its_vertex(self):
+        # 中央の出入口まで整数に丸めて、幅141のひし形の頂点から 0.5px 外れていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': '?', 'shape': 'decision', 'size': [141, 81], 'at': [0, 0]},
+            {'id': 'b', 'label': 'B', 'at': [0, 240]}],
+            'edges': [{'from': 'a', 'to': 'b', 'from_side': 'bottom', 'to_side': 'top'}]})
+        self.assertEqual(self.style(cells['e_a_b'])['exitX'], '0.5')
+
+    def test_header_with_custom_alignment_is_avoided_as_a_whole_band(self):
+        # 見出しを左寄せにした枠でも中央だけを避け、線が左端の見出しの文字を横切っていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free',
+            'groups': [{'id': 'g', 'label': 'HEADER TITLE', 'at': [0, 180], 'size': [600, 200],
+                        'style': 'align=left;spacingLeft=4;'}],
+            'nodes': [{'id': 'a', 'label': 'A', 'at': [0, 0]}, {'id': 'b', 'label': 'B', 'in': 'g', 'at': [0, 0]}],
+            'edges': [{'from': 'a', 'to': 'b'}]})
+        gx, gy, gw, _ = self.geo(cells, 'g')
+        start, end, pts = self.ends(cells, 'e_a_b')
+        path = [start] + pts + [end]
+        for p, q in zip(path, path[1:]):   # 見出し帯（上端から30px）を縦に横切る線分が無い
+            if abs(p[0] - q[0]) < 0.01 and gx < p[0] < gx + gw:
+                self.assertFalse(min(p[1], q[1]) < gy + 30 and max(p[1], q[1]) > gy, (p, q))
+
+    def test_header_check_falls_back_to_whole_band_without_title_box(self):
+        # 見出しの文字の矩形を SVG から取れないとき、HEADER の検査を黙って省いていた（Codex の指摘）
+        doc = self.file('t.drawio', """<mxfile><diagram id="p" name="p"><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="a" value="A" style="rounded=0;html=1;" vertex="1" parent="1"><mxGeometry x="200" y="0" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="g" value="HEADER" style="swimlane;startSize=30;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="100" width="480" height="200" as="geometry"/></mxCell>
+<mxCell id="b" value="B" style="rounded=0;html=1;" vertex="1" parent="g"><mxGeometry x="200" y="80" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="e" style="edgeStyle=none;html=1;" edge="1" parent="1" source="a" target="b"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>""")
+        svg = self.file('t.svg', """<svg xmlns="http://www.w3.org/2000/svg"><g data-cell-id="a"><rect x="200" y="0" width="80" height="40"/></g>
+<g data-cell-id="g"><rect x="0" y="100" width="480" height="200"/><text x="240" y="119" text-anchor="middle">HEADER</text>
+<g data-cell-id="b"><rect x="200" y="180" width="80" height="40"/></g></g>
+<g data-cell-id="e"><path d="M 240 40 L 240 180" fill="none"/></g></svg>""")
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/check_layout.py'), str(doc), str(svg)],
+                           capture_output=True, text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn('HEADER   線「e」', r.stdout)
+
     def test_export_rejects_page_beyond_page_count(self):
         # draw.io はページ数を超える番号でも黙って1ページ目を書き出す
         out, _ = self.generate({'nodes': [{'id': 'a', 'label': 'A'}]})

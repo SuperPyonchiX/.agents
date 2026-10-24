@@ -659,9 +659,14 @@ class Router:
                 band = (x - 2, y, LANE_HEAD + 2 + MARGIN, h)
             elif g.get("label"):
                 # 囲み枠は見出しの文字の上だけを避ける。帯全体を避けると、上の箱から枠の中の箱へ入る線が
-                # 枠の横を大回りする（層構造の図で起きた）
-                tw = max(text_width(t) for t in g["label"].split("<br>")) + 2 * MARGIN
-                band = (x + (w - tw) / 2, y - 2, tw, BOX_HEAD + 2 + MARGIN)
+                # 枠の横を大回りする（層構造の図で起きた）。文字の位置・大きさを style で変えた枠は、
+                # 文字の位置を見積もれないので帯全体を避ける
+                custom = user_style(lay.page, g)
+                if any(k in custom for k in ("align=", "fontSize=", "spacing", "labelPosition=")):
+                    band = (x, y - 2, w, BOX_HEAD + 2 + MARGIN)
+                else:
+                    tw = max(text_width(t) for t in g["label"].split("<br>")) + 2 * MARGIN
+                    band = (x + (w - tw) / 2, y - 2, tw, BOX_HEAD + 2 + MARGIN)
             else:
                 continue
             self.obstacles.append((gid + "#head", band))
@@ -688,13 +693,15 @@ class Router:
 
     def port(self, nid, side, frac=0.5):
         x, y, w, h = self.lay.rect(nid)
-        # 出入口は整数の座標に置き、比率はその座標から逆算する（経由点と同じ整数の上に乗せる）
+        # 辺の中央以外の出入口は整数の座標に置き、比率はその座標から逆算する（経由点と同じ座標に乗せる）。
+        # 中央は丸めない（ひし形・楕円の頂点から外れる）。中央の端数は 0.5 なので fmt() でそのまま書ける
+        snap = (lambda v: v) if abs(frac - 0.5) < 1e-9 else round
         if side in ("left", "right"):
             px = x + (w if side == "right" else 0)
-            py = round(y + h * frac)
+            py = snap(y + h * frac)
             fx, fy = (1 if side == "right" else 0), (py - y) / h
         else:
-            px = round(x + w * frac)
+            px = snap(x + w * frac)
             py = y + (h if side == "bottom" else 0)
             fx, fy = (px - x) / w, (1 if side == "bottom" else 0)
         dx, dy = OUT[side]
@@ -702,7 +709,7 @@ class Router:
 
     def blocked(self, ax, ay, bx, by):
         """障害物は線を引く間に変わらないので、線分ごとの結果を覚えておく（探索の大半の時間がここだった）"""
-        key = (ax, ay, bx, by)
+        key = (ax, ay, bx, by) if (ax, ay) <= (bx, by) else (bx, by, ax, ay)   # 向きは結果に関係ない
         hit = self._blocked.get(key)
         if hit is None:
             mx, my = (ax + bx) / 2, (ay + by) / 2
@@ -711,7 +718,7 @@ class Router:
         return hit
 
     def border_cost(self, a, b):
-        key = (a, b)
+        key = (a, b) if a <= b else (b, a)
         cost = self._border.get(key)
         if cost is None:
             cost = 0.0
@@ -857,6 +864,11 @@ class Router:
         else:
             base = self.auto_candidates(e)
         fs, ts = e.get("from_side"), e.get("to_side")
+        if self.lay.nodes.get(e["from"], {}).get("shape") in BRANCH and e["from"] != e["to"]:
+            # 分岐の候補の頂点が全部使用済みなら、空いた頂点からも出せるようにする（3本目以降の分岐）
+            used = self.used_sides(e["from"])
+            if all(a in used for a, _ in base):
+                base = base + [(a, b) for a in SIDES if a not in used for b in SIDES if (a, b) not in base]
         if not fs and not ts:
             return base
         picked = [c for c in base if (not fs or c[0] == fs) and (not ts or c[1] == ts)]
@@ -885,14 +897,13 @@ class Router:
         tries = []
         for ss, ts in ([sides] if sides else self.candidates(e)):
             tries.append((ss, ts, fracs))
-            straight = self.straight_fracs(e, ss, ts) if fracs == (0.5, 0.5) else None
-            if straight:
-                tries.append((ss, ts, straight))
+            if fracs == (0.5, 0.5):
+                tries += [(ss, ts, fr) for fr in self.straight_fracs(e, ss, ts)]
         for ss, ts, fr in tries:
             sp, sstub, sf = self.port(src, ss, fr[0])
             tp, tstub, tf = self.port(dst, ts, fr[1])
             pts, cost = self.search_via(sstub, tstub, e.get("via", []), src, dst)
-            if pts is None:
+            if pts is None or (fr is not fracs and len(pts) > 2):   # まっすぐ結ぶ候補は、曲がるなら使わない
                 continue
             for nid, side in ((src, ss), (dst, ts)):   # 帳票の下辺は波形で、線が波の下の空白で止まる
                 if side == "bottom" and self.lay.nodes.get(nid, {}).get("shape") == "document" \
@@ -909,27 +920,30 @@ class Router:
         return best
 
     def straight_fracs(self, e, ss, ts):
-        """向かい合う辺どうしで、両端の箱が線の向きと直交する方向に重なっていれば、重なりの中央を通る
-        まっすぐな線の出入口（比率）を返す。幅の広い箱（層の帯など）へ上の箱から入る線を、中央へ寄せて
-        曲げずに済ませる。ひし形・楕円・枠・経由点のある線は対象外"""
+        """向かい合う辺どうしで、両端の箱が線の向きと直交する方向に重なっていれば、その重なりを通る
+        まっすぐな線の出入口（比率）の候補を返す。幅の広い箱（層の帯など）へ上の箱から入る線を、中央へ寄せて
+        曲げずに済ませる。重なりの中央が枠の見出しの文字にかかるときのために、中央から外へ向かって5か所を返す。
+        ひし形・楕円・枠・経由点のある線は対象外"""
         src, dst = e["from"], e["to"]
         if src == dst or e.get("via") or {ss, ts} not in ({"top", "bottom"}, {"left", "right"}) or ss == ts:
-            return None
+            return []
         for nid in (src, dst):
             if nid in self.lay.groups or self.lay.nodes[nid].get("shape", "process") in ROUND:
-                return None
+                return []
         (sx, sy, sw, sh), (tx, ty, tw, th) = self.lay.rect(src), self.lay.rect(dst)
         if ss in ("top", "bottom"):
             lo, hi, a0, al, b0, bl = max(sx, tx) + 10, min(sx + sw, tx + tw) - 10, sx, sw, tx, tw
         else:
             lo, hi, a0, al, b0, bl = max(sy, ty) + 10, min(sy + sh, ty + th) - 10, sy, sh, ty, th
         if hi < lo:
-            return None
-        mid = (lo + hi) / 2
-        fa, fb = (mid - a0) / al, (mid - b0) / bl
-        if abs(fa - 0.5) < 0.01 and abs(fb - 0.5) < 0.01:
-            return None
-        return (fa, fb)
+            return []
+        out = []
+        for k in (2, 1, 3, 0, 4):
+            at = round(lo + (hi - lo) * k / 4)
+            fa, fb = (at - a0) / al, (at - b0) / bl
+            if not (abs(fa - 0.5) < 0.01 and abs(fb - 0.5) < 0.01) and (fa, fb) not in out:
+                out.append((fa, fb))
+        return out
 
     def route_all(self):
         order = sorted(self.lay.edges, key=lambda e: (e["from"], e["to"]) in getattr(self.lay, "back", set()))
@@ -955,11 +969,13 @@ class Router:
             if len(lst) < 2 or self.lay.nodes.get(nid, {}).get("shape", "process") in ROUND or nid in self.lay.groups:
                 continue
             loop = any(e["from"] == e["to"] for e, _ in lst)
-            looks = {(e.get("kind"), bool(e.get("dashed")), tuple(e.get("card") or ()), e.get("style"),
-                      str(e.get("class"))) for e, _ in lst}
+            looks = {(e.get("kind"), bool(e.get("dashed")), bool(e.get("both")), tuple(e.get("card") or ()),
+                      e.get("style"), str(e.get("class"))) for e, _ in lst}
+            labeled = sum(1 for e, _ in lst if e.get("label"))
             # 全部入る線か全部出る線で、見た目も同じなら1点にまとめて幹にする。種類の違う線（汎化と依存など）を
-            # 1点にまとめると、1本の線が箱の横を通り抜けているように見える
-            if len({end for _, end in lst}) == 1 and not loop and len(looks) == 1:
+            # 1点にまとめると、1本の線が箱の横を通り抜けているように見える。ラベル付きの線が2本以上ある
+            # （状態遷移の「リセット」と「電源ON」など）と、矢じりを共有してどの遷移の矢印か見分けられない
+            if len({end for _, end in lst}) == 1 and not loop and len(looks) == 1 and labeled <= 1:
                 continue
             others = []
             for e, end in lst:
@@ -1063,7 +1079,9 @@ def label_pos(pts, text, others, rects, borders):
 # ---------------------------------------------------------------- 書き出し
 
 def fmt(v):
-    return str(int(round(v)))
+    """座標は 0.5 刻みで書く。辺の中央（幅が奇数の箱）を整数に丸めると、ひし形の頂点から接続点が外れる"""
+    r = round(v * 2) / 2
+    return str(int(r)) if r == int(r) else f"{r:.1f}"
 
 
 def merge_style(base, *extra):
