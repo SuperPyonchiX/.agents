@@ -1,0 +1,60 @@
+{
+  "skill_name": "implementation-plan-grill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この実装計画に穴がないか着工前に見て。CSVを読み込んで集計し、結果をSQLiteに保存するバッチを作る。入力はtools/sample.csvと同じ形式。",
+      "expected_output": "論点台帳を提示し、推奨回答つきで質問する",
+      "files": [],
+      "expectations": [
+        "質問より前に、計画が参照するファイル（tools/sample.csv など）を読んでいる",
+        "論点台帳を表で提示し、各論点に状態（確定・未解決・保留）がある",
+        "1回の質問は3件以下で、すべての質問に推奨回答と理由がついている",
+        "ファイルを読めば分かることを質問していない",
+        "ユーザーが答えていない論点を確定にしていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "STM32のタイマ割り込みで10msごとにADCを読み、移動平均をCANで送る計画を立てた。着工前にレビューして。",
+      "expected_output": "汎用観点に加えて組込み8観点を当てる",
+      "files": [],
+      "expectations": [
+        "references/embedded-probes.md を読んでいる",
+        "割り込みとタスク間の共有変数の排他、WCET・ジッタ、電源断やWDTのいずれかが論点に挙がっている"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "（前のターンで論点台帳を提示し、ユーザーが3往復答えた後）もう十分なので計画書にまとめて",
+      "expected_output": "未解決の論点を保留として計画書に明記する",
+      "files": [],
+      "expectations": [
+        "計画書に保留事項の節があり、未回答だった論点がリスクとともにすべて載っている",
+        "未回答の論点が確定事項に紛れ込んでいない",
+        "最終版を提示し、着工してよいかの合意を求めている"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "この要件書と議事録から、着手前に確認すべきことをQ&A表にして",
+      "expected_output": "references/document-qa.md の手順で、根拠つき Q&A 表を作る",
+      "files": [],
+      "expectations": [
+        "references/document-qa.md を読んでいる",
+        "確定の回答すべてに資料の該当箇所が示されている",
+        "資料に手がかりの無い質問は要確認として推奨回答つきで残っている"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "src/parser.cpp のこの差分をレビューして",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（cpp14-code-review の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}
