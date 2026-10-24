@@ -36,6 +36,9 @@ graph TD
    |---|---|
    | Claude Code | `~/.claude/history.jsonl` |
    | Codex | `~/.codex/sessions/`（配下の `**/*.jsonl`） |
+   | Antigravity CLI（`agy`） | `~/.gemini/antigravity-cli/`（配下の `brain/*/.system_generated/logs/transcript.jsonl`） |
+
+   Antigravity の IDE 版（`~/.gemini/antigravity/conversations/*.pb`）は暗号化されていて読めない。あれば「読めなかった履歴」として H3 で報告する。
 
 2. 期間を確定する。既定は直近30日。発話が少なければ（50件未満）90日に広げるかを尋ねる。
 3. 仕分け先として参照するスキル置き場（skills ディレクトリ）と、常時ルールの置き場所（AGENTS.md・CLAUDE.md・メモリ）のパスを確認する。
@@ -50,7 +53,7 @@ graph TD
 1. スクリプトを実行する。
 
    ```
-   python scripts/extract_history.py --claude-history <history.jsonl> --codex-sessions <sessions ディレクトリ> --days 30 -o work/history-summary.json --dump work/prompts.jsonl
+   python scripts/extract_history.py --claude-history <history.jsonl> --codex-sessions <sessions ディレクトリ> --antigravity-dir <antigravity-cli ディレクトリ> --days 30 -o work/history-summary.json --dump work/prompts.jsonl
    ```
 
    H0 で見つからなかった側の引数は付けない。
@@ -112,18 +115,19 @@ else:
 `scripts/extract_history.py` — H1 で使う。依存は標準ライブラリのみ。
 
 ```
-python scripts/extract_history.py [--claude-history <history.jsonl>] [--codex-sessions <dir>] [--days 30] [-o work/history-summary.json] [--dump work/prompts.jsonl]
+python scripts/extract_history.py [--claude-history <history.jsonl>] [--codex-sessions <dir>] [--antigravity-dir <dir>] [--days 30] [-o work/history-summary.json] [--dump work/prompts.jsonl]
 ```
 
 | 引数 | 意味 |
 |---|---|
 | `--claude-history` | Claude Code の `history.jsonl`。1行1発話 |
 | `--codex-sessions` | Codex の `sessions` ディレクトリ。サブエージェントのセッションは除外する |
+| `--antigravity-dir` | Antigravity CLI の `antigravity-cli` ディレクトリ。会話ごとの `transcript.jsonl` から `<USER_REQUEST>` の中身を取り、作業ディレクトリは `conversation_summaries.db` から引く。`second-opinion` が自動で投げた相談は除外する |
 | `--days` | 遡る日数。既定 30 |
 | `-o` | 集計結果の JSON。既定 `work/history-summary.json` |
 | `--dump` | 期間内の全発話を JSONL で書き出す先。H2 で語から周辺を検索するときに使う |
 
-スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス）。
+スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。Antigravity の形式は 2026-10-24 時点の `agy` の `-p` 実行で確かめた。対話モードの会話も同じ場所に残る想定だが未確認なので、対話で使ったのに 0 件なら読み取りの問題として H0 に戻る。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス）。
 
 ## テンプレート
 
