@@ -84,7 +84,7 @@ graph LR
 | `reveal-file` | 生成した PDF・Excel などの成果物をエクスプローラー（macOS は Finder）で選択状態にして開く。OS ごとの差はスクリプトが吸収する | 65行 |
 | `session-history-mining` | Claude Code / Codex / Antigravity CLI のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 136行 |
 | `ui-ux-pro-max` | UI を作る前に、画面の種類に合うスタイル・配色・フォント・UX ガイドライン・22スタック（WPF・WinUI を含む）の実装指針をローカルのデータから検索し、デザインシステムとして返す（外部取り込み・MIT） | 217行 |
-| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 157行 |
+| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 106行 |
 | `drawio-diagram` | 図の種類を問わず、人が後から直せる draw.io 形式（.drawio）で図を作る。UML の型に収まらない構成図・概念図も自由な配置で描ける。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 136行 |
 | `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 219行 |
 | `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
@@ -360,4 +360,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎを確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
