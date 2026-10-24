@@ -61,7 +61,7 @@ python "<skill-dir>/scripts/ask_codex.py" --prompt-file <scratch>/q0.md --out <s
 python "<skill-dir>/scripts/ask_claude.py" --prompt-file <scratch>/q0.md --out <scratch>/a0.md --cd <参照元のディレクトリ>
 ```
 
-Antigravity経路は次を使う。`--cd` の中身を一時フォルダへ複製し、そこをワークスペースにして実行する（`.git` などは複製しない）。一般論の相談ならスクラッチパッドを渡す。
+Antigravity経路は次を使う。`--cd` の中身を一時フォルダへ複製し、そこをワークスペースにして実行する（`.git` などは複製しない）。複製は `--cd` の中身がワークスペース直下に来るので、質問中のパスは `--cd` 起点の相対パスで書く（Codex経路と同じ）。一般論の相談ならスクラッチパッドを渡す。
 
 ```bash
 python "<skill-dir>/scripts/ask_antigravity.py" --prompt-file <scratch>/q0.md --out <scratch>/a0.md --cd <読ませるディレクトリ>
