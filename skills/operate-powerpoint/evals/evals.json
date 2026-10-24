@@ -1,0 +1,39 @@
+{
+  "skill_name": "operate-powerpoint",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この報告資料、配置や文字に問題がないか見て",
+      "expected_output": "inspect_pptx.py --check が空の副題・表とテキストの重なりを問題として、スライド5のあふれを注意として出し、画像と突き合わせて報告する",
+      "files": ["evals/files/q3_report.pptx"],
+      "expectations": [
+        "inspect_pptx.py --check を実行し、終了コード1でスライド1の空のプレースホルダとスライド4の「Table 2」「TextBox 3」の重なりが出る",
+        "スライド5のあふれを、推定だけでなく画像（p4）で確かめて報告する",
+        "スライド3が非表示で画像に出ないことを踏まえ、画像の番号をスライド番号と取り違えない（スライド5 = 画像 p4）",
+        "元のファイルを変更していない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "この資料の中身を全部読んで要約して",
+      "expected_output": "inspect_pptx.py --full で表のセルを含む全文を読み、非表示スライドを区別して要約する",
+      "files": ["evals/files/q3_report.pptx"],
+      "expectations": [
+        "--full を付けて実行し、60字で切れた文字から要約しない",
+        "表の3件（起動時に設定が消える・印刷の余白がずれる・ログが重複する）と期限を要約に含める",
+        "非表示のスライド3（没にした案）を本編と混ぜない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "非表示のスライドを消して、最後に『次回の報告は12月』というスライドを足して別名で保存して",
+      "expected_output": "delete_slide() で消してから add_slide し、保存したファイルの部品名が重複せず、元の4枚目以降が残っている",
+      "files": ["evals/files/q3_report.pptx"],
+      "expectations": [
+        "references/python-pptx-helpers.md の delete_slide() を使い、_sldIdLst を自前で操作しない",
+        "保存したファイルを inspect_pptx.py --outline で開き、5枚（タイトル・不具合は3件・残課題・再発防止・次回）が順に並ぶ",
+        "原本 q3_report.pptx を上書きしない"
+      ]
+    }
+  ]
+}
