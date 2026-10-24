@@ -18,9 +18,9 @@ openpyxl でブックを読み書きし、数式は表計算ソフトに再計�
 python scripts/inspect_xlsx.py <xlsx> [--sheet NAME] [--rows 10]
 ```
 
-シート一覧・使用範囲・数式の数・結合セル・先頭数行のプレビューと、**openpyxl で保存すると失われる要素**（マクロ・図形・スライサー・フォームコントロールなど）が出る。
+シート一覧・値のある範囲・数式の数・結合セル・先頭数行のプレビューと、**openpyxl で保存すると失われる要素**（マクロ・図形・シートの拡張・スライサーなど）が出る。シートが6枚以上あるとプレビューは省かれるので、要るシートだけ `--sheet` で出し直す。
 
-- 読むだけなら、必要なシートと範囲を絞って読む。数千行を会話に載せない。集計は Python（pandas があれば `read_excel`）で行い、結果だけを示す
+- 読むだけなら、必要なシートと範囲を絞って読む。数千行を会話に載せない。集計は Python で行い、結果だけを示す。pandas なら `read_excel(sheet_name=, usecols=, nrows=)`、openpyxl なら `load_workbook(path, read_only=True)` で読む（全体を読み込まない）
 - `.xls` は openpyxl で読めない（終了コード2）。ユーザーの了承を得て Excel か LibreOffice で `.xlsx` に変換してから扱う
 
 ### 2. 作る・直す
@@ -33,6 +33,7 @@ python scripts/inspect_xlsx.py <xlsx> [--sheet NAME] [--rows 10]
 - 列幅を指定する。openpyxl は自動調整しない。和文1文字はおよそ幅2で見積もる
 - 見出し行は `freeze_panes` で固定し、一覧表なら `auto_filter` を付ける。印刷するものは用紙（A4）・向き・`fitToWidth` を設定する
 - `XLOOKUP` `FILTER` `UNIQUE` `LET` など新しい関数は使わない。openpyxl では `_xlfn.` 接頭辞が要り、古い Excel と LibreOffice では `#NAME?` になる。`INDEX`/`MATCH`・`SUMIFS` で書く
+- 数万行を書き出すなら `Workbook(write_only=True)` と `ws.append()` で書く。通常モードはセルごとにオブジェクトを持つので遅い
 - 保存前に `wb.calculation.fullCalcOnLoad = True` を設定する。Excel で開いたときに再計算させるため
 
 **既存のブックを直すとき**
@@ -47,7 +48,9 @@ python scripts/inspect_xlsx.py <xlsx> [--sheet NAME] [--rows 10]
    python scripts/diff_xlsx.py <原本> <編集後>
    ```
 
-   意図していないセル・結合・シートの変化が出たら、その原因を直してから先へ進む。
+   意図していないセル・結合・シート・列幅・名前付き範囲の変化が出たら、その原因を直してから先へ進む。
+
+openpyxl で保存したブックは、数式セルの計算結果を持たない（Excel で開けば計算される）。pandas など値を読む別のプログラムに渡すと数式セルが空になるので、Windows なら編集後のファイルに `recalc_check.py --write-back` をかけて計算結果を入れる（原本にはかけない）。Excel が保存し直すので既定フォントなどの書式が変わる。`diff_xlsx.py` の確認は `--write-back` の前に済ませる。使えなければ、Excel で一度開いて保存する必要があることをユーザーに伝える。
 
 ### 3. 数式を検査する
 
@@ -57,7 +60,7 @@ python scripts/inspect_xlsx.py <xlsx> [--sheet NAME] [--rows 10]
 python scripts/recalc_check.py <xlsx>
 ```
 
-ブックのコピーを LibreOffice か Excel で再計算し、エラーのセルを JSON で返す。元のファイルは変えない。
+ブックのコピーを LibreOffice か Excel で再計算し、エラーのセルを JSON で返す。保存済みの古い計算結果も捨てて計算し直す。元のファイルは変えない。
 
 ```
 for 周回 in 1..3:
@@ -73,7 +76,7 @@ else:
 
 ### 4. 見た目を確かめる（印刷・配布するもの）
 
-レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。`operate-pdf` スキルのスクリプトを使う。
+レイアウトが意味を持つブック（帳票・印刷物・人に配る表）は、PDF にして画像で見る。`operate-pdf` スキルのスクリプトを使う。このスキルの zip には入っていないので、利用可能なスキル一覧から `operate-pdf` の実体パスを解決して `<operate-pdf-dir>` に入れる。
 
 ```
 python "<operate-pdf-dir>/scripts/to_pdf.py" <xlsx> --outdir <作業フォルダ>
@@ -81,6 +84,8 @@ python "<operate-pdf-dir>/scripts/pdf_to_png.py" <作業フォルダ>/<名前>.p
 ```
 
 列幅不足の `###`、ページからのはみ出し、改ページ位置の崩れを見て直す。直し方と周回の上限は `operate-pdf` の「見た目の確認ループ」に従う。
+
+`operate-pdf` が無ければ、Office の PDF 出力と画像表示で同じ観点を確かめる。変換か画像表示のどちらかが使えなければ、構造検査までの結果と「見た目は未確認」を伝え、確認に要る依存先を案内する。完成扱いにしない。
 
 ## 完了条件
 
@@ -97,18 +102,12 @@ python "<operate-pdf-dir>/scripts/pdf_to_png.py" <作業フォルダ>/<名前>.p
 
 ## スクリプト
 
-すべて `--help` で引数が見られる。依存は `openpyxl`（`pip install openpyxl`）。無ければ終了コード2で止まるので、導入をユーザーに確認する。
+すべて `--help` で引数が見られる。`inspect_xlsx.py` と `diff_xlsx.py` は `openpyxl`（`pip install openpyxl`）に依存し、無ければ終了コード2で止まるので導入をユーザーに確認する。`recalc_check.py` は標準ライブラリだけで動く。
 
 | スクリプト | 用途 | 終了コード |
 |---|---|---|
 | `scripts/inspect_xlsx.py` | 構造と先頭数行のプレビュー、失われる要素の検出 | 0 出力した / 1 開けない / 2 引数ミス・非対応形式・依存不足 |
-| `scripts/recalc_check.py` | コピーを再計算してエラーのセルを JSON で返す | 0 エラーなし / 1 エラーあり・未計算あり / 2 引数ミス・依存不足 / 3 エンジンが無い・再計算失敗 |
-| `scripts/diff_xlsx.py` | 編集前後の値・書式・結合・シート構成の差分 | 0 差分なし / 1 差分あり（一覧を確かめる） / 2 引数ミス・依存不足 |
+| `scripts/recalc_check.py` | コピーを再計算してエラーのセルを JSON で返す | 0 エラーなし / 1 エラーあり・未計算あり / 2 引数ミス・非対応形式 / 3 エンジンが無い・再計算失敗・時間切れ |
+| `scripts/diff_xlsx.py` | 編集前後の値・書式・結合・列幅・名前付き範囲・シート構成の差分 | 0 差分なし / 1 差分あり（一覧を確かめる） / 2 引数ミス・依存不足 |
 
 `recalc_check.py` の再計算エンジンは `--engine auto`（既定）で、LibreOffice があればそれを、無ければ Windows の MS Excel を使う。`--write-back` を付けると Excel で元のファイル自体を再計算して保存する（計算結果を読む別のプログラムに渡すとき用。Windows の Excel のみ）。
-
-PDF 化と画像化は `operate-pdf` スキルの `to_pdf.py` と `pdf_to_png.py`（要 `pypdfium2` `Pillow`）を使う。
-
-## PDF変換の依存先
-
-このスキルのzipにoperate-pdfは含まれない。利用可能なスキル一覧からoperate-pdfの実体パスを解決し、`<operate-pdf-dir>`を置き換える。未導入なら、利用可能なOfficeのPDF出力と画像表示で同じ観点を確認する。変換・画像表示のどちらかが使えなければ、構造検査までの結果と「見た目未確認」を明示し、完成扱いにしない。確認済みとするために必要な依存先を案内する。

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,6 +34,9 @@ claude = load('ask_claude', 'second-opinion/scripts/ask_claude.py')
 agy = load('ask_antigravity', 'second-opinion/scripts/ask_antigravity.py')
 sys.path.insert(0, str(ROOT / 'skills/notion-api/scripts'))
 import notion_page as notion
+recalc = load('recalc_check', 'operate-excel/scripts/recalc_check.py')
+EXCEL = ROOT/'skills/operate-excel'
+HAS_OPENPYXL = importlib.util.find_spec('openpyxl') is not None
 
 
 class TemporaryCase(unittest.TestCase):
@@ -339,6 +343,86 @@ class AntigravityTests(TemporaryCase):
         q = self.file('q.md', '質問')
         with patch.object(agy.shutil, 'which', return_value=None), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(agy.main(['--prompt-file', str(q), '--out', str(self.folder/'a.md')]), 2)
+
+
+class ExcelTests(TemporaryCase):
+    WORKBOOK = ('<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                '<sheets><sheet name="表" sheetId="1" r:id="rId1"/></sheets></workbook>')
+    RELS = ('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="worksheet" Target="worksheets/sheet1.xml"/></Relationships>')
+
+    def book(self, cells):
+        p = self.folder/'calc.xlsx'
+        with zipfile.ZipFile(p, 'w') as z:
+            z.writestr('xl/workbook.xml', self.WORKBOOK)
+            z.writestr('xl/_rels/workbook.xml.rels', self.RELS)
+            z.writestr('xl/worksheets/sheet1.xml',
+                       '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                       '<sheetData><row r="1">%s</row></sheetData></worksheet>' % cells)
+        return p
+
+    def run_script(self, script, *args):
+        return subprocess.run([sys.executable, str(EXCEL/'scripts'/script), *map(str, args)],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_recalc_scan_counts_blank_result_and_array_and_shared(self):
+        p = self.book('<c r="A1" t="str"><f>IF(B1&gt;0,B1,"")</f><v></v></c>'
+                      '<c r="B1"><f t="array" ref="B1">SUM(C1:C2*2)</f><v>4</v></c>'
+                      '<c r="C1" t="e"><f t="shared" ref="C1:D1" si="0">1/0</f><v>#DIV/0!</v></c>'
+                      '<c r="D1" t="e"><f t="shared" si="0"/><v>#DIV/0!</v></c>'
+                      '<c r="E1"><f>F1*2</f></c>'
+                      '<c r="F1" t="inlineStr"><is><t>#N/A</t></is></c>')
+        formulas, uncalculated, errors, summary = recalc.scan(p)
+        self.assertEqual(formulas, 5)
+        self.assertEqual(uncalculated, 1)  # E1 だけ。空文字を返す A1 は計算済み
+        self.assertEqual(summary, {'#DIV/0!': 2})  # 文字列の "#N/A" はエラーではない
+        self.assertEqual([e['formula'] for e in errors], ['=1/0', '（C1 の共有数式）'])
+
+    def test_strip_cached_values_keeps_constants(self):
+        src = self.book('<c r="A1"><v>5</v></c><c r="B1"><f>A1*2</f><v>999</v></c>'
+                        '<c r="C1"><f t="shared" si="0"/><v>1</v></c>')
+        dst = self.folder/'stripped.xlsx'
+        recalc.strip_cached_values(src, dst)
+        with zipfile.ZipFile(dst) as z:
+            xml = z.read('xl/worksheets/sheet1.xml').decode()
+        self.assertIn('<c r="A1"><v>5</v></c>', xml)
+        self.assertIn('<c r="B1"><f>A1*2</f></c>', xml)
+        self.assertIn('<c r="C1"><f t="shared" si="0"/></c>', xml)
+
+    @unittest.skipUnless(recalc.find_soffice(), 'LibreOffice が無い')
+    def test_recalc_ignores_stale_cached_value(self):
+        src = EXCEL/'evals/files/stale_cache.xlsx'
+        before = src.read_bytes()
+        result = self.run_script('recalc_check.py', src)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        out = json.loads(result.stdout)
+        self.assertEqual([(e['cell'], e['error']) for e in out['errors']], [('D4', '#DIV/0!')])
+        self.assertEqual(src.read_bytes(), before)
+
+    @unittest.skipUnless(HAS_OPENPYXL, 'openpyxl が無い')
+    def test_inspect_unknown_sheet_is_usage_error(self):
+        result = self.run_script('inspect_xlsx.py', EXCEL/'evals/files/stale_cache.xlsx', '--sheet', '無い')
+        self.assertEqual(result.returncode, 2)
+        self.assertNotIn('Traceback', result.stderr)
+
+    @unittest.skipUnless(HAS_OPENPYXL, 'openpyxl が無い')
+    def test_inspect_and_diff_on_bloated_sheet(self):
+        import openpyxl
+        src = EXCEL/'evals/files/bloated_blank_if.xlsx'
+        result = self.run_script('inspect_xlsx.py', src)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('A1:C4（4 行 × 3 列）', result.stdout)
+        self.assertIn('使用範囲は A1:GR100000', result.stdout)
+        after = self.folder/'after.xlsx'
+        wb = openpyxl.load_workbook(src)
+        wb.active['B3'] = 65
+        wb.save(after)
+        result = self.run_script('diff_xlsx.py', src, after)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('変わったセル: 1 件（範囲 B3:B3）', result.stdout)
+        self.assertIn('| B3 | 値 | （空） | 65 |', result.stdout)
 
 
 if __name__ == '__main__':

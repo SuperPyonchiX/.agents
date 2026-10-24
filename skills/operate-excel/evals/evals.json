@@ -1,0 +1,56 @@
+{
+  "skill_name": "operate-excel",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この見積の数式にエラーが無いか確認して",
+      "expected_output": "recalc_check.py が D4 の #DIV/0! を報告し、エラーがあると伝える",
+      "files": ["evals/files/stale_cache.xlsx"],
+      "expectations": [
+        "recalc_check.py を実行し、終了コード1で D4（=D3/B3）の #DIV/0! が errors に出る",
+        "保存されていた計算結果（0）を信じて「エラーなし」と答えない",
+        "元のファイルを変更していない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "この成績一覧の合否列の数式が正しく動くか検査して",
+      "expected_output": "recalc_check.py が終了コード0（uncalculated 0）を返し、空文字を返す IF を直さない",
+      "files": ["evals/files/bloated_blank_if.xlsx"],
+      "expectations": [
+        "recalc_check.py が終了コード0で、uncalculated が 0 になる",
+        "点数が空の行で空文字を返す IF を、未計算やエラーとして書き換えない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "このブックの構造を見てから、C2 の数式はそのままで B3 に 65 を入れて。変えたのがそこだけか確かめて",
+      "expected_output": "inspect_xlsx.py が値のある範囲 A1:C4 と、書式だけで使用範囲が広がっていることを示し、コピーに書いて diff_xlsx.py の差分が B3 の1件だけになる",
+      "files": ["evals/files/bloated_blank_if.xlsx"],
+      "expectations": [
+        "inspect_xlsx.py の出力で、値のある範囲が A1:C4 と示され、使用範囲が書式だけのセルで広がっている旨が出る",
+        "原本ではなくコピーに書き込む",
+        "diff_xlsx.py が数秒で終わり、変わったセルが B3 の1件だけ（値 空→65）と報告される"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "売上の xlsx を部門別に集計して、合計の行も付けて",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "この PDF に載っている表を抜き出して",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（operate-pdf の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}

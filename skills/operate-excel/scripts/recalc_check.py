@@ -10,40 +10,51 @@ openpyxl は数式の値を計算しないので、書いた数式が正しく�
 （計算結果を読む別のプログラムに渡すとき用。LibreOffice では書式が変わるので使えない）。
 
 変換エンジン:
-    soffice  LibreOffice で読み込み → xlsx で書き出すときに再計算させる
+    soffice  LibreOffice で読み込み → xlsx で書き出すときに再計算させる。LibreOffice は計算結果が
+             保存済みのセルを再計算しないので、コピーから数式セルの計算結果を消してから渡す
     office   Windows の MS Excel を PowerShell 経由の COM で操作し、CalculateFull してから保存する
     auto     soffice が見つかればそれ、無ければ Windows なら office（既定）
 
-出力（JSON）:
+再計算後のブックは XML を直接読む（配列数式・共有数式も数える。空文字を返す数式は未計算と数えない）。
+
+出力（JSON、1行）:
     engine         使ったエンジン
     formulas       数式セルの数
     errors         エラーのセル（先頭50件）[{sheet, cell, error, formula}]
     error_summary  エラーの種類ごとの件数
-    uncalculated   再計算後も値が空の数式セルの数。0 でなければ再計算が効いていない（engine を変えて試す）
+    uncalculated   再計算後も計算結果を持たない数式セルの数。0 でなければ再計算が効いていない（engine を変えて試す）
 
 終了コード:
     0  エラーなし（uncalculated も 0）
     1  エラーのセルがある、または uncalculated が 0 でない
-    2  引数の指定ミス、入力が存在しない、または openpyxl が無い
-    3  再計算に使えるエンジンが無い、または再計算に失敗した
+    2  引数の指定ミス、入力が存在しない、.xlsx / .xlsm 以外
+    3  再計算に使えるエンジンが無い、再計算に失敗した、または時間切れ（10分）
 
-依存: openpyxl（pip install openpyxl）。再計算には LibreOffice か Windows の MS Excel が要る
+依存: 標準ライブラリのみ。再計算には LibreOffice か Windows の MS Excel が要る
 """
 
 import argparse
 import json
 import os
 import platform
+import posixpath
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 from collections import Counter
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
-ERROR_VALUES = {"#REF!", "#DIV/0!", "#VALUE!", "#NAME?", "#N/A", "#NUM!", "#NULL!",
-                "#SPILL!", "#CALC!", "#GETTING_DATA", "#FIELD!", "#BLOCKED!", "#UNKNOWN!"}
 MAX_LISTED = 50
+TIMEOUT = 600
+NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+NS_R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+NS_PKG = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+# 数式セルの計算結果 <v> を消す。<f> の直後に <v> が来るのは OOXML の要素順で決まっている
+CACHED_VALUE_RE = re.compile(rb"(<f\b[^>]*/>|<f\b[^>]*>[^<]*</f>)<v>[^<]*</v>")
 
 PS_EXCEL = r"""
 $ErrorActionPreference = 'Stop'
@@ -77,53 +88,83 @@ def find_soffice():
 def recalc_office(path):
     env = dict(os.environ, RECALC_PATH=str(path))
     r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", PS_EXCEL],
-                       capture_output=True, text=True, env=env, timeout=600)
+                       capture_output=True, text=True, env=env, timeout=TIMEOUT)
     if r.returncode != 0:
         sys.stderr.write(r.stdout + r.stderr)
         return False
     return True
 
 
+def strip_cached_values(src, dst):
+    """src の数式セルから計算結果を消したコピーを dst に作る。"""
+    with zipfile.ZipFile(src) as zin, zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as zout:
+        for info in zin.infolist():
+            data = zin.read(info.filename)
+            if info.filename.startswith("xl/worksheets/") and info.filename.endswith(".xml"):
+                data = CACHED_VALUE_RE.sub(rb"\1", data)
+            zout.writestr(info, data)
+
+
 def recalc_soffice(soffice, path, workdir):
     """path を LibreOffice で読み直して書き出したファイルのパスを返す。"""
+    stripped = Path(workdir) / ("in" + path.suffix.lower())
+    strip_cached_values(path, stripped)
     outdir = Path(workdir) / "lo-out"
     outdir.mkdir()
     profile = Path(workdir) / "lo-profile"
     cmd = [soffice, "-env:UserInstallation=" + profile.as_uri(), "--headless",
-           "--convert-to", "xlsx", "--outdir", str(outdir), str(path)]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-    out = outdir / (path.stem + ".xlsx")
+           "--convert-to", "xlsx", "--outdir", str(outdir), str(stripped)]
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+    out = outdir / (stripped.stem + ".xlsx")
     if r.returncode != 0 or not out.is_file():
         sys.stderr.write(r.stdout + r.stderr)
         return None
     return out
 
 
-def scan(original, calculated):
-    import openpyxl
-    wb_f = openpyxl.load_workbook(original)
-    wb_v = openpyxl.load_workbook(calculated, data_only=True)
+def sheet_parts(z):
+    """[(シート名, zip 内のパス)] をシートの並び順で返す。"""
+    rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+    target = {}
+    for rel in rels.iter(NS_PKG + "Relationship"):
+        t = rel.get("Target")
+        target[rel.get("Id")] = t.lstrip("/") if t.startswith("/") else posixpath.normpath("xl/" + t)
+    book = ET.fromstring(z.read("xl/workbook.xml"))
+    return [(s.get("name"), target[s.get(NS_R + "id")]) for s in book.iter(NS + "sheet")
+            if target.get(s.get(NS_R + "id"), "").startswith("xl/worksheets/")]
+
+
+def scan(calculated):
     formulas = 0
     uncalculated = 0
     errors = []
     summary = Counter()
-    for ws in wb_f.worksheets:
-        if ws.title not in wb_v.sheetnames:
-            continue
-        wv = wb_v[ws.title]
-        for row in ws.iter_rows():
-            for c in row:
-                is_formula = isinstance(c.value, str) and c.value.startswith("=")
-                v = wv[c.coordinate].value
-                if is_formula:
-                    formulas += 1
-                    if v is None:
-                        uncalculated += 1
-                if isinstance(v, str) and v in ERROR_VALUES:
-                    summary[v] += 1
-                    if len(errors) < MAX_LISTED:
-                        errors.append({"sheet": ws.title, "cell": c.coordinate, "error": v,
-                                       "formula": c.value if is_formula else None})
+    with zipfile.ZipFile(calculated) as z:
+        for name, part in sheet_parts(z):
+            shared = {}  # 共有数式の si → 式を持つセル
+            with z.open(part) as f:
+                for _, el in ET.iterparse(f):
+                    if el.tag != NS + "c":
+                        continue
+                    fe = el.find(NS + "f")
+                    ve = el.find(NS + "v")
+                    formula = None
+                    if fe is not None:
+                        formulas += 1
+                        if ve is None:
+                            uncalculated += 1
+                        if fe.text:
+                            formula = "=" + fe.text
+                            if fe.get("t") == "shared":
+                                shared[fe.get("si")] = el.get("r")
+                        elif fe.get("t") == "shared":
+                            formula = "（%s の共有数式）" % shared.get(fe.get("si"), "?")
+                    if el.get("t") == "e" and ve is not None:
+                        summary[ve.text] += 1
+                        if len(errors) < MAX_LISTED:
+                            errors.append({"sheet": name, "cell": el.get("r"), "error": ve.text,
+                                           "formula": formula})
+                    el.clear()
     return formulas, uncalculated, errors, summary
 
 
@@ -137,11 +178,6 @@ def main():
     ap.add_argument("--write-back", action="store_true", help="Excel で元のファイルを再計算して保存する")
     args = ap.parse_args()
 
-    try:
-        import openpyxl  # noqa: F401
-    except ImportError:
-        print("openpyxl が必要: pip install openpyxl", file=sys.stderr)
-        return 2
     src = Path(args.xlsx).resolve()
     if not src.is_file():
         print("入力が存在しない: %s" % src, file=sys.stderr)
@@ -157,30 +193,37 @@ def main():
         return 3
 
     with tempfile.TemporaryDirectory() as work:
-        if args.write_back:
-            engine = "office"
-            ok = recalc_office(src)
-            calculated = src if ok else None
-        elif soffice:
-            engine = "soffice"
-            calculated = recalc_soffice(soffice, src, work)
-        elif args.engine in ("auto", "office") and is_windows:
-            engine = "office"
-            calculated = Path(work) / src.name
-            shutil.copy2(src, calculated)
-            if not recalc_office(calculated):
-                calculated = None
-        else:
-            print("再計算に使えるエンジンが無い（LibreOffice も Windows の MS Excel も使えない）", file=sys.stderr)
+        try:
+            if args.write_back:
+                engine = "office"
+                calculated = src if recalc_office(src) else None
+            elif soffice:
+                engine = "soffice"
+                calculated = recalc_soffice(soffice, src, work)
+            elif args.engine in ("auto", "office") and is_windows:
+                engine = "office"
+                calculated = Path(work) / src.name
+                shutil.copy2(src, calculated)
+                if not recalc_office(calculated):
+                    calculated = None
+            else:
+                print("再計算に使えるエンジンが無い（LibreOffice も Windows の MS Excel も使えない）", file=sys.stderr)
+                return 3
+        except subprocess.TimeoutExpired:
+            print("再計算が %d 秒で終わらなかった（engine=%s）" % (TIMEOUT, engine), file=sys.stderr)
             return 3
         if calculated is None:
             print("再計算に失敗した（engine=%s）" % engine, file=sys.stderr)
             return 3
-        formulas, uncalculated, errors, summary = scan(src, calculated)
+        try:
+            formulas, uncalculated, errors, summary = scan(calculated)
+        except (zipfile.BadZipFile, KeyError, ET.ParseError) as e:
+            print("再計算後のブックを読めない: %s" % e, file=sys.stderr)
+            return 3
 
     result = {"engine": engine, "formulas": formulas, "errors": errors,
               "error_summary": dict(summary), "uncalculated": uncalculated}
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False))
     if sum(summary.values()) > MAX_LISTED:
         print("エラーは %d 件。先頭 %d 件だけ列挙した" % (sum(summary.values()), MAX_LISTED), file=sys.stderr)
     return 1 if summary or uncalculated else 0
