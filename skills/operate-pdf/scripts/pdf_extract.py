@@ -4,52 +4,80 @@
 
     python pdf_extract.py meta   <pdf>
     python pdf_extract.py text   <pdf> [--pages 1-3] [--layout] [--out FILE]
-    python pdf_extract.py tables <pdf> [--pages 1-3]
+    python pdf_extract.py tables <pdf> [--pages 1-3] [--out FILE]
     python pdf_extract.py images <pdf> --outdir DIR [--pages 1-3]
 
-meta    ページ数・用紙サイズ・暗号化・フォーム有無・しおり数・文書情報を JSON で出す。最初に必ずこれを見る
-text    ページごとに "=== page N ===" で区切ってテキストを出す。--layout は段組みの位置を保つ
-tables  表を Markdown の表にして出す（pdfplumber が必要）
+meta    ページ数・ページごとの用紙サイズと回転・暗号化・フォーム有無・しおり数・文書情報を JSON で出す。
+        最初に必ずこれを見る。結合・分割・回転の結果もこれで確かめられる
+text    ページごとに "=== page N ===" で区切ってテキストを出す。--layout は段組みの位置を保つ。
+        2万字を超えるときは --out が要る（付けないと何も出さずに終了コード2）
+tables  表を Markdown の表にして出す（pdfplumber が必要）。2万字を超えるときは --out が要る
 images  埋め込み画像をファイルに書き出し、パスを1行ずつ出す
 
 終了コード:
     0  取り出した
-    1  取り出せなかった（text で文字がほぼ無い＝スキャン PDF の疑い、tables で表が0件、
-       パスワード付きで開けない）
-    2  引数の指定ミス、または依存パッケージが無い
+    1  取り出せなかった（text で文字がほぼ無いページがある＝スキャンの疑い。取れた分は出力済み。
+       tables で表が0件、パスワード付きで開けない）
+    2  引数の指定ミス（--pages の書式違い・範囲外を含む）、--out 無しで出力が大きすぎる、
+       または依存パッケージが無い
 
 依存: pypdf（pip install pypdf）。tables のみ pdfplumber（pip install pdfplumber）
 """
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
-# 1ページあたりこれ未満の文字数ならスキャン PDF を疑う
+# 画像が載っていて、空白を除いた文字がこれ未満のページはスキャンを疑う。文字が0のページは画像が無くても疑う
+# （文字のアウトライン化）
 MIN_CHARS_PER_PAGE = 20
+# --out を付けずに標準出力へ流してよい文字数の上限。会話に大量のテキストを流さないため
+MAX_PRINT_CHARS = 20000
+
+
+PAGE_SPEC = re.compile(r"\s*\d+(\s*-\s*\d+)?\s*(,\s*\d+(\s*-\s*\d+)?\s*)*")
 
 
 def parse_pages(spec, total):
-    if not spec:
+    """'1-3,5' → [0, 1, 2, 4]（0始まり）。None は全ページ。書式違い・空・逆順・範囲外は ValueError。"""
+    if spec is None:
         return list(range(total))
+    if not PAGE_SPEC.fullmatch(spec):
+        raise ValueError("ページ指定の書式が違う: %r（例 1-3,5）" % spec)
     pages = []
-    for part in spec.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        if "-" in part:
-            a, b = part.split("-", 1)
-            start, end = int(a), int(b)
-        else:
-            start = end = int(part)
-        pages.extend(p - 1 for p in range(start, end + 1) if 1 <= p <= total)
+    for part in spec.replace(" ", "").split(","):
+        a, _, b = part.partition("-")
+        start, end = int(a), int(b or a)
+        if not 1 <= start <= end <= total:
+            raise ValueError("ページ指定が範囲外か逆順: %s（全 %d ページ）" % (part, total))
+        pages.extend(p for p in range(start - 1, end) if p not in pages)
     return pages
+
+
+def runs(pages):
+    """[0, 1, 2, 4] → '1-3,5'"""
+    out = []
+    for p in pages:
+        if out and out[-1][1] == p - 1:
+            out[-1][1] = p
+        else:
+            out.append([p, p])
+    return ",".join("%d" % (a + 1) if a == b else "%d-%d" % (a + 1, b + 1) for a, b in out)
+
+
+class BrokenPdf(Exception):
+    pass
 
 
 def open_reader(path):
     from pypdf import PdfReader
-    reader = PdfReader(str(path))
+    from pypdf.errors import PdfReadError
+    try:
+        reader = PdfReader(str(path))
+    except PdfReadError as e:
+        raise BrokenPdf("PDF を開けない（壊れているか PDF ではない）: %s (%s)" % (path, e))
     if reader.is_encrypted:
         # 閲覧パスワードが空のもの（印刷・編集だけ制限）はこれで開ける
         if not reader.decrypt(""):
@@ -57,34 +85,44 @@ def open_reader(path):
     return reader
 
 
+def page_layout(reader):
+    """同じ用紙サイズ・回転が続くページをまとめて '1-2: 210x297mm' の形にする。"""
+    groups = []
+    for i, page in enumerate(reader.pages):
+        box = page.cropbox  # 見える範囲。CropBox が無ければ pypdf が MediaBox を返す
+        key = "%dx%dmm" % (round(float(box.width) / 72 * 25.4), round(float(box.height) / 72 * 25.4))
+        if page.rotation % 360:
+            key += " 回転%d" % (page.rotation % 360)
+        if groups and groups[-1][1] == key:
+            groups[-1][0].append(i)
+        else:
+            groups.append(([i], key))
+    return ["%s: %s" % (runs(ps), key) for ps, key in groups]
+
+
 def cmd_meta(reader, args):
-    first = reader.pages[0] if reader.pages else None
-    size = None
-    if first is not None:
-        w, h = float(first.mediabox.width), float(first.mediabox.height)
-        size = {"width_pt": round(w, 1), "height_pt": round(h, 1),
-                "width_mm": round(w / 72 * 25.4, 1), "height_mm": round(h / 72 * 25.4, 1)}
     info = {}
     if reader.metadata:
         for k, v in reader.metadata.items():
-            info[str(k).lstrip("/")] = str(v)
+            if str(v).strip():
+                info[str(k).lstrip("/")] = str(v)
     fields = reader.get_fields() or {}
     result = {
         "pages": len(reader.pages),
-        "first_page_size": size,
+        "page_layout": page_layout(reader),
         "encrypted": reader.is_encrypted,
         "form_fields": len(fields),
         "outline_items": len(reader.outline) if reader.outline else 0,
         "metadata": info,
     }
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False, indent=1))
     return 0
 
 
 def cmd_text(reader, args):
     pages = parse_pages(args.pages, len(reader.pages))
     chunks = []
-    total_chars = 0
+    sparse = []
     for i in pages:
         page = reader.pages[i]
         if args.layout:
@@ -92,17 +130,26 @@ def cmd_text(reader, args):
         else:
             text = page.extract_text()
         text = text or ""
-        total_chars += len(text.strip())
+        chars = len("".join(text.split()))
+        # 文字が0、または少ないうえに画像が載っているページを疑う。本文の短いページは疑わない
+        if chars == 0 or (chars < MIN_CHARS_PER_PAGE and len(page.images) > 0):
+            sparse.append(i)
         chunks.append("=== page %d ===\n%s" % (i + 1, text))
     body = "\n\n".join(chunks)
     if args.out:
         Path(args.out).write_text(body, encoding="utf-8")
         print(args.out)
+        print("%d ページ / %d 文字" % (len(pages), len(body)), file=sys.stderr)
+    elif len(body) > MAX_PRINT_CHARS:
+        print("%d ページで %d 文字ある。会話に流さないよう --out FILE で書き出すか、--pages で絞る"
+              % (len(pages), len(body)), file=sys.stderr)
+        return 2
     else:
         print(body)
-    if pages and total_chars < MIN_CHARS_PER_PAGE * len(pages):
-        print("文字がほとんど取れない（%d 文字 / %d ページ）。スキャン PDF の疑い。OCR が要る"
-              % (total_chars, len(pages)), file=sys.stderr)
+    if sparse:
+        print("文字がほとんど取れないページ: %s（全 %d ページ中 %d ページ）。スキャンか文字のアウトライン化の疑い。"
+              "白紙・扉ページなら無視してよい。pdf_to_png.py --pages %s で見て確かめる"
+              % (runs(sparse), len(pages), len(sparse), runs(sparse)), file=sys.stderr)
         return 1
     return 0
 
@@ -116,25 +163,38 @@ def md_table(rows):
     return "\n".join(lines)
 
 
-def cmd_tables(path, args):
+def cmd_tables(reader, args, path):
     try:
         import pdfplumber
     except ImportError:
         print("tables には pdfplumber が必要: pip install pdfplumber", file=sys.stderr)
         return 2
-    count = 0
-    with pdfplumber.open(str(path)) as pdf:
-        for i in parse_pages(args.pages, len(pdf.pages)):
-            for j, table in enumerate(pdf.pages[i].extract_tables(), 1):
-                if not table or not any(any(c for c in r) for r in table):
-                    continue
-                count += 1
-                print("=== page %d table %d ===" % (i + 1, j))
-                print(md_table(table))
-                print()
-    if count == 0:
+    pages = parse_pages(args.pages, len(reader.pages))
+    chunks = []
+    try:
+        with pdfplumber.open(str(path)) as pdf:
+            for i in pages:
+                for j, table in enumerate(pdf.pages[i].extract_tables(), 1):
+                    if not table or not any(any(c for c in r) for r in table):
+                        continue
+                    chunks.append("=== page %d table %d ===\n%s\n" % (i + 1, j, md_table(table)))
+    except Exception as e:  # pdfminer は暗号の方式などで独自の例外を出す
+        print("pdfplumber で開けない: %s。text --layout で読む" % e, file=sys.stderr)
+        return 1
+    if not chunks:
         print("表が見つからない。罫線の無い表は text --layout で読む", file=sys.stderr)
         return 1
+    body = "\n".join(chunks)
+    if args.out:
+        Path(args.out).write_text(body, encoding="utf-8")
+        print(args.out)
+        print("表 %d 件 / %d 文字" % (len(chunks), len(body)), file=sys.stderr)
+    elif len(body) > MAX_PRINT_CHARS:
+        print("表 %d 件で %d 文字ある。--out FILE で書き出すか、--pages で絞る" % (len(chunks), len(body)),
+              file=sys.stderr)
+        return 2
+    else:
+        print(body)
     return 0
 
 
@@ -170,6 +230,7 @@ def main():
     p = sub.add_parser("tables")
     p.add_argument("pdf")
     p.add_argument("--pages")
+    p.add_argument("--out")
     p = sub.add_parser("images")
     p.add_argument("pdf")
     p.add_argument("--outdir", required=True)
@@ -180,23 +241,30 @@ def main():
     if not path.is_file():
         print("入力が存在しない: %s" % path, file=sys.stderr)
         return 2
-    if args.cmd == "tables":
-        return cmd_tables(path, args)
-
     try:
         import pypdf  # noqa: F401
     except ImportError:
         print("pypdf が必要: pip install pypdf", file=sys.stderr)
         return 2
-    reader = open_reader(path)
+    try:
+        reader = open_reader(path)
+    except BrokenPdf as e:
+        print(e, file=sys.stderr)
+        return 1
     if reader is None:
         print("パスワード付きで開けない。pdf_ops.py decrypt で解除してから読む", file=sys.stderr)
         return 1
-    if args.cmd == "meta":
-        return cmd_meta(reader, args)
-    if args.cmd == "text":
-        return cmd_text(reader, args)
-    return cmd_images(reader, args, path)
+    try:
+        if args.cmd == "meta":
+            return cmd_meta(reader, args)
+        if args.cmd == "text":
+            return cmd_text(reader, args)
+        if args.cmd == "tables":
+            return cmd_tables(reader, args, path)
+        return cmd_images(reader, args, path)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":

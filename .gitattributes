@@ -1,0 +1,3 @@
+# git は先頭 8000 バイトに NUL が無いと文字として扱い、Windows の autocrlf で改行を変える。
+# PDF は xref のバイト位置がずれて壊れるので、常にバイナリとして扱う
+*.pdf binary

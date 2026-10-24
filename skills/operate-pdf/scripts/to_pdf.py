@@ -15,9 +15,10 @@
 
 終了コード:
     0  変換した
-    1  変換に失敗した（エンジンのエラーを標準エラーに出す）
+    1  変換に失敗した（エンジンのエラーを標準エラーに出す）、または出力先に書けない。
+       出力先にあった同名の PDF は、失敗したときは触らない
     2  引数の指定ミス、または入力が存在しない
-    3  使える変換エンジンが無い（描画確認は手動に回す）
+    3  使える変換エンジンが無い（描画確認は手動に回す）。Windows で Office が入っていない場合を含む
 
 依存は標準ライブラリのみ。
 """
@@ -38,6 +39,7 @@ PPT_EXT = {".pptx", ".ppt", ".potx", ".odp"}
 # 入出力パスは環境変数で渡す。PowerShell の引用符処理にパスを通さないため
 PS_WORD = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject Word.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -50,6 +52,7 @@ try {
 
 PS_EXCEL = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject Excel.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -62,6 +65,7 @@ try {
 
 PS_PPT = r"""
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.Encoding]::UTF8  # 出力をコンソールのコードページに依らず UTF-8 にする
 $app = New-Object -ComObject PowerPoint.Application
 try {
   $app.AutomationSecurity = 3  # マクロを実行しない
@@ -100,10 +104,11 @@ def convert_soffice(soffice, src, outdir):
             "-env:UserInstallation=" + Path(profile).as_uri(),
             "--headless", "--convert-to", "pdf", "--outdir", str(outdir), str(src),
         ]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        r = run(cmd)
     out = outdir / (src.stem + ".pdf")
-    if r.returncode != 0 or not out.is_file():
-        sys.stderr.write(r.stdout + r.stderr)
+    if r is None or r.returncode != 0 or not out.is_file():
+        if r is not None:
+            sys.stderr.write(r.stdout + r.stderr)
         return None
     return out
 
@@ -118,14 +123,30 @@ def convert_office(src, outdir):
         script = PS_PPT
     out = outdir / (src.stem + ".pdf")
     env = dict(os.environ, TOPDF_IN=str(src), TOPDF_OUT=str(out))
-    r = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True, text=True, env=env, timeout=300,
-    )
+    r = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], env=env, encoding="utf-8")
+    if r is None:
+        return None
     if r.returncode != 0 or not out.is_file():
         sys.stderr.write(r.stdout + r.stderr)
+        # 80040154 = REGDB_E_CLASSNOTREG。PowerShell はあっても Office が入っていない
+        if "80040154" in r.stdout + r.stderr:
+            return NO_ENGINE
         return None
     return out
+
+
+NO_ENGINE = object()
+
+
+def run(cmd, env=None, encoding=None):
+    # 読めないバイトで読み取りスレッドが落ちないよう置き換える。PowerShell はコンソールのコードページ
+    # （日本語 Windows なら cp932、chcp 65001 なら UTF-8）で出すので、スクリプト側で UTF-8 に固定して渡す
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, encoding=encoding, errors="replace",
+                              env=env, timeout=300)
+    except subprocess.TimeoutExpired:
+        sys.stderr.write("変換が300秒で終わらなかった（ダイアログで止まっている可能性がある）\n")
+        return None
 
 
 def main():
@@ -149,19 +170,34 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     soffice = find_soffice() if args.engine in ("auto", "soffice") else None
-    if soffice:
-        out = convert_soffice(soffice, src, outdir)
-    elif args.engine in ("auto", "office") and office_available():
-        out = convert_office(src, outdir)
-    else:
+    if not soffice and not (args.engine in ("auto", "office") and office_available()):
         print("変換エンジンが無い（LibreOffice も Windows の MS Office も使えない）。描画確認は手動で行う",
               file=sys.stderr)
         return 3
 
-    if out is None:
-        print("変換に失敗した: %s" % src, file=sys.stderr)
-        return 1
-    print(out)
+    # 一時フォルダに出してから移す。出力先に前回の PDF が残っていると、変換に失敗しても
+    # それを成功と取り違え、直す前の見た目を確かめることになるため
+    final = outdir / (src.stem + ".pdf")
+    with tempfile.TemporaryDirectory() as work:
+        work = Path(work)
+        out = convert_soffice(soffice, src, work) if soffice else convert_office(src, work)
+        if out is NO_ENGINE:
+            print("Office が入っていない（COM クラス未登録）。描画確認は手動で行う", file=sys.stderr)
+            return 3
+        if out is None:
+            print("変換に失敗した: %s" % src, file=sys.stderr)
+            return 1
+        # 出力先と同じフォルダへ写してから置き換える。写す途中で失敗しても前の PDF を壊さない
+        part = final.with_name(final.name + ".part")
+        try:
+            shutil.copyfile(out, part)
+            os.replace(part, final)
+        except OSError as e:
+            if part.exists():
+                part.unlink()
+            print("出力先に書けない（PDF をビューアで開いていないか）: %s (%s)" % (final, e), file=sys.stderr)
+            return 1
+    print(final)
     return 0
 
 
