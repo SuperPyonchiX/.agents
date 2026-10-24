@@ -20,6 +20,7 @@ draw.io の探し方（最初に見つかったものを使う）:
               再試行しても同じ結果になるので、繰り返さない
 
 Windows では draw.io の異常終了時にエラーダイアログが出ないようにしてから起動する。
+Linux では root なら --no-sandbox を付け、画面が無く xvfb-run があればその上で起動する。
 依存: 標準ライブラリのみ（draw.io デスクトップ版 v27.0.2 以降を別途インストール。それより前はページ番号が 0 始まりで、別のページが出る）
 """
 import argparse
@@ -77,21 +78,45 @@ def quiet_crash_dialogs():
         pass
 
 
+def launcher(exe):
+    """Linux で draw.io（Electron）を起動するための前後の引数。root ではサンドボックスを切らないと起動直後に
+    落ち（FATAL: Running as root without --no-sandbox）、画面の無い環境では xvfb-run が要る。
+    コンテナや CI がこれに当たる。Electron の引数は入力ファイルの後ろに置く（前に置くと入力ファイルを見失う）"""
+    if platform.system() != "Linux":
+        return [exe], []
+    pre, post = [exe], []
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        post.append("--no-sandbox")
+    if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY") and shutil.which("xvfb-run"):
+        pre = ["xvfb-run", "-a", exe]
+    return pre, post
+
+
+NOISE = ("dbus", "Checking for beta autoupdate", "Found package-type")
+
+
+def tail(log, lines=15):
+    """失敗時のログは末尾だけ出す（Linux では D-Bus の警告が何十行も混ざる）"""
+    kept = [ln for ln in log.splitlines() if ln.strip() and not any(n in ln for n in NOISE)]
+    return "\n".join(kept[-lines:])
+
+
 def run(exe, src, fmt, out, page, scale):
-    cmd = [exe, "-x", "-f", fmt, "-o", out, "-p", str(page), "--border", "10"]
+    pre, post = launcher(exe)
+    cmd = pre + ["-x", "-f", fmt, "-o", out, "-p", str(page), "--border", "10"]
     if fmt == "png":
         cmd += ["-s", str(scale)]
     if fmt == "pdf" and page == 0:
-        cmd = [exe, "-x", "-f", fmt, "-o", out, "-a"]
-    cmd.append(src)
+        cmd = pre + ["-x", "-f", fmt, "-o", out, "-a"]
+    cmd += [src] + post
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180)
     ok = r.returncode == 0 and os.path.isfile(out) and os.path.getsize(out) > 0
     log = (r.stdout or "") + (r.stderr or "")
     if not ok and any(m in log for m in CRASH_MARKERS):
-        print(f"CRASH  {out}\n{log[-1500:]}".rstrip())
+        print(f"CRASH  {out}\n{tail(log)}".rstrip())
         raise Crashed()
     if not ok:
-        print(f"FAIL   {out}\n{r.stdout}{r.stderr}".rstrip())
+        print(f"FAIL   {out}\n{tail(log)}".rstrip())
     else:
         print(f"OK     {out}")
     return ok
@@ -117,6 +142,9 @@ def main():
         return 2
     if not os.path.isfile(a.src) or a.page < 1:
         print("ERROR  入力ファイルが無いか、--page が 1 未満")
+        return 2
+    if a.page > page_count(a.src):   # draw.io はページ数を超える番号でも黙って1ページ目を書き出す
+        print(f"ERROR  --page {a.page} はページ数（{page_count(a.src)}）を超えている")
         return 2
     exe = find_exe(a.exe)
     if not exe:

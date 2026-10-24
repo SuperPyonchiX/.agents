@@ -1,0 +1,41 @@
+{
+  "skill_name": "drawio-diagram",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "ECUソフトの層構造を draw.io で描いて。上からアプリケーション層（エンジン制御SWC・診断SWC・通信SWC）、RTE、BSW（COM・DEM・MCAL）。各SWCはRTEを通し、RTEはCOMとDEMを使う。COMはMCALにCAN送信する",
+      "expected_output": "layout: free で3つの枠を上から並べた spec.json を書き、check_drawio.py --spec と check_layout.py が終了コード0になってから PNG を書き出して目視し、.drawio・PNG・spec.json のパスを伝える",
+      "files": [],
+      "expectations": [
+        "アプリケーション層・RTE・BSW を groups にし、order で上からの並びを指定している",
+        "SWC から RTE へ入る線が、見出しの文字にかからない限り枠の横を大回りせずに下りている（PNG で確認）",
+        "check_layout.py に ERROR が残ったまま PNG を書き出していない",
+        "依頼に無い線（SWC から BSW へ直接など）を足していない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "ログイン処理のフロー図を draw.io で作って。ID・パスワード入力→形式チェック（不正ならエラーログ記録して入力に戻る）→認証サーバーに照会→成功ならホーム画面、失敗なら失敗回数を加算し、3回失敗ならアカウントをロックしてエラーログ記録、それ以外は入力に戻る",
+      "expected_output": "layout: grid, direction: TB の spec.json を書き、分岐はひし形と はい/いいえ のラベルで表す。検査を全部通してから PNG を目視して納品する",
+      "files": [],
+      "expectations": [
+        "エラーログ記録の箱は1つで、そこへ入る線が2本ある",
+        "同じひし形から出る はい と いいえ の線が別々の頂点から出ている（PNG で確認）",
+        "位置（at・near・pos）を書かず grid の自動配置に任せている",
+        "D5 の PNG は、D2・D4 が全ページ終了コード0になった周でだけ書き出している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "注文処理のシーケンス図を作って。利用者がWebアプリに注文し、Webアプリは在庫DBに在庫を確認する。在庫があれば注文完了、なければ在庫切れを返す",
+      "expected_output": "references/spec-sequence.md だけを読んで layout: sequence の spec.json を書き、alt で2つの分岐を表す。検査を通してから PNG を目視して納品する",
+      "files": [],
+      "expectations": [
+        "spec-format.md ではなく spec-sequence.md を読んでいる",
+        "在庫確認に対する応答（在庫数）があり、Webアプリの活性区間が描かれている",
+        "在庫あり・在庫なしを alt の operands で書いている",
+        "check_drawio.py --spec と check_layout.py が終了コード0"
+      ]
+    }
+  ]
+}
