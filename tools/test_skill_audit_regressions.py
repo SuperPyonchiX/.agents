@@ -37,6 +37,8 @@ import notion_page as notion
 recalc = load('recalc_check', 'operate-excel/scripts/recalc_check.py')
 EXCEL = ROOT/'skills/operate-excel'
 HAS_OPENPYXL = importlib.util.find_spec('openpyxl') is not None
+PPT = ROOT/'skills/operate-powerpoint'
+HAS_PPTX = importlib.util.find_spec('pptx') is not None
 
 
 class TemporaryCase(unittest.TestCase):
@@ -423,6 +425,73 @@ class ExcelTests(TemporaryCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('変わったセル: 1 件（範囲 B3:B3）', result.stdout)
         self.assertIn('| B3 | 値 | （空） | 65 |', result.stdout)
+
+
+@unittest.skipUnless(HAS_PPTX, 'python-pptx が無い')
+class PowerPointTests(TemporaryCase):
+    DECK = PPT/'evals/files/q3_report.pptx'
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(PPT/'scripts/inspect_pptx.py'), *map(str, args)],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def helpers(self):
+        import re
+        md = (PPT/'references/python-pptx-helpers.md').read_text(encoding='utf-8')
+        blocks = re.findall(r"```python\n(.*?)```", md, re.S)
+        g = {}
+        exec(blocks[0], g)
+        exec(blocks[1].split('\n\nfor slide')[0], g)
+        return g
+
+    def test_check_finds_empty_placeholder_table_overlap_and_hidden_slide(self):
+        result = self.run_script(self.DECK, '--check')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('スライド 1: 「Subtitle 2」が空のプレースホルダ', result.stdout)
+        self.assertIn('スライド 4: 「Table 2」と「TextBox 3」が重なっている', result.stdout)
+        self.assertIn('スライド 5: 「Content Placeholder 2」の文字があふれている疑い', result.stdout)
+        self.assertIn('スライド 3（Title Only・非表示）', result.stdout)
+        self.assertIn('スライド 5（Title and Content・画像 p4）', result.stdout)
+        self.assertNotIn('スライド 2:', result.stdout)  # 収まっているスライドは何も出さない
+
+    def test_full_shows_table_cells(self):
+        result = self.run_script(self.DECK, '--slides', '4', '--full')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('3 | ログが重複する | 11/19', result.stdout)
+
+    def test_bad_slide_range_is_usage_error(self):
+        for spec in ('a', '9', '3-1'):
+            result = self.run_script(self.DECK, '--slides', spec)
+            self.assertEqual(result.returncode, 2, spec)
+            self.assertNotIn('Traceback', result.stderr)
+
+    def test_delete_then_add_keeps_every_slide(self):
+        g = self.helpers()
+        prs = g['Presentation'](str(self.DECK))
+        g['delete_slide'](prs, 2)
+        prs.slides.add_slide(prs.slide_layouts[5]).shapes.title.text = '次回の報告は12月'
+        out = self.folder/'out.pptx'
+        prs.save(str(out))
+        with zipfile.ZipFile(out) as z:
+            names = z.namelist()
+        self.assertEqual(len(names), len(set(names)))
+        titles = [s.shapes.title.text for s in g['Presentation'](str(out)).slides]
+        self.assertEqual(titles, ['第3四半期の不具合報告', '不具合は 3 件に減った', '残課題の一覧',
+                                  '再発防止の取り組み', '次回の報告は12月'])
+
+    def test_potx_opens(self):
+        potx = self.folder/'t.potx'
+        with zipfile.ZipFile(self.DECK) as src, zipfile.ZipFile(potx, 'w') as dst:
+            for item in src.infolist():
+                data = src.read(item.filename)
+                if item.filename == '[Content_Types].xml':
+                    data = data.replace(b'presentationml.presentation.main+xml', b'presentationml.template.main+xml')
+                dst.writestr(item, data)
+        self.assertEqual(len(self.helpers()['open_template'](str(potx)).slides), 5)
+        result = self.run_script(potx, '--outline')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('スライド 4（Title Only・画像 p3）: 残課題の一覧', result.stdout)
 
 
 if __name__ == '__main__':

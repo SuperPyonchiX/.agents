@@ -5,9 +5,30 @@ SKILL.md の手順2で、スライドを作る・並べ替える・消すとき�
 ## 補助関数
 
 ```python
+import io
+import re
+import zipfile
+
 from pptx import Presentation
 from pptx.oxml.ns import qn
 from pptx.util import Mm, Pt
+
+
+def open_template(path):
+    """テンプレート（.potx）を開く。python-pptx は .potx をそのまま渡すと ValueError で開かない。
+    種類の宣言だけ .pptx に読み替えて開き、保存は .pptx にする。.pptx はそのまま開く。"""
+    if not str(path).lower().endswith((".potx", ".potm")):
+        return Presentation(path)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(path) as src, zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as dst:
+        for item in src.infolist():
+            data = src.read(item.filename)
+            if item.filename == "[Content_Types].xml":
+                data = re.sub(rb"presentationml\.template\.main\+xml|ms-powerpoint\.template\.macroEnabled\.main\+xml",
+                              b"presentationml.presentation.main+xml", data)
+            dst.writestr(item, data)
+    buf.seek(0)
+    return Presentation(buf)
 
 
 def widen_to_16x9(prs):
@@ -47,6 +68,9 @@ def delete_slide(prs, index):
     sld_id = sld_ids[index]
     prs.part.drop_rel(sld_id.rId)
     sld_ids.remove(sld_id)
+    # 部品名（slideN.xml）を詰め直す。これを省くと、後の add_slide が残りのスライドと同じ名前を付け、
+    # 保存した zip に同名の部品が2つでき、スライドが1枚消えて別のスライドの複製になる
+    prs.part.rename_slide_parts([s.rId for s in sld_ids])
 
 
 def move_slide(prs, old, new):
@@ -57,19 +81,31 @@ def move_slide(prs, old, new):
     sld_ids.insert(new, el)
 ```
 
-`set_ja_font` は文字を入れた後に呼ぶ（run が無いと何もしない）。全スライドに当てるなら:
+`set_ja_font` は文字を入れた後に呼ぶ（run が無いと何もしない）。全スライドに当てるときは、グループの中と表のセルも拾う:
 
 ```python
+def iter_text_frames(shapes):
+    """図形の文字枠を、グループの中と表のセルまで含めて返す。slide.shapes の素朴なループは両方を取りこぼす。"""
+    for shape in shapes:
+        if shape.shape_type is not None and str(shape.shape_type).startswith("GROUP"):
+            yield from iter_text_frames(shape.shapes)
+        elif getattr(shape, "has_table", False) and shape.has_table:
+            for row in shape.table.rows:
+                for cell in row.cells:
+                    yield cell.text_frame
+        elif shape.has_text_frame:
+            yield shape.text_frame
+
+
 for slide in prs.slides:
-    for shape in slide.shapes:
-        if shape.has_text_frame:
-            set_ja_font(shape.text_frame)
+    for tf in iter_text_frames(slide.shapes):
+        set_ja_font(tf)
 ```
 
 ## 最小の流れ
 
 ```python
-prs = Presentation()                       # テンプレートがあれば Presentation("template.pptx")
+prs = Presentation()                       # テンプレートがあれば open_template("template.potx")
 widen_to_16x9(prs)                         # テンプレートを使うときは呼ばない
 s = prs.slides.add_slide(prs.slide_layouts[1])          # レイアウトは inspect_pptx.py --layouts で選ぶ
 s.shapes.title.text = "結論：リリースは予定どおり 11 月"
@@ -87,6 +123,9 @@ prs.save("out.pptx")
 | 4:3 のスライドになる | python-pptx の既定テンプレートは 4:3（254×190.5 mm） | `widen_to_16x9()` を呼ぶ。大きさだけ変えると枠が左に寄る |
 | 和文だけ別のフォントになる | `font.name` は `a:latin` しか変えない | `set_ja_font()` で `a:ea` も指定する |
 | 文字が枠からあふれる | python-pptx は文字の量に合わせて縮小しない。自動調整の設定は PowerPoint で編集したときにしか効かない | 文字を減らすか枠を広げる。画像で確かめる |
+| `Presentation("x.potx")` が ValueError（is not a PowerPoint file）になる | python-pptx は .potx の種類宣言を受け付けない | `open_template()` で開き、`.pptx` で保存する |
+| スライドを消してから足すと、保存したファイルでスライドが1枚消え、別のスライドが2枚になる | python-pptx は新しいスライドに「枚数+1」の部品名を付けるので、消した後は残りと名前がぶつかる | `delete_slide()`（部品名を詰め直す）を使う。自前で `_sldIdLst` から消さない |
+| 表のセルやグループの中だけ和文フォントが変わらない | `slide.shapes` のループは表のセルとグループの中を回らない | `iter_text_frames()` で回す |
 | スライドを複製したい | python-pptx に複製の API は無い。図形の XML を写すと画像やグラフの参照が切れる | 同じレイアウトから `add_slide` で作り直す。テンプレートの見本スライドは使った後に `delete_slide` で消す |
 | 箇条書きの記号が出ない・二重になる | テキストボックスに「・」を打った | 本文プレースホルダ（レイアウトの OBJECT / BODY）に段落として入れる。字下げは `paragraph.level` |
 | 表やグラフの位置が他の枠と重なる | 座標を目分量で決めた | `inspect_pptx.py --layouts` の枠の位置と大きさを使って配置し、`--check` で重なりを見る |
