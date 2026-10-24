@@ -40,6 +40,9 @@ EXCEL = ROOT/'skills/operate-excel'
 HAS_OPENPYXL = importlib.util.find_spec('openpyxl') is not None
 PPT = ROOT/'skills/operate-powerpoint'
 HAS_PPTX = importlib.util.find_spec('pptx') is not None
+PDF = ROOT/'skills/operate-pdf'
+HAS_PYPDF = importlib.util.find_spec('pypdf') is not None
+HAS_PDFIUM = importlib.util.find_spec('pypdfium2') is not None and importlib.util.find_spec('PIL') is not None
 
 
 class TemporaryCase(unittest.TestCase):
@@ -605,6 +608,246 @@ class PowerPointTests(TemporaryCase):
         result = self.run_script(potx, '--outline')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('スライド 4（Title Only・画像 p3）: 残課題の一覧', result.stdout)
+
+
+@unittest.skipUnless(HAS_PYPDF, 'pypdf が無い')
+class PdfTests(TemporaryCase):
+    FILES = PDF/'evals/files'
+    SHORT_PDF = (b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n'
+                 b'2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n'
+                 b'3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R'
+                 b'/Resources<</Font<</F1 5 0 R>>>>>>endobj\n'
+                 b'4 0 obj<</Length 44>>stream\nBT /F1 12 Tf 72 720 Td (Short page) Tj ET\nendstream endobj\n'
+                 b'5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n'
+                 b'trailer<</Root 1 0 R>>\nstartxref\n0\n%%EOF\n')
+
+    def run_script(self, script, *args):
+        result = subprocess.run([sys.executable, str(PDF/'scripts'/script), *map(str, args)],
+                                capture_output=True, text=True, encoding='utf-8',
+                                env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertNotIn('Traceback', result.stderr)
+        return result
+
+    def meta(self, pdf):
+        result = self.run_script('pdf_extract.py', 'meta', pdf)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def pngs(self, pdf, dpi, count):
+        result = self.run_script('pdf_to_png.py', pdf, '--outdir', self.folder, '--dpi', dpi)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        paths = result.stdout.splitlines()
+        self.assertEqual(len(paths), count)
+        return paths
+
+    def test_text_reports_image_only_page_in_mixed_document(self):
+        # 4ページ中1ページだけ画像。全体の平均では文字数が足りてしまい、以前は終了コード0だった
+        result = self.run_script('pdf_extract.py', 'text', self.FILES/'minutes.pdf')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('文字がほとんど取れないページ: 3（', result.stderr)
+        self.assertIn('リリースは11月20日', result.stdout)
+
+    def test_text_does_not_flag_short_page_without_image(self):
+        # 本文の短いページ（Windows の Word で18字の文書）を、スキャンの疑いとして挙げていた
+        garbage = self.file('broken.pdf', 'not a pdf')
+        broken = self.run_script('pdf_extract.py', 'text', garbage)  # 壊れた PDF はトレースバックしていた
+        self.assertEqual(broken.returncode, 1)
+        self.assertIn('PDF を開けない', broken.stderr)
+        self.assertEqual(self.run_script('pdf_ops.py', 'list-fields', garbage).returncode, 1)
+        short = self.folder/'short.pdf'
+        short.write_bytes(self.SHORT_PDF)
+        result = self.run_script('pdf_extract.py', 'text', short)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('Short page', result.stdout)
+
+    def test_bad_page_spec_is_usage_error(self):
+        # 範囲外・逆順は以前、何もせず終了コード0（rotate は未変更の複製を書き出していた）
+        src = self.FILES/'minutes.pdf'
+        for spec in ('9', '3-1', 'a', ',', '1-', '0', '', '1 2'):
+            for args in (('pdf_extract.py', 'text', src, '--pages', spec),
+                         ('pdf_ops.py', 'rotate', src, self.folder/'r.pdf', '--degrees', '90', '--pages', spec),
+                         ('pdf_ops.py', 'split', src, '--outdir', self.folder, '--ranges', spec),
+                         ('pdf_ops.py', 'stamp', src, self.folder/'r.pdf',
+                          '--stamp', self.FILES/'stamp_confidential.pdf', '--pages', spec),
+                         ('pdf_to_png.py', src, '--outdir', self.folder, '--pages', spec)):
+                self.assertEqual(self.run_script(*args).returncode, 2, (args[0], args[1], spec))
+        self.assertEqual(list(self.folder.iterdir()), [])
+        self.assertEqual(self.run_script('pdf_extract.py', 'text', src, '--pages', '1, 2').returncode, 0)
+
+    def test_large_text_needs_out(self):
+        big = self.folder/'big.pdf'
+        from pypdf import PdfWriter
+        w = PdfWriter()
+        for _ in range(40):
+            w.append(str(self.FILES/'minutes.pdf'))
+        w.write(str(big))
+        result = self.run_script('pdf_extract.py', 'text', big)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, '')
+        out = self.folder/'big.txt'
+        result = self.run_script('pdf_extract.py', 'text', big, '--out', out)
+        self.assertEqual(result.stdout.strip(), str(out))
+        self.assertIn('=== page 160 ===', out.read_text(encoding='utf-8'))
+
+    def test_meta_shows_size_and_rotation_per_page(self):
+        self.assertEqual(self.meta(self.FILES/'mixed_orientation.pdf')['page_layout'],
+                         ['1: 210x297mm', '2: 297x210mm', '3: 210x297mm 回転90'])
+
+    def test_encrypted_tables_is_not_traceback(self):
+        enc = self.folder/'enc.pdf'
+        r = self.run_script('pdf_ops.py', 'encrypt', self.FILES/'minutes.pdf', enc, '--password', 'pw')
+        if r.returncode == 2:
+            self.skipTest('cryptography が無い')
+        self.assertEqual(self.run_script('pdf_extract.py', 'tables', enc).returncode, 1)
+
+    def edited_form(self, edit):
+        from pypdf import PdfWriter
+        w = PdfWriter(clone_from=str(self.FILES/'application_form.pdf'))
+        edit(w, {str(f.get_object()['/T']): f for f in w._root_object['/AcroForm']['/Fields']})
+        out = self.folder/'form.pdf'
+        w.write(str(out))
+        return out
+
+    def fill(self, values, form=None):
+        data = self.file('v.json', json.dumps(values, ensure_ascii=False))
+        out = self.folder/'filled.pdf'
+        return self.run_script('pdf_ops.py', 'fill-form', form or self.FILES/'application_form.pdf',
+                               out, '--data', data), out
+
+    def test_fill_form_rejects_bad_values(self):
+        # 以前は選択肢に無い "Z" も、テキスト欄への数値も、そのまま入れて終了コード0だった
+        for values, message in (({'dept': 'Z'}, "dept: 'Z' は選択肢に無い"),
+                                ({'employee_no': 1234}, 'employee_no: 値は文字列で書く')):
+            result, out = self.fill(values)
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(message, result.stderr)
+            self.assertFalse(out.exists())
+        self.assertEqual(self.fill({})[0].returncode, 2)
+
+    def test_fill_form_checks_box_without_leading_slash(self):
+        # 以前は "Yes" を入れると /V だけ変わり、チェックは付かないまま終了コード0だった
+        result, out = self.fill({'agree': 'Yes', 'style': 'onsite', 'name': '山田花子'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('記入したページ: 1', result.stderr)
+        self.assertIn('フィールドのフォントで表せない文字', result.stderr)
+        from pypdf import PdfReader
+        states = {}
+        for a in PdfReader(str(out)).pages[0]['/Annots']:
+            a = a.get_object()
+            name = a.get('/T') or a['/Parent'].get_object()['/T']
+            if a.get('/AS') not in (None, '/Off'):
+                states[str(name)] = str(a['/AS'])
+        self.assertEqual(states, {'agree': '/Yes', 'style': '/onsite'})
+
+    def test_fill_form_refuses_same_leaf_name(self):
+        # pypdf は末端の /T でも一致させるので、"name" を渡すと "group.name" にも書かれていた
+        from pypdf.generic import ArrayObject, DictionaryObject, NameObject, TextStringObject
+
+        def edit(w, fields):
+            kid = fields['employee_no']
+            kid.get_object()[NameObject('/T')] = TextStringObject('name')
+            group = w._add_object(DictionaryObject({NameObject('/T'): TextStringObject('group'),
+                                                    NameObject('/Kids'): ArrayObject([kid])}))
+            kid.get_object()[NameObject('/Parent')] = group
+            top = w._root_object['/AcroForm']['/Fields']
+            top[list(top).index(kid)] = group
+        form = self.edited_form(edit)
+        result, out = self.fill({'name': '山田'}, form)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('group.name', result.stderr)
+        result, out = self.fill({'group.name': 'A1234'}, form)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_fill_form_uses_export_value_of_option_pair(self):
+        # /Opt が [保存値, 表示名] の組だと、以前は配列の文字列表現を選択肢として出していた
+        from pypdf.generic import ArrayObject, NameObject, TextStringObject
+
+        def edit(w, fields):
+            fields['dept'].get_object()[NameObject('/Opt')] = ArrayObject(
+                [ArrayObject([TextStringObject(v), TextStringObject(l)])
+                 for v, l in (('dev', '開発'), ('qa', '品質保証'), ('sales', '営業'))])
+        form = self.edited_form(edit)
+        listing = self.run_script('pdf_ops.py', 'list-fields', form)
+        dept = [f for f in json.loads(listing.stdout) if f['name'] == 'dept'][0]
+        self.assertEqual((dept['options'], dept['labels']), (['dev', 'qa', 'sales'], ['開発', '品質保証', '営業']))
+        result, _ = self.fill({'dept': '品質保証'}, form)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('options の値を使う（qa）', result.stderr)
+        self.assertEqual(self.fill({'dept': 'qa'}, form)[0].returncode, 0)
+
+    @unittest.skipUnless(HAS_PDFIUM, 'pypdfium2 か Pillow が無い')
+    def test_png_draws_form_values(self):
+        # 以前は init_forms を呼ばず、記入した値もフィールドの枠も画像に出なかった
+        from PIL import Image, ImageChops
+        result, out = self.fill({'agree': '/Yes'})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inside = (183, 842 - 682, 197, 842 - 668)  # チェックボックスの枠の内側
+        filled = Image.open(self.pngs(out, '72', 1)[0]).convert('L').crop(inside)
+        blank = Image.open(self.pngs(self.FILES/'application_form.pdf', '72', 1)[0]).convert('L').crop(inside)
+        self.assertLess(filled.getextrema()[0], 100)  # 印が描かれている
+        self.assertIsNotNone(ImageChops.difference(filled, blank).getbbox())
+
+    def red_box(self, path):
+        from PIL import Image
+        im = Image.open(path).convert('RGB')
+        red = [(x, y) for y in range(im.height) for x in range(im.width)
+               if (lambda p: p[0] > 200 and p[1] < 230 and p[0] - p[1] > 30)(im.getpixel((x, y)))]
+        xs, ys = [x for x, _ in red], [y for _, y in red]
+        return im, (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
+
+    @unittest.skipUnless(HAS_PDFIUM, 'pypdfium2 か Pillow が無い')
+    def test_stamp_is_centered_and_upright_on_every_page(self):
+        # 以前は横向きのページで上に寄り、回転90のページで横倒しになった
+        from PIL import ImageChops, ImageStat
+        out = self.folder/'stamped.pdf'
+        r = self.run_script('pdf_ops.py', 'stamp', self.FILES/'mixed_orientation.pdf', out,
+                            '--stamp', self.FILES/'stamp_confidential.pdf')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        crops = []
+        for path in self.pngs(out, '30', 3):
+            im, (x0, y0, x1, y1) = self.red_box(path)
+            self.assertAlmostEqual((x0 + x1) / 2 / im.width, 0.5, delta=0.05, msg=path)
+            self.assertAlmostEqual((y0 + y1) / 2 / im.height, 0.5, delta=0.08, msg=path)
+            crops.append(im.crop((x0, y0, x1, y1)).convert('L'))
+        # 縦のページの印を基準に、横・回転90のページの印が同じ向き（逆さでもない）か比べる
+        ref = crops[0]
+        for crop in crops[1:]:
+            same = ImageChops.difference(ref, crop.resize(ref.size))
+            flipped = ImageChops.difference(ref, crop.rotate(180).resize(ref.size))
+            self.assertLess(ImageStat.Stat(same).sum[0], ImageStat.Stat(flipped).sum[0])
+
+    @unittest.skipUnless(HAS_PDFIUM, 'pypdfium2 か Pillow が無い')
+    def test_stamp_keeps_rotation_of_stamp_page(self):
+        # 印のページ自体に /Rotate があると、以前は回転を無視して重ねていた
+        rotated = self.folder/'stamp90.pdf'
+        self.assertEqual(self.run_script('pdf_ops.py', 'rotate', self.FILES/'stamp_confidential.pdf', rotated,
+                                         '--degrees', '90').returncode, 0)
+        out = self.folder/'stamped.pdf'
+        r = self.run_script('pdf_ops.py', 'stamp', self.FILES/'mixed_orientation.pdf', out,
+                            '--stamp', rotated, '--pages', '1')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        _, (x0, y0, x1, y1) = self.red_box(self.pngs(out, '30', 3)[0])
+        self.assertGreater(y1 - y0, x1 - x0)  # 印単体の見た目どおり縦書き
+
+    def test_to_pdf_failure_keeps_no_stale_success(self):
+        # 以前は出力先に前回の PDF が残っていると、変換に失敗しても終了コード0でそのパスを返した
+        bad = self.folder/'bad.docx'
+        bad.write_bytes(b'PK\x03\x04broken')
+        stale = self.folder/'bad.pdf'
+        stale.write_text('stale')
+        result = self.run_script('to_pdf.py', bad)
+        if result.returncode == 3:
+            self.skipTest('変換エンジンが無い')
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(stale.read_text(), 'stale')
+        self.assertEqual(sorted(p.name for p in self.folder.iterdir()), ['bad.docx', 'bad.pdf'])
+
+    def test_to_pdf_decodes_cp932_output(self):
+        # 日本語 Windows の PowerShell は cp932 で出力し、以前は読み取りスレッドが落ちて Traceback になった
+        to_pdf = load('to_pdf', 'operate-pdf/scripts/to_pdf.py')
+        r = to_pdf.run([sys.executable, '-c', 'import sys; sys.stdout.buffer.write("変換失敗".encode("cp932") + b"\\xff")'])
+        self.assertEqual(r.returncode, 0)
+        self.assertIsInstance(r.stdout, str)
 
 
 if __name__ == '__main__':
