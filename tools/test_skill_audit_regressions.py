@@ -37,6 +37,8 @@ import notion_page as notion
 recalc = load('recalc_check', 'operate-excel/scripts/recalc_check.py')
 EXCEL = ROOT/'skills/operate-excel'
 HAS_OPENPYXL = importlib.util.find_spec('openpyxl') is not None
+PPT = ROOT/'skills/operate-powerpoint'
+HAS_PPTX = importlib.util.find_spec('pptx') is not None
 
 
 class TemporaryCase(unittest.TestCase):
@@ -423,6 +425,153 @@ class ExcelTests(TemporaryCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn('変わったセル: 1 件（範囲 B3:B3）', result.stdout)
         self.assertIn('| B3 | 値 | （空） | 65 |', result.stdout)
+
+
+@unittest.skipUnless(HAS_PPTX, 'python-pptx が無い')
+class PowerPointTests(TemporaryCase):
+    DECK = PPT/'evals/files/q3_report.pptx'
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(PPT/'scripts/inspect_pptx.py'), *map(str, args)],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def helpers(self):
+        import re
+        md = (PPT/'references/python-pptx-helpers.md').read_text(encoding='utf-8')
+        blocks = re.findall(r"```python\n(.*?)```", md, re.S)
+        g = {}
+        exec(blocks[0], g)
+        return g
+
+    def test_check_finds_empty_placeholder_table_overlap_and_hidden_slide(self):
+        result = self.run_script(self.DECK, '--check')
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('スライド 1（画像 p1）: 「Subtitle 2」が空のプレースホルダ', result.stdout)
+        self.assertIn('スライド 4（画像 p3）: 「Table 2」と「TextBox 3」が重なっている', result.stdout)
+        self.assertIn('スライド 5（画像 p4）: 「Content Placeholder 2」の文字があふれている疑い', result.stdout)
+        self.assertIn('非表示スライド: 3', result.stdout)
+        self.assertNotIn('スライド 2', result.stdout)  # 収まっているスライドは何も出さない
+        self.assertNotIn('ph[', result.stdout)  # --check だけなら図形一覧は出さない
+
+    def test_full_shows_table_cells(self):
+        result = self.run_script(self.DECK, '--slides', '4', '--full')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('3 | ログが重複する | 11/19', result.stdout)
+
+    def test_bad_slide_range_is_usage_error(self):
+        for spec in ('a', '9', '3-1', ',', '1-', '1,,2'):
+            result = self.run_script(self.DECK, '--slides', spec)
+            self.assertEqual(result.returncode, 2, spec)
+            self.assertNotIn('Traceback', result.stderr)
+
+    def test_delete_then_add_keeps_every_slide(self):
+        g = self.helpers()
+        prs = g['Presentation'](str(self.DECK))
+        g['delete_slide'](prs, 2)
+        prs.slides.add_slide(prs.slide_layouts[5]).shapes.title.text = '次回の報告は12月'
+        out = self.folder/'out.pptx'
+        prs.save(str(out))
+        with zipfile.ZipFile(out) as z:
+            names = z.namelist()
+        self.assertEqual(len(names), len(set(names)))
+        titles = [s.shapes.title.text for s in g['Presentation'](str(out)).slides]
+        self.assertEqual(titles, ['第3四半期の不具合報告', '不具合は 3 件に減った', '残課題の一覧',
+                                  '再発防止の取り組み', '次回の報告は12月'])
+
+    def check(self, prs):
+        out = self.folder/'case.pptx'
+        prs.save(str(out))
+        result = self.run_script(out, '--check')
+        self.assertNotIn('Traceback', result.stderr)
+        return result
+
+    def test_check_edge_cases(self):
+        from pptx import Presentation
+        from pptx.chart.data import CategoryChartData
+        from pptx.enum.chart import XL_CHART_TYPE
+        from pptx.util import Mm, Pt
+        prs = Presentation()
+        blank = prs.slide_layouts[6]
+        # 1: 段落に指定した 10pt（run には指定なし）と、空段落だけが 10pt の枠
+        s = prs.slides.add_slide(blank)
+        tb = s.shapes.add_textbox(Mm(10), Mm(10), Mm(100), Mm(20))
+        tb.text_frame.text = '段落で小さくした'
+        tb.text_frame.paragraphs[0].font.size = Pt(10)
+        tb2 = s.shapes.add_textbox(Mm(10), Mm(60), Mm(100), Mm(30))
+        tb2.text_frame.text = '本文'
+        tb2.text_frame.add_paragraph().font.size = Pt(10)
+        # 2: 表のセルの 8pt
+        s = prs.slides.add_slide(blank)
+        cell = s.shapes.add_table(1, 1, Mm(10), Mm(10), Mm(60), Mm(20)).table.cell(0, 0)
+        cell.text = '細かい表'
+        cell.text_frame.paragraphs[0].runs[0].font.size = Pt(8)
+        # 3: 折り返さない枠に4段落（縦にあふれる）
+        s = prs.slides.add_slide(blank)
+        tb = s.shapes.add_textbox(Mm(10), Mm(10), Mm(100), Mm(10))
+        tb.text_frame.text = '一'
+        for _ in range(3):
+            tb.text_frame.add_paragraph().text = '二'
+        # 4: グラフと画像の重なり
+        s = prs.slides.add_slide(blank)
+        data = CategoryChartData()
+        data.categories = ['a', 'b']
+        data.add_series('x', (1, 2))
+        s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Mm(10), Mm(10), Mm(80), Mm(60), data).name = 'グラフ'
+        png = self.folder/'dot.png'
+        import base64
+        png.write_bytes(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='))
+        s.shapes.add_picture(str(png), Mm(50), Mm(30), Mm(60), Mm(40)).name = '写真'
+        # 5: 同じグループの中の重なりは見ない／90度回転したグループの子はスライド外へ出る
+        s = prs.slides.add_slide(blank)
+        g = s.shapes.add_group_shape()
+        card = g.shapes.add_textbox(Mm(150), Mm(20), Mm(80), Mm(40))
+        card.text_frame.text = 'カードの見出し'
+        inner = g.shapes.add_textbox(Mm(160), Mm(30), Mm(60), Mm(20))
+        inner.text_frame.text = 'カードの本文'
+        g2 = s.shapes.add_group_shape()
+        long = g2.shapes.add_textbox(Mm(10), Mm(170), Mm(200), Mm(10))
+        long.text_frame.text = '横長の帯'
+        long.name = '帯'
+        g2._element.grpSpPr.find('{http://schemas.openxmlformats.org/drawingml/2006/main}xfrm').set('rot', str(90 * 60000))
+        out = self.check(prs).stdout
+        self.assertIn('スライド 1: 「TextBox 1」に 10pt の文字がある', out)
+        self.assertNotIn('「TextBox 2」に', out)  # 空段落の 10pt は数えない
+        self.assertIn('スライド 2: 「Table 1」に 8pt の文字がある', out)
+        self.assertIn('スライド 3: 「TextBox 1」の文字があふれている疑い（推定: 必要な高さ', out)
+        self.assertIn('「グラフ」と「写真」が重なっている', out)
+        self.assertNotIn('カード', out)
+        self.assertIn('スライド 5: 「帯」がスライドの外にはみ出している', out)
+
+    def test_delete_linked_slide_removes_link(self):
+        g = self.helpers()
+        prs = g['Presentation']()
+        slides = [prs.slides.add_slide(prs.slide_layouts[5]) for _ in range(3)]
+        for i, s in enumerate(slides):
+            s.shapes.title.text = 's%d' % i
+        slides[0].shapes.title.click_action.target_slide = slides[1]
+        g['delete_slide'](prs, 1)
+        out = self.folder/'link.pptx'
+        prs.save(str(out))
+        with zipfile.ZipFile(out) as z:
+            names = z.namelist()
+            first = z.read('ppt/slides/slide1.xml').decode()
+        self.assertEqual(len(names), len(set(names)))
+        self.assertNotIn('hlinkClick', first)
+        self.assertEqual([s.shapes.title.text for s in g['Presentation'](str(out)).slides], ['s0', 's2'])
+
+    def test_potx_opens(self):
+        potx = self.folder/'t.potx'
+        with zipfile.ZipFile(self.DECK) as src, zipfile.ZipFile(potx, 'w') as dst:
+            for item in src.infolist():
+                data = src.read(item.filename)
+                if item.filename == '[Content_Types].xml':
+                    data = data.replace(b'presentationml.presentation.main+xml', b'presentationml.template.main+xml')
+                dst.writestr(item, data)
+        self.assertEqual(len(self.helpers()['open_template'](str(potx)).slides), 5)
+        result = self.run_script(potx, '--outline')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('スライド 4（Title Only・画像 p3）: 残課題の一覧', result.stdout)
 
 
 if __name__ == '__main__':
