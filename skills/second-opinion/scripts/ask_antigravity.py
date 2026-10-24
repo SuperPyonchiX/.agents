@@ -93,6 +93,29 @@ def parse_envelope(stdout):
     raise ValueError('agy の出力が JSON ではない')
 
 
+def match_console_encoding():
+    """標準出力・標準エラーの符号化を、受け取る側のコンソール出力コードページに合わせる。
+
+    PowerShell は外部コマンドの出力をパイプで受け、[Console]::OutputEncoding（コンソール出力
+    コードページ）で読む。Python は既定でロケール（日本語環境は cp932）で書くので、UTF-8 に固定すると
+    cp932 のコンソールで化け、既定のままだと chcp 65001 のコンソールで化ける。
+    PYTHONIOENCODING が指定されていれば呼び出し側の意図とみなして触らない。
+    """
+    if sys.platform != 'win32' or os.environ.get('PYTHONIOENCODING'):
+        return
+    import codecs
+    import ctypes
+    cp = ctypes.windll.kernel32.GetConsoleOutputCP()  # コンソールが無ければ 0
+    try:
+        encoding = codecs.lookup(f'cp{cp}').name if cp else None
+    except LookupError:
+        encoding = None
+    for stream in (sys.stdout, sys.stderr):
+        # コンソール直結は Python が UTF-16 で書くので化けない
+        if hasattr(stream, 'reconfigure') and not stream.isatty():
+            stream.reconfigure(encoding=encoding or stream.encoding, errors='backslashreplace')
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(description='Antigravity CLI に作業コピー上で1ターン相談する')
     p.add_argument('--prompt-file', type=Path, required=True)
@@ -169,7 +192,5 @@ def main(argv=None):
 
 
 if __name__ == '__main__':
-    for stream in (sys.stdout, sys.stderr):
-        if hasattr(stream, 'reconfigure'):
-            stream.reconfigure(encoding='utf-8')
+    match_console_encoding()
     sys.exit(main())

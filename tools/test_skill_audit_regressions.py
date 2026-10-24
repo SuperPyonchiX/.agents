@@ -32,6 +32,7 @@ trace = load('trace', 'nextdesign-cpp14-implementation/scripts/check_traceabilit
 audit = load('audit', 'skill-portfolio-audit/scripts/audit_skills.py')
 claude = load('ask_claude', 'second-opinion/scripts/ask_claude.py')
 agy = load('ask_antigravity', 'second-opinion/scripts/ask_antigravity.py')
+codex = load('ask_codex', 'second-opinion/scripts/ask_codex.py')
 sys.path.insert(0, str(ROOT / 'skills/notion-api/scripts'))
 import notion_page as notion
 recalc = load('recalc_check', 'operate-excel/scripts/recalc_check.py')
@@ -343,6 +344,38 @@ class AntigravityTests(TemporaryCase):
         q = self.file('q.md', '質問')
         with patch.object(agy.shutil, 'which', return_value=None), contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(agy.main(['--prompt-file', str(q), '--out', str(self.folder/'a.md')]), 2)
+
+
+class ConsoleEncodingTests(unittest.TestCase):
+    """PowerShell はパイプの出力をコンソール出力コードページで読むので、それに合わせて書く。"""
+    TEXT = '回答保存: C:\\テスト\\a0.md'
+
+    def write(self, module, cp, env=None, start='utf-8'):
+        streams = [io.TextIOWrapper(io.BytesIO(), encoding=start) for _ in range(2)]
+        windll = type('W', (), {'kernel32': type('K', (), {'GetConsoleOutputCP': staticmethod(lambda: cp)})})
+        with patch.object(module.sys, 'platform', 'win32'), patch.dict(os.environ, env or {}, clear=True), \
+                patch('ctypes.windll', windll, create=True), \
+                patch.object(module.sys, 'stdout', streams[0]), patch.object(module.sys, 'stderr', streams[1]):
+            module.match_console_encoding()
+        for stream in streams:
+            stream.write(self.TEXT + '\U0001F600')
+            stream.flush()
+        return [(stream.encoding, stream.buffer.getvalue()) for stream in streams]
+
+    def test_follows_console_code_page(self):
+        for module in [agy, claude, codex]:
+            for cp, expected in [(932, 'cp932'), (65001, 'utf-8')]:
+                with self.subTest(module=module.__name__, cp=cp):
+                    for encoding, data in self.write(module, cp):
+                        self.assertEqual(encoding, expected)
+                        # cp932 で表せない文字は落とさず \\U... で残す
+                        self.assertTrue(data.decode(expected).startswith(self.TEXT))
+
+    def test_respects_pythonioencoding_and_missing_console(self):
+        for module in [agy, claude, codex]:
+            with self.subTest(module=module.__name__):
+                self.assertEqual(self.write(module, 932, {'PYTHONIOENCODING': 'utf-8'})[0][0], 'utf-8')
+                self.assertEqual(self.write(module, 0, start='cp932')[0][0], 'cp932')
 
 
 class ExcelTests(TemporaryCase):

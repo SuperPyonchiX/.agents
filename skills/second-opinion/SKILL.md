@@ -178,6 +178,8 @@ python "<skill-dir>/scripts/ask_codex.py" --prompt-file Q.md --out A.md [--cd DI
 
 失敗時に以前の出力ファイルが残る場合がある。終了コード0以外の出力を新しい回答として読まない。
 
+3本とも、Windows では標準出力・標準エラーをコンソール出力コードページ（`chcp` の値）で書く。PowerShell がパイプで受けた出力をその符号化で読むため。回答ファイルは常に UTF-8。呼び出し側が `PYTHONIOENCODING` を指定していればそちらに従う。
+
 ## 参照ファイル
 
 | ファイル | 読むタイミング |
