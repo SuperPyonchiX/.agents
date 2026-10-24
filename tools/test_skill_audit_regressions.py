@@ -40,6 +40,8 @@ EXCEL = ROOT/'skills/operate-excel'
 HAS_OPENPYXL = importlib.util.find_spec('openpyxl') is not None
 PPT = ROOT/'skills/operate-powerpoint'
 HAS_PPTX = importlib.util.find_spec('pptx') is not None
+WORD = ROOT/'skills/operate-word'
+HAS_DOCX = importlib.util.find_spec('docx') is not None
 
 
 class TemporaryCase(unittest.TestCase):
@@ -605,6 +607,156 @@ class PowerPointTests(TemporaryCase):
         result = self.run_script(potx, '--outline')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('スライド 4（Title Only・画像 p3）: 残課題の一覧', result.stdout)
+
+
+@unittest.skipUnless(HAS_DOCX, 'python-docx が無い')
+class WordTests(TemporaryCase):
+    MANUAL = WORD/'evals/files/manual.docx'
+
+    def run_script(self, name, *args):
+        return subprocess.run([sys.executable, str(WORD/'scripts'/name), *map(str, args)],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def replace(self, src, *args):
+        out = self.folder/'out.docx'
+        if out.exists():
+            out.unlink()
+        return self.run_script('docx_replace.py', src, out, *args), out
+
+    def test_inspect_reads_hidden_text(self):
+        result = self.run_script('inspect_docx.py', self.MANUAL)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for text in ('対象機種: Alpha 2',                     # コンテンツコントロールの中
+                     '[テキストボックス] Alpha 2 クイックガイド',
+                     '（Alpha 2 の後継機を除く）',            # 変更履歴で挿入した文字
+                     '[^2]: Alpha 2 は2024年4月に発売した。',
+                     '先頭ページのヘッダー: Alpha 2 取扱説明書',
+                     '| 項目 | ← | 値 |',                    # 横に結合したセルを繰り返さない
+                     'テキストボックス 1、脚注 1'):
+            self.assertIn(text, result.stdout)
+        outline = self.run_script('inspect_docx.py', self.MANUAL, '--outline').stdout
+        self.assertIn('§3 ## 対応機種', outline)
+        part = self.run_script('inspect_docx.py', self.MANUAL, '--section', '2').stdout
+        self.assertIn('AC 100 V', part)
+        self.assertNotIn('クイックガイド', part)
+        bad = self.run_script('inspect_docx.py', self.MANUAL, '--section', '9')
+        self.assertEqual(bad.returncode, 2)
+
+    def test_long_body_prints_outline_only(self):
+        import docx
+        d = docx.Document()
+        for i in range(30):
+            d.add_heading('節%d' % i, level=1)
+            d.add_paragraph('本文' * 400)
+        src = self.folder/'long.docx'
+        d.save(str(src))
+        out = self.run_script('inspect_docx.py', src).stdout
+        self.assertIn('§30 # 節29', out)
+        self.assertNotIn('本文本文', out)
+        self.assertIn('本文本文', self.run_script('inspect_docx.py', src, '--full').stdout)
+
+    def test_dry_run_matches_real_run_and_covers_every_story(self):
+        import re
+        dry, out = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'Beta 3', '--dry-run')
+        self.assertEqual(dry.returncode, 0, dry.stderr)
+        self.assertFalse(out.exists())
+        real, out = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'Beta 3')
+        self.assertEqual(real.returncode, 0, real.stderr)
+        line = '置換 7 件（本文 4、本文のテキストボックス 1、脚注 1、ヘッダー 1）'
+        self.assertIn(line, dry.stdout)
+        self.assertIn(line, real.stdout)
+        text = self.run_script('inspect_docx.py', out).stdout
+        self.assertNotIn('Alpha 2', text)
+        self.assertIn('型番\tBeta 3', text)
+        # テキストボックスは Choice と Fallback の2通り保存されている。両方とも置換する
+        with zipfile.ZipFile(out) as z:
+            xml = z.read('word/document.xml').decode('utf-8')
+        boxes = re.findall(r'<w:txbxContent>(.*?)</w:txbxContent>', xml)
+        self.assertEqual(len(boxes), 2)
+        self.assertTrue(all('Beta 3' in b and 'Alpha 2' not in b for b in boxes))
+
+    def test_chained_finds_are_counted_like_the_real_run(self):
+        dry, _ = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'X', '--find', 'X', '--replace', 'Y',
+                              '--dry-run')
+        self.assertIn('連鎖', dry.stdout)
+        self.assertIn('X → Y: 置換 7 件', dry.stdout)
+
+    def test_match_across_tab_break_or_note_is_not_replaced(self):
+        import docx
+        d = docx.Document()
+        p = d.add_paragraph('項目A')
+        p.runs[0].add_tab()
+        p.add_run('旧製品')
+        p2 = d.add_paragraph('改行前')
+        p2.runs[0].add_break()
+        p2.add_run('改行後')
+        src = self.folder/'tab.docx'
+        d.save(str(src))
+        for find in ('A旧', '前改'):
+            result, out = self.replace(src, '--find', find, '--replace', 'X')
+            self.assertEqual(result.returncode, 1, find)
+            self.assertFalse(out.exists())
+        result, out = self.replace(self.MANUAL, '--find', 'である。', '--replace', 'だ。')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('置換しなかった 1 件', result.stdout)
+        self.assertFalse(out.exists())
+
+    def test_track_splits_runs_and_keeps_format(self):
+        import docx
+        d = docx.Document()
+        p = d.add_paragraph()
+        p.add_run('AB').bold = True
+        p.add_run('CD')
+        src = self.folder/'runs.docx'
+        d.save(str(src))
+        result, out = self.replace(src, '--find', 'BC', '--replace', 'X', '--track', '佐藤')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('変更履歴: 挿入 1・削除 1', result.stdout)
+        body = docx.Document(str(out)).element.body
+        W = '{http://schemas.openxmlformats.org/wordprocessingml/2006/main}'
+        dels = [''.join(t.text for t in el.iter(W+'delText')) for el in body.iter(W+'del')]
+        self.assertEqual(dels, ['BC'])
+        ins = next(body.iter(W+'ins'))
+        self.assertIsNotNone(ins.find('.//' + W + 'b'))            # 一致範囲の先頭（太字）の書式
+        self.assertRegex(ins.get(W+'date'), r'^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$')
+        text = self.run_script('inspect_docx.py', out).stdout
+        self.assertIn('AXD', text)
+
+    def test_track_stops_inside_other_insertion(self):
+        result, out = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'Beta 3', '--track', '佐藤')
+        self.assertEqual(result.returncode, 1)
+        self.assertIn('他の変更履歴の挿入の中', result.stdout)
+        self.assertFalse(out.exists())
+        result, out = self.replace(self.MANUAL, '--find', 'Alpha 2', '--replace', 'Beta 3', '--track', '佐藤',
+                                   '--allow-missing')
+        self.assertIn('変更履歴: 挿入 6・削除 6', result.stdout)
+        import docx
+        ids = [el.get('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id')
+               for el in docx.Document(str(out)).element.body.iter()
+               if isinstance(el.tag, str) and el.tag.rsplit('}', 1)[-1] in ('ins', 'del')]
+        self.assertEqual(len(ids), len(set(ids)))
+        summary = self.run_script('inspect_docx.py', out).stdout
+        self.assertIn('変更履歴の挿入 7、変更履歴の削除 6', summary)
+
+    def test_review_markup_helpers_use_utc_and_fresh_ids(self):
+        import re
+        import docx
+        md = (WORD/'references/review-markup.md').read_text(encoding='utf-8')
+        g = {}
+        exec(re.findall(r"```python\n(.*?)```", md, re.S)[1], g)
+        self.assertTrue(g['NOW'].endswith('Z'))
+        d = docx.Document(str(self.MANUAL))
+        p = d.add_paragraph('消す文')
+        g['tracked_insert'](d, p, '足す文', 'R')
+        g['tracked_delete'](d, p.runs[0], 'R')
+        out = self.folder/'rev.docx'
+        d.save(str(out))
+        summary = self.run_script('inspect_docx.py', out).stdout
+        self.assertIn('変更履歴の挿入 2、変更履歴の削除 1', summary)
+        ids = [el.get(g['qn']('w:id')) for el in d.element.body.iter() if isinstance(el.tag, str)
+               and el.tag in (g['qn']('w:ins'), g['qn']('w:del'))]
+        self.assertEqual(len(ids), len(set(ids)))   # 既存の 901 と重ならない
 
 
 if __name__ == '__main__':

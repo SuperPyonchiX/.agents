@@ -1,0 +1,39 @@
+{
+  "skill_name": "operate-word",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この取扱説明書の Alpha 2 を全部 Beta 3 に置き換えて、別名で保存して",
+      "expected_output": "docx_replace.py の --dry-run で7件（本文・コンテンツコントロール・テキストボックス・脚注・先頭ページのヘッダー・変更履歴の挿入の中）を確かめてから本番を実行し、終了コード0で別名に保存する",
+      "files": ["evals/files/manual.docx"],
+      "expectations": [
+        "先に --dry-run を実行し、置換件数7件と場所の内訳を確かめてから本番を実行する",
+        "テキストボックス・脚注・先頭ページのヘッダーの Alpha 2 も置換されている（inspect_docx.py の出力に Alpha 2 が残らない）",
+        "「型番」の後ろのタブが置換後も「Beta 3」の前に残っている",
+        "原本 manual.docx を上書きしない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "変更履歴付きで Alpha 2 を Beta 3 に直して。校閲者は佐藤で",
+      "expected_output": "docx_replace.py --track 佐藤 が、山田さんの挿入の中の1件を置換しなかったとして終了コード1で止まる。推測で書き換えず、その1件の扱いをユーザーに確認する",
+      "files": ["evals/files/manual.docx"],
+      "expectations": [
+        "変更履歴を XML の手書きで作らず、docx_replace.py --track を使う",
+        "終了コード1と「他の変更履歴の挿入の中」の1件を報告し、先に承諾するか履歴なしで置換するかをユーザーに確認する",
+        "確認の前に --allow-missing で書き出して完了と報告しない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "この文書の内容を要約して",
+      "expected_output": "inspect_docx.py で本文・表・テキストボックス・脚注を読み、変更履歴で挿入された文を含めて要約する",
+      "files": ["evals/files/manual.docx"],
+      "expectations": [
+        "python-docx の paragraph.text を自前で回して読まず、inspect_docx.py を使う",
+        "仕様の表（重さ 1.2 kg、AC 100 V）と脚注の発売時期（2024年4月）を要約に含める",
+        "変更履歴で挿入された「Alpha 2 の後継機を除く」を落とさない"
+      ]
+    }
+  ]
+}
