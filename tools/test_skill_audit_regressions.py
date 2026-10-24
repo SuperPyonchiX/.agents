@@ -45,6 +45,7 @@ HAS_DOCX = importlib.util.find_spec('docx') is not None
 PDF = ROOT/'skills/operate-pdf'
 HAS_PYPDF = importlib.util.find_spec('pypdf') is not None
 HAS_PDFIUM = importlib.util.find_spec('pypdfium2') is not None and importlib.util.find_spec('PIL') is not None
+DRAWIO = ROOT/'skills/drawio-diagram'
 
 
 class TemporaryCase(unittest.TestCase):
@@ -1071,6 +1072,220 @@ class PdfTests(TemporaryCase):
         r = to_pdf.run([sys.executable, '-c', 'import sys; sys.stdout.buffer.write("変換失敗".encode("cp932") + b"\\xff")'])
         self.assertEqual(r.returncode, 0)
         self.assertIsInstance(r.stdout, str)
+
+
+class DrawioTests(TemporaryCase):
+    def generate(self, spec):
+        src = self.file('d.spec.json', json.dumps(spec, ensure_ascii=False))
+        out = self.folder/'d.drawio'
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/layout_from_spec.py'), str(src), '-o', str(out)],
+                           capture_output=True, text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        import xml.etree.ElementTree as ET
+        cells = {c.get('id'): c for c in ET.parse(out).getroot().iter('mxCell')}
+        return out, cells
+
+    @staticmethod
+    def style(cell):
+        return dict(p.partition('=')[::2] for p in cell.get('style', '').split(';') if p)
+
+    @staticmethod
+    def geo(cells, cid):
+        g = cells[cid].find('mxGeometry')
+        x, y, w, h = (float(g.get(k, 0)) for k in ('x', 'y', 'width', 'height'))
+        parent = cells[cid].get('parent')
+        if parent not in ('0', '1'):
+            px, py, _, _ = DrawioTests.geo(cells, parent)
+            x, y = x + px, y + py
+        return x, y, w, h
+
+    def ends(self, cells, eid):
+        """線の出口・入口の座標と、経由点"""
+        c, st = cells[eid], self.style(cells[eid])
+        sx, sy, sw, sh = self.geo(cells, c.get('source'))
+        tx, ty, tw, th = self.geo(cells, c.get('target'))
+        pts = [(float(p.get('x')), float(p.get('y'))) for p in c.iter('mxPoint') if p.get('as') is None]
+        return ((sx + sw * float(st['exitX']), sy + sh * float(st['exitY'])),
+                (tx + tw * float(st['entryX']), ty + th * float(st['entryY'])), pts)
+
+    def test_ports_line_up_with_waypoints(self):
+        # 出入口の比率を3桁に丸めていたので、出入口と経由点が 0.4px ずれて線がわずかに斜めに描かれた
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'off', 'label': '停止', 'at': [0, 0]},
+            {'id': 'idle', 'label': '待機', 'near': {'right_of': 'off', 'gap': 180}},
+            {'id': 'run', 'label': '運転', 'near': {'right_of': 'idle', 'gap': 180}}],
+            'edges': [{'from': 'off', 'to': 'idle'}, {'from': 'idle', 'to': 'run'},
+                      {'from': 'run', 'to': 'idle', 'label': '停止指令'}, {'from': 'idle', 'to': 'off', 'label': '電源OFF'}]})
+        for eid in ('e_run_idle', 'e_idle_off'):
+            start, end, pts = self.ends(cells, eid)
+            self.assertTrue(pts)
+            for port, pt in ((start, pts[0]), (end, pts[-1])):
+                self.assertLess(min(abs(port[0] - pt[0]), abs(port[1] - pt[1])), 0.01, (eid, port, pt))
+
+    def test_halfwidth_label_does_not_widen_box_like_fullwidth(self):
+        _, cells = self.generate({'nodes': [{'id': 'a', 'label': 'Customer Web Browser'},
+                                            {'id': 'b', 'label': '顧客のウェブブラウザ画面'}]})
+        self.assertLess(self.geo(cells, 'a')[2], 200)   # 以前は全角と同じ 14px/字で 304px
+        self.assertGreaterEqual(self.geo(cells, 'b')[2], 14 * 12)
+
+    def test_edge_into_box_inside_group_does_not_detour_around_group(self):
+        # 枠の見出し帯全体を避けていたので、上の層から下の層の箱へ入る線が枠の横を大回りした
+        _, cells = self.generate({'layout': 'free',
+            'groups': [{'id': 'app', 'label': 'アプリケーション層', 'at': [0, 0]},
+                       {'id': 'rte', 'label': 'RTE', 'near': {'below': 'app', 'gap': 60, 'align': 'start'}}],
+            'nodes': [{'id': 's1', 'label': 'エンジン制御SWC', 'in': 'app', 'at': [0, 0]},
+                      {'id': 's2', 'label': '診断SWC', 'in': 'app', 'near': {'right_of': 's1'}},
+                      {'id': 's3', 'label': '通信SWC', 'in': 'app', 'near': {'right_of': 's2'}},
+                      {'id': 'r', 'label': 'RTE', 'in': 'rte', 'at': [0, 0], 'size': [620, 50]}],
+            'edges': [{'from': 's1', 'to': 'r'}, {'from': 's2', 'to': 'r'}, {'from': 's3', 'to': 'r'}]})
+        for eid in ('e_s1_r', 'e_s3_r'):
+            start, end, pts = self.ends(cells, eid)
+            self.assertAlmostEqual(start[0], end[0], delta=0.01)   # まっすぐ下りる
+            self.assertFalse(pts)
+        gx, _, gw, _ = self.geo(cells, 'rte')
+        for eid in ('e_s1_r', 'e_s2_r', 'e_s3_r'):
+            for x, _ in self.ends(cells, eid)[2]:
+                self.assertTrue(gx < x < gx + gw, eid)   # 枠の外を回らない
+
+    def test_decision_branches_leave_from_different_vertices(self):
+        _, cells = self.generate({'layout': 'grid', 'direction': 'TB', 'nodes': [
+            {'id': 'in', 'label': '入力'}, {'id': 'chk', 'label': '形式は正しい?', 'shape': 'decision'},
+            {'id': 'auth', 'label': '照会'}, {'id': 'log', 'label': 'エラーログ記録'}, {'id': 'lock', 'label': 'ロック'}],
+            'edges': [{'from': 'in', 'to': 'chk'}, {'from': 'chk', 'to': 'auth', 'label': 'はい'},
+                      {'from': 'chk', 'to': 'log', 'label': 'いいえ'}, {'from': 'auth', 'to': 'lock'},
+                      {'from': 'lock', 'to': 'log'}, {'from': 'log', 'to': 'in'}]})
+        sides = {(self.style(c)['exitX'], self.style(c)['exitY']) for c in cells.values()
+                 if c.get('edge') == '1' and c.get('source') == 'chk'}
+        self.assertEqual(len(sides), 2)
+
+    def test_edges_of_different_kinds_do_not_share_a_port(self):
+        # 汎化と依存を同じ点から出すと、1本の線が箱の横を通り抜けているように見えた
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'base', 'label': 'SensorBase', 'shape': 'class', 'methods': ['+ read(): int32_t'], 'at': [200, 0]},
+            {'id': 'temp', 'label': 'TempSensor', 'shape': 'class', 'near': {'below': 'base', 'gap': 100, 'align': 'start'}},
+            {'id': 'pres', 'label': 'PressureSensor', 'shape': 'class', 'near': {'right_of': 'temp', 'gap': 100}},
+            {'id': 'adc', 'label': 'AdcDriver', 'shape': 'class', 'near': {'below': 'temp', 'gap': 100}}],
+            'edges': [{'from': 'temp', 'to': 'base', 'kind': 'inherit'}, {'from': 'pres', 'to': 'base', 'kind': 'inherit'},
+                      {'from': 'temp', 'to': 'adc', 'kind': 'depend'}, {'from': 'pres', 'to': 'adc', 'kind': 'depend'}]})
+        a, b = self.ends(cells, 'e_pres_base')[0], self.ends(cells, 'e_pres_adc')[0]
+        self.assertGreater(abs(a[0] - b[0]) + abs(a[1] - b[1]), 5)
+
+    def test_three_branches_use_three_vertices(self):
+        # 相手が全部右下にあると候補が右・下だけになり、3本目が使用済みの頂点から出ていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': '種別?', 'shape': 'decision', 'at': [0, 0]},
+            {'id': 'b', 'label': 'B', 'at': [300, 300]}, {'id': 'c', 'label': 'C', 'at': [480, 300]},
+            {'id': 'd', 'label': 'D', 'at': [660, 300]}],
+            'edges': [{'from': 'a', 'to': t, 'label': t} for t in ('b', 'c', 'd')]})
+        exits = [(self.style(c)['exitX'], self.style(c)['exitY']) for c in cells.values()
+                 if c.get('edge') == '1' and c.get('source') == 'a']
+        self.assertEqual(len(set(exits)), 3, exits)
+
+    def test_bidirectional_edge_does_not_share_port_with_one_way_edge(self):
+        # both を見た目の比較に入れていなかったので、分岐前の共通部分に逆向きの矢印が載った（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': 'A', 'at': [0, 100]}, {'id': 'b', 'label': 'B', 'at': [400, 0]},
+            {'id': 'c', 'label': 'C', 'at': [400, 200]}],
+            'edges': [{'from': 'a', 'to': 'b'}, {'from': 'a', 'to': 'c', 'both': True}]})
+        self.assertNotEqual(self.ends(cells, 'e_a_b')[0], self.ends(cells, 'e_a_c')[0])
+
+    def test_two_labeled_edges_into_one_box_keep_separate_arrowheads(self):
+        # 状態遷移の「リセット」と「電源ON」が矢じりを共有し、どちらの遷移か見分けられなかった
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'off', 'label': '停止', 'shape': 'state', 'at': [0, 0]},
+            {'id': 'idle', 'label': '待機', 'shape': 'state', 'near': {'right_of': 'off', 'gap': 180}},
+            {'id': 'err', 'label': '異常', 'shape': 'state', 'near': {'below': 'idle', 'gap': 140}}],
+            'edges': [{'from': 'off', 'to': 'idle', 'label': '電源ON'}, {'from': 'err', 'to': 'idle', 'label': 'リセット'},
+                      {'from': 'idle', 'to': 'err', 'label': '異常検出'}]})
+        self.assertNotEqual(self.ends(cells, 'e_off_idle')[1], self.ends(cells, 'e_err_idle')[1])
+
+    def test_odd_sized_diamond_connects_at_its_vertex(self):
+        # 中央の出入口まで整数に丸めて、幅141のひし形の頂点から 0.5px 外れていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free', 'nodes': [
+            {'id': 'a', 'label': '?', 'shape': 'decision', 'size': [141, 81], 'at': [0, 0]},
+            {'id': 'b', 'label': 'B', 'at': [0, 240]}],
+            'edges': [{'from': 'a', 'to': 'b', 'from_side': 'bottom', 'to_side': 'top'}]})
+        self.assertEqual(self.style(cells['e_a_b'])['exitX'], '0.5')
+
+    def test_header_with_custom_alignment_is_avoided_as_a_whole_band(self):
+        # 見出しを左寄せにした枠でも中央だけを避け、線が左端の見出しの文字を横切っていた（Codex の指摘）
+        _, cells = self.generate({'layout': 'free',
+            'groups': [{'id': 'g', 'label': 'HEADER TITLE', 'at': [0, 180], 'size': [600, 200],
+                        'style': 'align=left;spacingLeft=4;'}],
+            'nodes': [{'id': 'a', 'label': 'A', 'at': [0, 0]}, {'id': 'b', 'label': 'B', 'in': 'g', 'at': [0, 0]}],
+            'edges': [{'from': 'a', 'to': 'b'}]})
+        gx, gy, gw, _ = self.geo(cells, 'g')
+        start, end, pts = self.ends(cells, 'e_a_b')
+        path = [start] + pts + [end]
+        for p, q in zip(path, path[1:]):   # 見出し帯（上端から30px）を縦に横切る線分が無い
+            if abs(p[0] - q[0]) < 0.01 and gx < p[0] < gx + gw:
+                self.assertFalse(min(p[1], q[1]) < gy + 30 and max(p[1], q[1]) > gy, (p, q))
+
+    def test_header_check_falls_back_to_whole_band_without_title_box(self):
+        # 見出しの文字の矩形を SVG から取れないとき、HEADER の検査を黙って省いていた（Codex の指摘）
+        doc = self.file('t.drawio', """<mxfile><diagram id="p" name="p"><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="a" value="A" style="rounded=0;html=1;" vertex="1" parent="1"><mxGeometry x="200" y="0" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="g" value="HEADER" style="swimlane;startSize=30;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="100" width="480" height="200" as="geometry"/></mxCell>
+<mxCell id="b" value="B" style="rounded=0;html=1;" vertex="1" parent="g"><mxGeometry x="200" y="80" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="e" style="edgeStyle=none;html=1;" edge="1" parent="1" source="a" target="b"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>""")
+        svg = self.file('t.svg', """<svg xmlns="http://www.w3.org/2000/svg"><g data-cell-id="a"><rect x="200" y="0" width="80" height="40"/></g>
+<g data-cell-id="g"><rect x="0" y="100" width="480" height="200"/><text x="240" y="119" text-anchor="middle">HEADER</text>
+<g data-cell-id="b"><rect x="200" y="180" width="80" height="40"/></g></g>
+<g data-cell-id="e"><path d="M 240 40 L 240 180" fill="none"/></g></svg>""")
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/check_layout.py'), str(doc), str(svg)],
+                           capture_output=True, text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn('HEADER   線「e」', r.stdout)
+
+    def test_export_rejects_page_beyond_page_count(self):
+        # draw.io はページ数を超える番号でも黙って1ページ目を書き出す
+        out, _ = self.generate({'nodes': [{'id': 'a', 'label': 'A'}]})
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/export_drawio.py'), str(out), '--page', '3',
+                            '--exe', sys.executable], capture_output=True, text=True, encoding='utf-8',
+                           env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 2, r.stdout)
+
+    def test_export_launches_on_linux_as_root_without_display(self):
+        # root で --no-sandbox が無いと draw.io が起動直後に落ち、終了コード 4（権限の制限）で止まっていた
+        export = load('export_drawio', 'drawio-diagram/scripts/export_drawio.py')
+        env = {k: v for k, v in os.environ.items() if k not in ('DISPLAY', 'WAYLAND_DISPLAY')}
+        with patch.object(export.platform, 'system', return_value='Linux'), \
+                patch.object(export.os, 'geteuid', return_value=0, create=True), \
+                patch.dict(export.os.environ, env, clear=True), \
+                patch.object(export.shutil, 'which', return_value='/usr/bin/xvfb-run'):
+            pre, post = export.launcher('/opt/drawio/drawio')
+        self.assertEqual(pre, ['xvfb-run', '-a', '/opt/drawio/drawio'])
+        self.assertEqual(post, ['--no-sandbox'])
+        with patch.object(export.platform, 'system', return_value='Windows'):
+            self.assertEqual(export.launcher('draw.io.exe'), (['draw.io.exe'], []))
+
+    def test_header_check_flags_only_lines_over_the_title(self):
+        export = load('export_drawio', 'drawio-diagram/scripts/export_drawio.py')
+        exe = export.find_exe(None)
+        if not exe:
+            self.skipTest('draw.io が無い')
+        doc = self.file('h.drawio', """<mxfile><diagram id="p" name="p"><mxGraphModel><root>
+<mxCell id="0"/><mxCell id="1" parent="0"/>
+<mxCell id="top1" value="A" style="rounded=0;html=1;" vertex="1" parent="1"><mxGeometry x="40" y="0" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="top2" value="B" style="rounded=0;html=1;" vertex="1" parent="1"><mxGeometry x="200" y="0" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="g" value="見出し" style="swimlane;startSize=30;html=1;" vertex="1" parent="1"><mxGeometry x="0" y="100" width="480" height="160" as="geometry"/></mxCell>
+<mxCell id="in1" value="C" style="rounded=0;html=1;" vertex="1" parent="g"><mxGeometry x="40" y="80" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="in2" value="D" style="rounded=0;html=1;" vertex="1" parent="g"><mxGeometry x="200" y="80" width="80" height="40" as="geometry"/></mxCell>
+<mxCell id="ok" style="edgeStyle=none;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="top1" target="in1"><mxGeometry relative="1" as="geometry"/></mxCell>
+<mxCell id="ng" style="edgeStyle=none;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="top2" target="in2"><mxGeometry relative="1" as="geometry"/></mxCell>
+</root></mxGraphModel></diagram></mxfile>""")
+        svg = self.folder/'h.svg'
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/export_drawio.py'), str(doc), '-f', 'svg', '-o', str(svg)],
+                           capture_output=True, text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        if r.returncode == 4:
+            self.skipTest('draw.io が起動できない環境')
+        self.assertEqual(r.returncode, 0, r.stdout)
+        r = subprocess.run([sys.executable, str(DRAWIO/'scripts/check_layout.py'), str(doc), str(svg)],
+                           capture_output=True, text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertIn('HEADER   線「ng」', r.stdout)
+        self.assertNotIn('線「ok」', r.stdout)
 
 
 if __name__ == '__main__':

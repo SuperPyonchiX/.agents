@@ -12,7 +12,7 @@ mermaid や HTML の図は、出力されたあとに人が手で直しにくい
 ## ワークフロー
 
 ```
-D0 要件（spec.json） → D1 生成 → [D2 構造・要件検査 → D3 書き出し → D4 配置検査 → D5 目視] を最大3周 → D6 納品
+D0 要件（spec.json） → D1 生成 → [D2 構造・要件検査 → D3 SVG 書き出し → D4 配置検査 → D5 PNG で目視] を最大3周 → D6 納品
                          ↑_______ 崩れは spec.json の位置・間隔・出入口を直して D1 から _______|
 ```
 
@@ -21,9 +21,9 @@ D0 要件（spec.json） → D1 生成 → [D2 構造・要件検査 → D3 書�
 | 0 | 要件の確定 | `<名前>.spec.json`（枠・箱・位置・見た目・線・並び順） |
 | 1 | 生成 | `<名前>.drawio`（`layout_from_spec.py` が線の経路を決めて生成） |
 | 2 | 構造・要件検査 | `check_drawio.py --spec` の結果 |
-| 3 | 書き出し | `<名前>-<ページ>.png` と `.svg` |
+| 3 | SVG 書き出し | `<名前>-<ページ>.svg` |
 | 4 | 配置検査 | `check_layout.py` の結果 |
-| 5 | 目視 | 直す点の一覧（無ければ空） |
+| 5 | PNG 書き出しと目視 | `<名前>-<ページ>.png` と、直す点の一覧（無ければ空） |
 | 6 | 納品 | `.drawio`・画像・`spec.json` のパス |
 
 ## 手順
@@ -35,14 +35,14 @@ D0 要件（spec.json） → D1 生成 → [D2 構造・要件検査 → D3 書�
    - 載せる要素と、要素間の関係（何が何に何を渡すか）
    - ページ構成（1枚か、全体図＋詳細図か）
    - 保存先と書き出し形式（既定: 作業ディレクトリに `.drawio` と `.png`）
-2. `references/spec-format.md` を読み、要件を `<名前>.spec.json` に書く（`groups`・`nodes`・`edges`・`order`、複数ページは `pages`）。ファイルは UTF-8 で保存する（PowerShell の既定の書き込みは日本語が化ける）。
+2. `references/spec-format.md` を読み（シーケンス図なら代わりに `references/spec-sequence.md` だけを読む）、要件を `<名前>.spec.json` に書く（`groups`・`nodes`・`edges`・`order`、複数ページは `pages`）。ファイルは UTF-8 で保存する（PowerShell の既定の書き込みは日本語が化ける）。
    - **依頼文に出てくる要素を1つずつ node にする。** 依頼で別々に書かれているものを1つにまとめない（「逸脱なら逸脱申請書、誤検知なら誤検知申請書」は箱2つ、線2本）。依頼に無い要素を足さない。同じ名前の処理が別の分岐から出てくる（「不正ならエラーログ記録」「3回失敗したらエラーログ記録」）なら、箱は1つにして線を2本入れる
    - 枠・レーン・層は `groups` に書き、中に置く要素には `in`（枠の id）を書く。スイムレーンは `kind: "lane"`、囲み枠・層は `kind: "box"`。**スイムレーン図では全ての作業に `in` を書く**
    - 依頼文に出てくる流れ・依存・接続を1つずつ edge にする。分岐の条件（「修正なら」）は `label` に書く。**依頼文に無い接続を「あるはず」と足さない**（足した線ほど配置を壊す）
    - 「層の間の依存」のように枠単位で言われた関係は、枠から枠への edge にする（中の箱どうしを全部つながない）
    - 依頼文の位置の指定（「上から A・B・C」「左に X、右に Y」）は `order` に書く。レーン・層の並びは必ず書く
    - **位置の決め方を図の種類で選ぶ。** 構成図・概念図・状態遷移図・クラス図・ER図は `layout: "free"` にし、全ての箱と枠に `at` か `near` を書く（書き方と目安は spec-format.md の「位置を決めるときの目安」）。フロー図・スイムレーン図は `layout: "grid"` にして `direction`（`LR` / `TB`）を書き、位置は省く（流れの順に自動で並ぶ）。流れの図でも依頼に位置の指定があれば、その箱だけ `pos` で置く（検証では、分岐の多い流れの図を free で置くと崩れの直しが収束しにくかった）
-   - シーケンス図は `layout: "sequence"` にし、`participants`（左から順）と `steps`（上から順のメッセージと alt・loop などの枠）で書く。位置は書かない
+   - シーケンス図は `layout: "sequence"` にし、`participants`（左から順）と `steps`（上から順のメッセージと alt・loop などの枠）で書く。位置は書かない（書き方は spec-sequence.md）
    - 依頼に色・強調・図形の指定があれば `style` か、ページの `styles` と要素の `class` で書く。指定が無ければ書かない
 3. 要素が 20 を超えるなら、ページを分ける案を出す。
 
@@ -68,21 +68,23 @@ python scripts/layout_from_spec.py <名前>.spec.json -o <名前>.drawio
 for 周回 in 1..3:
     D2: python scripts/check_drawio.py <名前>.drawio --spec <名前>.spec.json
         終了コード 1 → この周を消費する。残りの周があれば spec.json を直して D1 から再生成し、次の周の D2 へ進む。3周目なら未達として止める
-    D3: python scripts/export_drawio.py <名前>.drawio -f png --all-pages
-        python scripts/export_drawio.py <名前>.drawio -f svg --all-pages
+    D3: python scripts/export_drawio.py <名前>.drawio -f svg --all-pages
         終了コード 3 → draw.io が無い。導入を案内して止まる
         終了コード 4 → 権限の制限で draw.io が起動できない。再試行せず止まり、制限の無い環境での実行をユーザーに頼む
     D4: ページごとに python scripts/check_layout.py <名前>.drawio <名前>-<N>.svg --page <N>
-    D5: （D2・D4 が全ページ終了コード 0 のときだけ）書き出した PNG を画像として開き、次を確かめる
+    D5: （D2・D4 が全ページ終了コード 0 のときだけ）PNG を書き出し、画像として開いて次を確かめる
+        python scripts/export_drawio.py <名前>.drawio -f png --all-pages
         - 依頼どおりの並び・向きになっているか（レーンや層の順、左右の位置）
         - 線の交差が多すぎて流れが追えない箇所が無いか
+        （ERROR が残る周では PNG を書き出さない。直したあとに作り直すことになる）
     if D2・D4 が終了コード 0 かつ D5 で直す点が無い:
         break
     （ERROR が残っている間は、3周に達するまで止まらない。1〜2周で打ち切らない）
     直す: spec.json の位置（at・near・pos）・間隔（near.gap・gap）・出入口（from_side・to_side）を変えて D1 からやり直す
           - THROUGH / TOUCH / INSIDE: 線の両端の箱を隣に寄せるか、間にある箱を線の通り道からどける
-          - LABEL: 線の両端の箱の間を広げる（ラベルの文字数 × 13 + 50 以上）か、ラベルを短くする
-          - HEADER / BORDER: その線の相手の箱を、枠の見出しや辺と反対側へ動かす
+          - LABEL: 線の両端の箱の間を広げる（ラベル幅 + 50 以上。全角1字 13px・半角1字 7px で数える）か、ラベルを短くする
+          - HEADER: その線の相手の箱を、枠の見出しの文字（スイムレーンなら左端の帯）の前を通らない位置へ動かす
+          - BORDER: その線の相手の箱を、枠の辺と反対側へ動かす
           - PARALLEL: 並走する線の端の箱を、線と直交する向きに離す。同じ箱に入る線どうしなら、出る側の箱を線の向きにそろえて1本に合流させる
           - JOG: 線の両端の箱の中心を線の向きにそろえる。縦に流す箱は near の below（align は center）でつなぐ。at で置くなら、幅の違う箱（楕円・ひし形）は左端ではなく中心の x をそろえる
           - 箱を動かしても直らない線だけ from_side・to_side で出入口を決め、それでも直らなければ via で経由点を足す
@@ -111,45 +113,24 @@ else:
 
 ## スクリプト
 
-依存は標準ライブラリのみ。書き出しには draw.io デスクトップ版（無料、Apache-2.0）が要る。Windows は `winget install JGraph.Draw`。
+依存は標準ライブラリのみ。書き出しには draw.io デスクトップ版（無料、Apache-2.0。v27.0.2 以降）が要る。Windows は `winget install JGraph.Draw`。検査項目の詳細は各スクリプトの冒頭コメントにあり、通常は読まなくてよい。
 
-`scripts/layout_from_spec.py` — D1 で使う。
+| スクリプト | 工程 | 使い方 | 終了コード |
+|---|---|---|---|
+| `layout_from_spec.py` | D1 | `python scripts/layout_from_spec.py <file.spec.json> -o <file.drawio>` | 0 生成した / 1 経路の見つからない線がある（生成はする）/ 2 spec.json の誤り |
+| `check_drawio.py` | D2 | `python scripts/check_drawio.py <file.drawio> [--spec <file.spec.json>]` | 0 ERROR なし / 1 ERROR あり / 2 読めない |
+| `export_drawio.py` | D3・D5 | `python scripts/export_drawio.py <file.drawio> [-f png\|svg\|pdf] [-o 出力] [--page N] [--all-pages] [--scale 2] [--exe <draw.io>]` | 0 書き出した / 1 失敗 / 2 引数の誤り（ページ数を超える `--page` を含む）/ 3 draw.io が無い / 4 起動直後に異常終了（再試行しない） |
+| `check_layout.py` | D4 | `python scripts/check_layout.py <file.drawio> <file-N.svg> [--page N]` | 0 問題なし / 1 崩れあり / 2 読めない・座標を対応づけられない |
 
-```
-python scripts/layout_from_spec.py <file.spec.json> -o <file.drawio>
-```
-
-箱と枠を spec.json の `at`・`near` の位置に置き、中身から枠の大きさを決める。位置の無い要素は grid で並べる（`pos` と `span` から座標を決め、省いた `pos` は流れの順か枠の `stack` の向きで自動に並べ、つながる相手の位置に合わせて並べ替える。`order` に書いた兄弟はその順）。線は箱と枠の見出し帯を避け、枠の辺に沿わない直交経路を探索し、経由点まで固定する。`from_side`・`to_side`・`via` があれば従う。`style`・`class` は既定のスタイルへ key=value 単位で重ねる。箱の幅はラベルの長さに合わせて広げる（`size` があればそのまま）。spec.json の形は `references/spec-format.md` にある。終了コードは 0（生成した）/ 1（経路の見つからない線がある。生成はする）/ 2（引数の誤り・spec.json が読めない・参照先の無い id・at/near の誤り）。
-
-`scripts/layout_sequence.py` — `layout_from_spec.py` が `layout: "sequence"` のページを変換するときに import する。単体では実行しない。同じディレクトリに置く。参加者を左から、メッセージを上から並べ、活性区間は同期呼び出しと応答の対応（`replyTo`、無ければ未応答の最も新しい呼び出し）から決める。対応が見つからない応答や、alt の分岐ごとに応答の済み具合が違うときは WARN を出す（終了コードは変えない）。
-
-`scripts/check_drawio.py` — D2 で使う。
-
-```
-python scripts/check_drawio.py <file.drawio> [--spec <file.spec.json>]
-```
-
-id の重複、存在しない parent・source・target の参照、ジオメトリの欠落、同じ親の中での箱の重なり、スイムレーン・枠の見出し帯へのかぶり、背景色の無い線ラベル、ページ名・ラベルの文字化け、`--spec` の要件（箱・置き場所・ラベル・線・並び順）の欠落を ERROR、空ラベルを WARN にする。spec.json の形は冒頭コメントにある。終了コードは 0（ERROR なし）/ 1（ERROR あり）/ 2（引数の誤り・XML か spec.json が読めない）。
-
-`scripts/export_drawio.py` — D3 で使う。
-
-```
-python scripts/export_drawio.py <file.drawio> [-f png|svg|pdf] [-o 出力パス] [--page N] [--all-pages] [--scale 2] [--exe <draw.io のパス>]
-```
-
-draw.io は `--exe` → 環境変数 `DRAWIO_EXE` → PATH → OS ごとの既定のインストール先の順で探す。`--all-pages` は png/svg ならページごとに `<名前>-<番号>`、pdf なら1ファイルにまとめる。Windows では draw.io の異常終了時のエラーダイアログを抑止する。終了コードは 0（書き出した）/ 1（失敗）/ 2（引数の誤り）/ 3（draw.io が見つからない）/ 4（起動直後に異常終了。Codex のサンドボックス内など、権限の制限で起きる。再試行しない）。
-
-`scripts/check_layout.py` — D4 で使う。
-
-```
-python scripts/check_layout.py <file.drawio> <file-N.svg> [--page N]
-```
-
-書き出した SVG から描画後の線とラベルの位置を取り出し、線が無関係の箱（自分の source・target とその入れ物以外）の内側を通る THROUGH、自分の接続先の四角い箱の内側を通る INSIDE（矢印が箱の中で止まるなど）、その箱の縁に沿うか 4px 以内に寄る TOUCH、source も target も異なる2本の線が同じ線分上に 20px 以上重なる OVERLAP、2本の線が 12px 未満の間隔で 20px 以上並走する PARALLEL、線がスイムレーン・枠の見出し帯を横切る HEADER、枠の辺に沿って走る BORDER、線の途中の 16px 未満の段差の JOG（交差の跳び越しの弧は除く）、線のラベル同士の重なり・別の線の上に乗ったラベル・無関係の箱に重なったラベル・自分の線の端（矢印・出口）にかかったラベルの LABEL を ERROR にする。`check_drawio.py` を import するので同じディレクトリに置く。終了コードは 0（問題なし）/ 1（崩れあり）/ 2（引数の誤り・読めない・座標を対応づけられない）。
+- `layout_from_spec.py` は箱を spec.json の `at`・`near` か grid で置き、箱と枠の見出しの文字を避ける直交経路を探して経由点まで固定する。`layout: "sequence"` のページは同じディレクトリの `layout_sequence.py`（単体では実行しない）が変換し、応答の対応が取れないときは WARN を出す（終了コードは変えない）
+- `check_drawio.py` は id・参照・重なり・見出し帯へのかぶり・ラベルの背景色・文字化けと、`--spec` の要件（箱・置き場所・ラベル・線・並び順）を照合する。空ラベルは WARN
+- `export_drawio.py` は draw.io を `--exe` → `DRAWIO_EXE` → PATH → OS ごとの既定のインストール先の順で探す。`--all-pages` は png/svg ならページごとに `<名前>-<番号>`、pdf なら1ファイル。Windows では異常終了時のエラーダイアログを抑止し、Linux では root なら `--no-sandbox` を付け、画面が無ければ `xvfb-run` で起動する
+- `check_layout.py` は書き出した SVG から描画後の線とラベルの位置を取り出し、THROUGH・INSIDE・TOUCH・OVERLAP・PARALLEL・HEADER・BORDER・JOG・LABEL を ERROR にする（直し方は D2〜D5 の「直す」）。`check_drawio.py` を import するので同じディレクトリに置く
 
 ## 参照ファイル
 
 | ファイル | 読むタイミング |
 |---|---|
-| `references/spec-format.md` | D0 で spec.json を書くとき（毎回）。D4 で位置・間隔・出入口を直すとき |
+| `references/spec-format.md` | D0 で spec.json を書くとき（シーケンス図以外は毎回）。D4 で位置・間隔・出入口を直すとき |
+| `references/spec-sequence.md` | D0 でシーケンス図の spec.json を書くとき（spec-format.md の代わりに読む） |
 | `references/drawio-xml.md` | 生成された `.drawio` の中身を読むとき、完成後にユーザーから手直しを頼まれたとき。D0〜D6 の通常の流れでは読まなくてよい |
