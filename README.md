@@ -1,7 +1,7 @@
 # ~/.agents — Agent Skills 置き場
 
 個人用 Agent Skills（`SKILL.md`）の**実体を1箇所に集めたリポジトリ**。
-Claude Code / GitHub Copilot / Codex / Gemini CLI のどれを使っても、同じスキルが効くようにするための置き場所である。
+Claude Code / GitHub Copilot / Codex / Antigravity CLI のどれを使っても、同じスキルが効くようにするための置き場所である。
 
 ## これは何か
 
@@ -13,18 +13,21 @@ Agent Skills は、AIエージェントに「作業手順」を渡すための�
 | --- | --- |
 | GitHub Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` |
 | Codex | `.agents/skills/` |
-| Gemini CLI | `.agents/skills/` |
+| Antigravity CLI（`agy`） | プロジェクトは `.agents/skills/`、ユーザー単位は `~/.gemini/antigravity-cli/skills/` |
 | Claude Code | `.claude/skills/` のみ |
 
-そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` からシンボリックリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
+そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` と `~/.gemini/antigravity-cli/skills` からリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
+
+> Gemini CLI は 2026-06-18 に個人向けの提供が終わり、Antigravity CLI に移行した（[Google の告知](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)）。Antigravity CLI のスキルの場所は [移行ガイド](https://antigravity.google/docs/cli/gcli-migration) による。ユーザー単位で `~/.agents/skills/` を読むという記載は無いので、リンクを張る。
 
 ```mermaid
 graph LR
     A["~/.agents/skills/<br/>（実体・Git管理対象）"] --> B[Codex]
-    A --> C[Gemini CLI]
     A --> D[GitHub Copilot]
     A --> E["~/.claude/skills<br/>（シンボリックリンク・Git管理外）"]
     E --> F[Claude Code]
+    A --> G["~/.gemini/antigravity-cli/skills<br/>（シンボリックリンク・Git管理外）"]
+    G --> C[Antigravity CLI]
 ```
 
 リンクは環境ごとに1回張るだけ。リポジトリには含めない（後述）。
@@ -111,15 +114,20 @@ git clone <このリポジトリ> ~/.agents
 ```bat
 mkdir "%USERPROFILE%\.claude"
 mklink /J "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
+mkdir "%USERPROFILE%\.gemini\antigravity-cli"
+mklink /J "%USERPROFILE%\.gemini\antigravity-cli\skills" "%USERPROFILE%\.agents\skills"
 ```
 
-`.claude` が既にある場合、1行目は「既に存在します」と出るが無視してよい。
+`.claude` や `.gemini\antigravity-cli` が既にある場合、`mkdir` は「既に存在します」と出るが無視してよい。
+`skills` が既にフォルダとしてあると `mklink` は失敗する。中身を `.agents\skills` へ移してから消し、張り直す。Antigravity CLI を使わない環境では後半の2行は要らない。
 `mklink /J`（ジャンクション）は**管理者権限も開発者モードも要らない**。`mklink /D`（シンボリックリンク）はどちらかが無いと権限不足で失敗する。
 
 **Linux / macOS / WSL**
 
 ```bash
 ln -s ~/.agents/skills ~/.claude/skills
+mkdir -p ~/.gemini/antigravity-cli
+ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
 ```
 
 > VirtualBox 上の Ubuntu と Windows ホストの両方で作業する場合、ホームディレクトリは互いに独立しているため**両方で実行する**。
@@ -127,10 +135,11 @@ ln -s ~/.agents/skills ~/.claude/skills
 ### 3. 確認
 
 ```bash
-ls -la ~/.claude/skills     # → skills -> .../.agents/skills と出れば成功
+ls -la ~/.claude/skills                      # → skills -> .../.agents/skills と出れば成功
+ls -la ~/.gemini/antigravity-cli/skills      # Antigravity CLI を使う場合。同上
 ```
 
-Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。すでに起動していた場合は再起動が必要。
+Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。Antigravity CLI は `agy` の中で `/skills` を打って確かめる。どちらも、すでに起動していた場合は再起動が必要。
 
 ### Obsidian の無い PC（会社PCなど）
 
