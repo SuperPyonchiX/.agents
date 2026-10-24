@@ -41,10 +41,13 @@ import sys
 from pathlib import Path
 
 
+PAGE_SPEC = re.compile(r"\s*\d+(\s*-\s*\d+)?\s*(,\s*\d+(\s*-\s*\d+)?\s*)*")
+
+
 def parse_ranges(spec, total):
     """'1-3,5' → [(0, 3), (4, 5)]（0始まり・終端は含まない）。書式違い・逆順・範囲外は ValueError。"""
-    if not re.fullmatch(r"\d+(-\d+)?(,\d+(-\d+)?)*", spec.replace(" ", "")):
-        raise ValueError("ページ指定の書式が違う: %s（例 1-3,5）" % spec)
+    if not PAGE_SPEC.fullmatch(spec):
+        raise ValueError("ページ指定の書式が違う: %r（例 1-3,5）" % spec)
     ranges = []
     for part in spec.replace(" ", "").split(","):
         a, _, b = part.partition("-")
@@ -56,14 +59,22 @@ def parse_ranges(spec, total):
 
 
 def pages_of(spec, total):
-    if not spec:
+    if spec is None:
         return set(range(total))
     return {p for a, b in parse_ranges(spec, total) for p in range(a, b)}
 
 
+class BrokenPdf(Exception):
+    pass
+
+
 def read(path, password=None):
     from pypdf import PdfReader
-    reader = PdfReader(str(path))
+    from pypdf.errors import PdfReadError
+    try:
+        reader = PdfReader(str(path))
+    except PdfReadError as e:
+        raise BrokenPdf("PDF を開けない（壊れているか PDF ではない）: %s (%s)" % (path, e))
     if reader.is_encrypted:
         if not reader.decrypt(password or ""):
             return None
@@ -92,7 +103,7 @@ def cmd_split(args):
         print("パスワード付きで開けない", file=sys.stderr)
         return 1
     total = len(reader.pages)
-    ranges = parse_ranges(args.ranges, total) if args.ranges else [(i, i + 1) for i in range(total)]
+    ranges = parse_ranges(args.ranges, total) if args.ranges is not None else [(i, i + 1) for i in range(total)]
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     stem = Path(args.input).stem
@@ -154,6 +165,10 @@ def cmd_stamp(args):
         print("パスワード付きで開けない", file=sys.stderr)
         return 1
     stamp_page = stamp.pages[0]
+    if stamp_page.rotation % 360:
+        # 印のページ自体に /Rotate があれば、見えている向きのまま中身に焼き込んでから重ねる
+        stamp_page = PdfWriter(clone_from=stamp).pages[0]
+        stamp_page.transfer_rotation_to_content()
     writer = PdfWriter(clone_from=reader)
     for i in pages_of(args.pages, len(writer.pages)):
         page = writer.pages[i]
@@ -193,45 +208,77 @@ def cmd_decrypt(args):
     return 0
 
 
-def field_pages(reader):
-    """フィールド名（親をたどった完全名）→ そのウィジェットが載っているページ番号（1始まり）の一覧。"""
-    where = {}
+def qualified_name(node):
+    """pypdf の get_fields() と同じ規則の完全名。/TM（対応付け名）があればそれを、無ければ /T を親から連結する。"""
+    if "/TM" in node:
+        return str(node["/TM"])
+    parent = node.get("/Parent")
+    own = str(node["/T"]) if "/T" in node else None
+    if parent is None:
+        return own or ""
+    base = qualified_name(parent.get_object())
+    if own is None:
+        return base
+    return base + "." + own if base else own
+
+
+def widgets(reader):
+    """ウィジェットごとに (完全名, 末端の /T, ページ番号1始まり) を返す。"""
+    found = []
     for no, page in enumerate(reader.pages, 1):
-        for annot in page.get("/Annots") or []:
+        annots = page.get("/Annots")
+        for annot in (annots.get_object() if annots is not None else []):
             node = annot.get_object()
             if node.get("/Subtype") != "/Widget":
                 continue
-            names = []
-            while node is not None:
-                if "/T" in node:
-                    names.append(str(node["/T"]))
-                node = node.get("/Parent")
-                node = node.get_object() if node is not None else None
-            name = ".".join(reversed(names))
-            if no not in where.setdefault(name, []):
-                where[name].append(no)
-    return where
+            field = node if "/T" in node else node.get("/Parent").get_object() if node.get("/Parent") else node
+            found.append((qualified_name(field), str(field.get("/T", "")), no))
+    return found
+
+
+def parse_opt(opt):
+    """/Opt を [(保存値, 表示名)] にする。要素は文字列か [保存値, 表示名]。"""
+    pairs = []
+    for o in opt or []:
+        o = o.get_object() if hasattr(o, "get_object") else o
+        if isinstance(o, list):
+            pairs.append((str(o[0]), str(o[-1])))
+        else:
+            pairs.append((str(o), str(o)))
+    return pairs
 
 
 def describe_fields(reader):
     fields = reader.get_fields() or {}
-    where = field_pages(reader)
+    where = {}
+    for name, _, no in widgets(reader):
+        if no not in where.setdefault(name, []):
+            where[name].append(no)
     result = []
     for name, f in fields.items():
         ftype = str(f.get("/FT", ""))
-        if ftype == "" and not f.get("/_States_"):
-            continue  # 値を持たない中間ノード（"親.子" の親）
+        if name not in where:
+            continue  # ウィジェットを持たない中間ノード（"親.子" の親）
+        if ftype == "/Btn" and int(f.get("/Ff", 0)) & (1 << 16):
+            continue  # 押しボタン。値を持たない
+        value = f.get("/V")
         item = {"name": name,
                 "type": {"/Tx": "text", "/Btn": "button", "/Ch": "choice", "/Sig": "signature"}.get(ftype, ftype),
-                "value": None if f.get("/V") is None else str(f.get("/V")),
+                "value": None if value is None else [str(v) for v in value] if isinstance(value, list) else str(value),
                 "pages": where.get(name, [])}
-        states = f.get("/_States_")
-        if states:
-            item["options"] = [str(s) for s in states]
-        elif f.get("/Opt"):
-            item["options"] = [str(o[-1]) if isinstance(o, list) else str(o) for o in f.get("/Opt")]
-        if ftype == "/Ch" and int(f.get("/Ff", 0)) & (1 << 18):
-            item["editable"] = True  # 選択肢に無い値も入れられるコンボボックス
+        flags = int(f.get("/Ff", 0))
+        if ftype == "/Ch":
+            pairs = parse_opt(f.get("/Opt"))
+            if pairs:
+                item["options"] = [v for v, _ in pairs]
+                if any(v != label for v, label in pairs):
+                    item["labels"] = [label for _, label in pairs]  # 画面に出る名前。値には options を使う
+            if flags & (1 << 18):
+                item["editable"] = True  # 選択肢に無い値も入れられるコンボボックス
+            if flags & (1 << 21):
+                item["multi"] = True  # 複数選択。値は文字列の配列
+        elif f.get("/_States_"):
+            item["options"] = [str(s) for s in f.get("/_States_")]
         result.append(item)
     return result
 
@@ -251,16 +298,35 @@ def cmd_list_fields(args):
     return 0
 
 
-def check_values(values, fields):
-    """値を選択肢と突き合わせる。'Yes' のように先頭の / だけ欠けた値は補う。
+def check_values(values, fields, leaf_names):
+    """値を種類・選択肢と突き合わせる。'Yes' のように先頭の / だけ欠けた値は補う。
     戻り値は (直した値, エラーの一覧)。"""
     by_name = {f["name"]: f for f in fields}
     fixed, errors = {}, []
     for name, value in values.items():
         f = by_name[name]
         options = f.get("options")
-        if f["type"] in ("button", "choice") and not isinstance(value, str):
-            errors.append("%s: 値は文字列で書く（選択肢 %s）" % (name, options))
+        # pypdf は完全名だけでなく末端の /T でも一致させるので、"name" を渡すと "group.name" にも書かれる
+        clash = sorted(n for n, leaf in leaf_names if leaf == name and n != name)
+        if clash:
+            errors.append("%s: 末端の名前が同じフィールド（%s）にも書かれてしまうので、この PDF では書けない"
+                          % (name, ", ".join(clash)))
+            continue
+        if f["type"] == "signature":
+            errors.append("%s: 署名欄には書けない" % name)
+            continue
+        if f.get("multi"):
+            if not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+                errors.append("%s: 複数選択の欄なので値は文字列の配列で書く（選択肢 %s）" % (name, options))
+                continue
+            bad = [v for v in value if options and v not in options]
+            if bad and not f.get("editable"):
+                errors.append("%s: %r は選択肢に無い（選択肢 %s）" % (name, bad, options))
+                continue
+            fixed[name] = value
+            continue
+        if not isinstance(value, str):
+            errors.append("%s: 値は文字列で書く（%r は不可。空にするなら \"\"）" % (name, value))
             continue
         if f["type"] == "button" and options:
             if value not in options and "/" + value in options:
@@ -269,10 +335,10 @@ def check_values(values, fields):
                 errors.append("%s: %r は選択肢に無い（選択肢 %s）" % (name, value, options))
                 continue
         if f["type"] == "choice" and options and not f.get("editable") and value not in options:
-            errors.append("%s: %r は選択肢に無い（選択肢 %s）" % (name, value, options))
-            continue
-        if f["type"] == "signature":
-            errors.append("%s: 署名欄には書けない" % name)
+            hint = ""
+            if value in f.get("labels", []):
+                hint = "。表示名ではなく options の値を使う（%s）" % options[f["labels"].index(value)]
+            errors.append("%s: %r は選択肢に無い（選択肢 %s）%s" % (name, value, options, hint))
             continue
         fixed[name] = value
     return fixed, errors
@@ -298,15 +364,19 @@ def cmd_fill_form(args):
     except (OSError, ValueError) as e:
         print("VALUES.json が読めない: %s" % e, file=sys.stderr)
         return 2
-    if not isinstance(values, dict):
-        print("VALUES.json は {\"フィールド名\": 値} のオブジェクトにする", file=sys.stderr)
+    if not isinstance(values, dict) or not values:
+        print("VALUES.json は {\"フィールド名\": 値} のオブジェクトにし、1件以上書く", file=sys.stderr)
         return 2
     fields = describe_fields(reader)
     unknown = sorted(set(values) - {f["name"] for f in fields})
     if unknown:
         print("存在しないフィールド名: %s" % ", ".join(unknown), file=sys.stderr)
         return 1
-    values, errors = check_values(values, fields)
+    placed = widgets(reader)
+    values, errors = check_values(values, fields, {(n, leaf) for n, leaf, _ in placed})
+    targets = sorted({no for n, _, no in placed if n in values})
+    if values and not targets:
+        errors.append("記入するフィールドがどのページにも載っていない（ウィジェットが無い）")
     if errors:
         print("値が不正なので何も書かない:\n" + "\n".join(errors), file=sys.stderr)
         return 1
@@ -315,8 +385,8 @@ def cmd_fill_form(args):
     collect = _Collect()
     logging.getLogger("pypdf").addHandler(collect)
     try:
-        for page in writer.pages:
-            writer.update_page_form_field_values(page, values, auto_regenerate=False)
+        for no in targets:
+            writer.update_page_form_field_values(writer.pages[no - 1], values, auto_regenerate=False)
     finally:
         logging.getLogger("pypdf").removeHandler(collect)
     # ビューアに外観を作り直させる。これが無いと値が入っても表示されないことがある
@@ -324,9 +394,17 @@ def cmd_fill_form(args):
     with open(args.out, "wb") as f:
         writer.write(f)
     print(args.out)
-    pages = sorted({p for f in fields if f["name"] in values for p in f["pages"]})
-    if pages:
-        print("記入したページ: %s" % ",".join(map(str, pages)), file=sys.stderr)
+    # 書いた結果を読み直し、要求した値になったか・要求していないフィールドが変わっていないかを確かめる
+    from pypdf import PdfReader
+    after = {f["name"]: f["value"] for f in describe_fields(PdfReader(args.out))}
+    before = {f["name"]: f["value"] for f in fields}
+    wrong = [n for n, v in values.items() if after.get(n) != (v if isinstance(v, list) else str(v))]
+    touched = [n for n in before if n not in values and after.get(n) != before[n]]
+    if wrong or touched:
+        print("書いた結果が要求と違う。出力を使わない: 値が違う %s / 要求外で変わった %s" % (wrong, touched),
+              file=sys.stderr)
+        return 1
+    print("記入したページ: %s" % ",".join(map(str, targets)), file=sys.stderr)
     if any("not supported by font encoding" in m for m in collect.messages):
         print("注意: フィールドのフォントで表せない文字（和文など）がある。値は入ったが、表示はビューアが"
               "外観を作り直すかどうかに依る（作り直さないビューアでは ? や空欄になる）", file=sys.stderr)
@@ -396,6 +474,9 @@ def main():
     from pypdf.errors import DependencyError
     try:
         return handler(args)
+    except BrokenPdf as e:
+        print(e, file=sys.stderr)
+        return 1
     except ValueError as e:
         print(e, file=sys.stderr)
         return 2

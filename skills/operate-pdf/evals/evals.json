@@ -5,7 +5,9 @@
       "id": 1,
       "prompt": "この議事録の決定事項と、議題を全部教えて",
       "expected_output": "text が終了コード1でページ3を挙げるので、そのページだけ画像で確かめ、取れた本文と合わせて答える",
-      "files": ["evals/files/minutes.pdf"],
+      "files": [
+        "evals/files/minutes.pdf"
+      ],
       "expectations": [
         "pdf_extract.py meta を最初に実行する",
         "text の終了コード1を「全体がスキャン」と扱わず、標準エラーに出たページ3だけを pdf_to_png.py --pages 3 で見る",
@@ -17,7 +19,9 @@
       "id": 2,
       "prompt": "この申込書に記入して。氏名は山田花子、社員番号 A1234、同意する、会場で受講、部署は品質保証",
       "expected_output": "list-fields の選択肢どおりの値で fill-form し、記入したページだけを画像で確かめ、和文の表示がビューア依存であることを伝える",
-      "files": ["evals/files/application_form.pdf"],
+      "files": [
+        "evals/files/application_form.pdf"
+      ],
       "expectations": [
         "list-fields を先に実行し、agree は /Yes、style は /onsite、dept は qa を値に使う",
         "fill-form の出力を元とは別名にし、application_form.pdf を上書きしない",
@@ -29,10 +33,13 @@
       "id": 3,
       "prompt": "全ページに社外秘の透かしを入れて",
       "expected_output": "stamp で重ね、縦・横・回転ページのどれでも印が中央に正立していることを画像で確かめる",
-      "files": ["evals/files/mixed_orientation.pdf", "evals/files/stamp_confidential.pdf"],
+      "files": [
+        "evals/files/mixed_orientation.pdf",
+        "evals/files/stamp_confidential.pdf"
+      ],
       "expectations": [
         "pdf_ops.py stamp を stamp_confidential.pdf で実行し、出力を別名にする",
-        "meta の page_layout で縦・横・回転90が混ざることを把握し、3ページとも画像で確かめる",
+        "meta の page_layout の3区間（縦・横・回転90）それぞれの先頭ページ、つまり3ページとも画像で確かめる",
         "3ページとも「社外秘」が中央に正立して見えることを報告する"
       ]
     },
@@ -40,11 +47,23 @@
       "id": 4,
       "prompt": "2ページ目だけ別の PDF にして",
       "expected_output": "split --ranges 2 で書き出し、出力の meta でページ数と用紙サイズを確かめて終わる",
-      "files": ["evals/files/mixed_orientation.pdf"],
+      "files": [
+        "evals/files/mixed_orientation.pdf"
+      ],
       "expectations": [
         "pdf_ops.py split --ranges 2 を使う",
-        "出力の meta で 1 ページ・297x210mm（横）を確かめる",
+        "出力の meta で 1 ページ・297x210mm（横）を確かめ、text --pages 1 の内容が入力の2ページ目（「2ページ目（横）」）と一致することを確かめる",
         "ページの画像は作らない"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "この Word 文書の『株式会社』を『（株）』に置き換えて",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（operate-word の担当。PDF 化は operate-word から呼ばれたときだけ）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが最初に使われない"
       ]
     }
   ]

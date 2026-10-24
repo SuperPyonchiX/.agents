@@ -30,18 +30,22 @@ import re
 import sys
 from pathlib import Path
 
-# 1ページあたりこれ未満の文字数なら、画像だけのページ（スキャン・文字のアウトライン化）を疑う
+# 画像が載っていて、空白を除いた文字がこれ未満のページはスキャンを疑う。文字が0のページは画像が無くても疑う
+# （文字のアウトライン化）
 MIN_CHARS_PER_PAGE = 20
 # --out を付けずに標準出力へ流してよい文字数の上限。会話に大量のテキストを流さないため
 MAX_PRINT_CHARS = 20000
 
 
+PAGE_SPEC = re.compile(r"\s*\d+(\s*-\s*\d+)?\s*(,\s*\d+(\s*-\s*\d+)?\s*)*")
+
+
 def parse_pages(spec, total):
-    """'1-3,5' → [0, 1, 2, 4]（0始まり）。書式違い・逆順・範囲外は ValueError。"""
-    if not spec:
+    """'1-3,5' → [0, 1, 2, 4]（0始まり）。None は全ページ。書式違い・空・逆順・範囲外は ValueError。"""
+    if spec is None:
         return list(range(total))
-    if not re.fullmatch(r"\d+(-\d+)?(,\d+(-\d+)?)*", spec.replace(" ", "")):
-        raise ValueError("ページ指定の書式が違う: %s（例 1-3,5）" % spec)
+    if not PAGE_SPEC.fullmatch(spec):
+        raise ValueError("ページ指定の書式が違う: %r（例 1-3,5）" % spec)
     pages = []
     for part in spec.replace(" ", "").split(","):
         a, _, b = part.partition("-")
@@ -63,9 +67,17 @@ def runs(pages):
     return ",".join("%d" % (a + 1) if a == b else "%d-%d" % (a + 1, b + 1) for a, b in out)
 
 
+class BrokenPdf(Exception):
+    pass
+
+
 def open_reader(path):
     from pypdf import PdfReader
-    reader = PdfReader(str(path))
+    from pypdf.errors import PdfReadError
+    try:
+        reader = PdfReader(str(path))
+    except PdfReadError as e:
+        raise BrokenPdf("PDF を開けない（壊れているか PDF ではない）: %s (%s)" % (path, e))
     if reader.is_encrypted:
         # 閲覧パスワードが空のもの（印刷・編集だけ制限）はこれで開ける
         if not reader.decrypt(""):
@@ -77,7 +89,7 @@ def page_layout(reader):
     """同じ用紙サイズ・回転が続くページをまとめて '1-2: 210x297mm' の形にする。"""
     groups = []
     for i, page in enumerate(reader.pages):
-        box = page.mediabox
+        box = page.cropbox  # 見える範囲。CropBox が無ければ pypdf が MediaBox を返す
         key = "%dx%dmm" % (round(float(box.width) / 72 * 25.4), round(float(box.height) / 72 * 25.4))
         if page.rotation % 360:
             key += " 回転%d" % (page.rotation % 360)
@@ -118,7 +130,9 @@ def cmd_text(reader, args):
         else:
             text = page.extract_text()
         text = text or ""
-        if len(text.strip()) < MIN_CHARS_PER_PAGE:
+        chars = len("".join(text.split()))
+        # 文字が0、または少ないうえに画像が載っているページを疑う。本文の短いページは疑わない
+        if chars == 0 or (chars < MIN_CHARS_PER_PAGE and len(page.images) > 0):
             sparse.append(i)
         chunks.append("=== page %d ===\n%s" % (i + 1, text))
     body = "\n\n".join(chunks)
@@ -157,12 +171,16 @@ def cmd_tables(reader, args, path):
         return 2
     pages = parse_pages(args.pages, len(reader.pages))
     chunks = []
-    with pdfplumber.open(str(path)) as pdf:
-        for i in pages:
-            for j, table in enumerate(pdf.pages[i].extract_tables(), 1):
-                if not table or not any(any(c for c in r) for r in table):
-                    continue
-                chunks.append("=== page %d table %d ===\n%s\n" % (i + 1, j, md_table(table)))
+    try:
+        with pdfplumber.open(str(path)) as pdf:
+            for i in pages:
+                for j, table in enumerate(pdf.pages[i].extract_tables(), 1):
+                    if not table or not any(any(c for c in r) for r in table):
+                        continue
+                    chunks.append("=== page %d table %d ===\n%s\n" % (i + 1, j, md_table(table)))
+    except Exception as e:  # pdfminer は暗号の方式などで独自の例外を出す
+        print("pdfplumber で開けない: %s。text --layout で読む" % e, file=sys.stderr)
+        return 1
     if not chunks:
         print("表が見つからない。罫線の無い表は text --layout で読む", file=sys.stderr)
         return 1
@@ -228,7 +246,11 @@ def main():
     except ImportError:
         print("pypdf が必要: pip install pypdf", file=sys.stderr)
         return 2
-    reader = open_reader(path)
+    try:
+        reader = open_reader(path)
+    except BrokenPdf as e:
+        print(e, file=sys.stderr)
+        return 1
     if reader is None:
         print("パスワード付きで開けない。pdf_ops.py decrypt で解除してから読む", file=sys.stderr)
         return 1

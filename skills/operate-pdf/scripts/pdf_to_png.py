@@ -22,10 +22,15 @@ import sys
 from pathlib import Path
 
 
+PAGE_SPEC = re.compile(r"\s*\d+(\s*-\s*\d+)?\s*(,\s*\d+(\s*-\s*\d+)?\s*)*")
+
+
 def parse_pages(spec, total):
-    """'1-3,5' → [0, 1, 2, 4]（0始まり）。書式違い・逆順・範囲外は ValueError。"""
-    if not re.fullmatch(r"\d+(-\d+)?(,\d+(-\d+)?)*", spec.replace(" ", "")):
-        raise ValueError("ページ指定の書式が違う: %s（例 1-3,5）" % spec)
+    """'1-3,5' → [0, 1, 2, 4]（0始まり）。None は全ページ。書式違い・空・逆順・範囲外は ValueError。"""
+    if spec is None:
+        return list(range(total))
+    if not PAGE_SPEC.fullmatch(spec):
+        raise ValueError("ページ指定の書式が違う: %r（例 1-3,5）" % spec)
     pages = []
     for part in spec.replace(" ", "").split(","):
         a, _, b = part.partition("-")
@@ -71,7 +76,10 @@ def main():
     # フォームの記入値を描く。これが無いとフィールドが1つも画像に出ない
     doc.init_forms()
     total = len(doc)
-    if args.pages:
+    if args.dpi <= 0 or args.max_pages <= 0:
+        print("--dpi と --max-pages は1以上", file=sys.stderr)
+        return 2
+    if args.pages is not None:
         try:
             targets = parse_pages(args.pages, total)
         except ValueError as e:
