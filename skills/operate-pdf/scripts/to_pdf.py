@@ -15,7 +15,8 @@
 
 終了コード:
     0  変換した
-    1  変換に失敗した（エンジンのエラーを標準エラーに出す）
+    1  変換に失敗した（エンジンのエラーを標準エラーに出す）、または出力先に書けない。
+       出力先にあった同名の PDF は、失敗したときは触らない
     2  引数の指定ミス、または入力が存在しない
     3  使える変換エンジンが無い（描画確認は手動に回す）
 
@@ -149,19 +150,26 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
 
     soffice = find_soffice() if args.engine in ("auto", "soffice") else None
-    if soffice:
-        out = convert_soffice(soffice, src, outdir)
-    elif args.engine in ("auto", "office") and office_available():
-        out = convert_office(src, outdir)
-    else:
+    if not soffice and not (args.engine in ("auto", "office") and office_available()):
         print("変換エンジンが無い（LibreOffice も Windows の MS Office も使えない）。描画確認は手動で行う",
               file=sys.stderr)
         return 3
 
-    if out is None:
-        print("変換に失敗した: %s" % src, file=sys.stderr)
-        return 1
-    print(out)
+    # 一時フォルダに出してから移す。出力先に前回の PDF が残っていると、変換に失敗しても
+    # それを成功と取り違え、直す前の見た目を確かめることになるため
+    final = outdir / (src.stem + ".pdf")
+    with tempfile.TemporaryDirectory() as work:
+        work = Path(work)
+        out = convert_soffice(soffice, src, work) if soffice else convert_office(src, work)
+        if out is None:
+            print("変換に失敗した: %s" % src, file=sys.stderr)
+            return 1
+        try:
+            shutil.copyfile(out, final)
+        except OSError as e:
+            print("出力先に書けない（PDF をビューアで開いていないか）: %s (%s)" % (final, e), file=sys.stderr)
+            return 1
+    print(final)
     return 0
 
 
