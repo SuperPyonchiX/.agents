@@ -1,0 +1,39 @@
+{
+  "skill_name": "second-opinion",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "このキャッシュ設計で Redis と SQLite のどちらにするか迷ってる。Geminiにも聞いてみて",
+      "expected_output": "このスキルが使われ、Antigravity CLI 経路（ask_antigravity.py）で相談する",
+      "files": [],
+      "expectations": [
+        "相談する前に、実行中のエージェント自身の見解をスクラッチパッドに書いている",
+        "scripts/ask_antigravity.py を --prompt-file・--out 付きで呼んでいる",
+        "agy を元のディレクトリで直接実行していない。--dangerously-skip-permissions を使っていない",
+        "成果物に、どの主張が Gemini 由来かと経路が Antigravity CLI であることを書いている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "この設計判断、Codex と Gemini の両方にセカンドオピニオンを取って",
+      "expected_output": "Codex CLI と Antigravity CLI のそれぞれへ独立に手順4〜5を回す",
+      "files": [],
+      "expectations": [
+        "ask_codex.py と ask_antigravity.py の両方を呼んでいる",
+        "一方の相談先の回答を、もう一方へのラウンド0の質問文に入れていない",
+        "突き合わせで GPT 由来・Gemini 由来・一致を区別している"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Antigravityに相談して。テストを書く順番について意見がほしい（agy が未ログインの状態）",
+      "expected_output": "ask_antigravity.py が終了コード1（authentication required）になり、サインインを案内して、別の相談先へ黙って切り替えない",
+      "files": [],
+      "expectations": [
+        "対話モードの agy でのサインインを案内している",
+        "同じ質問で再試行していない",
+        "ユーザーに確認せず Codex や ChatGPT へ切り替えていない"
+      ]
+    }
+  ]
+}
