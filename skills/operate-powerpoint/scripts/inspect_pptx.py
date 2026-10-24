@@ -4,6 +4,8 @@
 
     python inspect_pptx.py <pptx> [--layouts] [--slides 1-3,5] [--outline] [--full] [--check]
 
+.potx も読める（.potm は扱わない）。
+
 出力（Markdown）:
     - 冒頭: スライドの大きさ（mm と縦横比）、スライド枚数、非表示スライド
     - --layouts: テンプレートのレイアウト一覧と、各レイアウトのプレースホルダ（idx・種類・位置）
@@ -11,9 +13,11 @@
       グループの中の図形は字下げして出し、位置はスライド上の位置に直す。表はセルの文字を行ごとに出す
     - --outline: スライドごとに1行（番号・レイアウト・タイトル・図形数）だけ出す。枚数の多い資料の下見用
     - --full: 文字・ノートを省略せずに出す（既定は図形ごと60字、ノート120字で切る）
-    --check: 次を「検査」節に出す
-        問題（終了コード1）: スライド外へのはみ出し、図形どうしの重なり、空のプレースホルダ
-        注意（終了コードに影響しない）: 文字のあふれの疑い（推定）、18pt 未満の文字
+    --check: 図形一覧の代わりに、次を「検査」節に出す（--outline と併用すると1枚1行の一覧も出す）
+        問題（終了コード1）: スライド外へのはみ出し、図形どうしの重なり（文字・表・グラフ・画像。
+            画像どうし、同じグループの中どうし、スライドの9割以上を覆う画像は見ない）、空のプレースホルダ。
+            位置は回転・反転を当てた外接矩形で見る
+        注意（終了コードに影響しない）: 文字のあふれの疑い（推定。表のセルは対象外）、18pt 未満の文字（表のセルを含む）
 
 終了コード:
     0  出力した（--check では問題なし。注意だけなら0）
@@ -56,19 +60,16 @@ def mm(v):
 
 
 def parse_pages(spec, total):
-    if not spec:
+    if spec is None:
         return list(range(total))
     pages = []
     for part in spec.split(","):
-        part = part.strip()
-        if not part:
-            continue
-        a, _, b = part.partition("-")
-        if not a.strip().isdigit() or (b and not b.strip().isdigit()):
+        m = re.fullmatch(r"\s*(\d+)\s*(?:-\s*(\d+)\s*)?", part)
+        if not m:
             raise UsageError("--slides の書式が違う: %s（例: 1-3,5）" % spec)
-        start, end = int(a), int(b or a)
+        start, end = int(m.group(1)), int(m.group(2) or m.group(1))
         if start > end or start < 1 or end > total:
-            raise UsageError("--slides %s は範囲外（スライドは 1〜%d）" % (part, total))
+            raise UsageError("--slides %s は範囲外（スライドは 1〜%d）" % (part.strip(), total))
         pages.extend(range(start - 1, end))
     return sorted(set(pages))
 
@@ -76,15 +77,14 @@ def parse_pages(spec, total):
 def open_presentation(path):
     """.potx は python-pptx がそのままでは開かないので、種類だけ .pptx に読み替えて開く。"""
     from pptx import Presentation
-    if path.suffix.lower() not in (".potx", ".potm"):
+    if path.suffix.lower() != ".potx":
         return Presentation(str(path))
     buf = io.BytesIO()
     with zipfile.ZipFile(str(path)) as src, zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as dst:
         for item in src.infolist():
             data = src.read(item.filename)
             if item.filename == "[Content_Types].xml":
-                data = re.sub(rb"presentationml\.template\.main\+xml|ms-powerpoint\.template\.macroEnabled\.main\+xml",
-                              b"presentationml.presentation.main+xml", data)
+                data = data.replace(b"presentationml.template.main+xml", b"presentationml.presentation.main+xml")
             dst.writestr(item, data)
     buf.seek(0)
     return Presentation(buf)
@@ -92,30 +92,64 @@ def open_presentation(path):
 
 # ---------------------------------------------------------------- 図形の列挙
 
-def walk(shapes, transform=None, depth=0):
-    """(図形, スライド上の枠 mm, 深さ) を返す。グループの中は子座標をスライド座標に直す。"""
+def walk(shapes, transform=None, depth=0, root=None):
+    """(図形, スライド上の外接矩形 EMU, 深さ, 最上位グループの id) を返す。
+    グループの中は子座標をスライド座標に直す。回転・反転は四隅を変換した外接矩形で扱う。"""
     for s in shapes:
-        b = raw_box(s)
-        if b is not None and transform:
-            b = transform(b)
-        yield s, b, depth
-        if s.shape_type is not None and str(s.shape_type).startswith("GROUP"):
+        corners = own_corners(s)
+        if corners is not None and transform:
+            corners = [transform(pt) for pt in corners]
+        yield s, bbox(corners), depth, root
+        if is_group(s):
             xfrm = s._element.grpSpPr.find(A + "xfrm")
-            t = group_transform(xfrm, transform)
-            yield from walk(s.shapes, t, depth + 1)
+            yield from walk(s.shapes, group_transform(xfrm, transform), depth + 1,
+                            root if root is not None else id(s._element))
 
 
-def raw_box(shape):
+def xfrm_of(shape):
+    el = shape._element
+    spPr = el.find(P + "spPr") if el.find(P + "spPr") is not None else el.find(P + "grpSpPr")
+    if spPr is not None and spPr.find(A + "xfrm") is not None:
+        return spPr.find(A + "xfrm")
+    return el.find(P + "xfrm")  # graphicFrame（表・グラフ）
+
+
+def rotate(pt, center, deg):
+    if not deg:
+        return pt
+    r = math.radians(deg)
+    x, y = pt[0] - center[0], pt[1] - center[1]
+    return (center[0] + x * math.cos(r) - y * math.sin(r), center[1] + x * math.sin(r) + y * math.cos(r))
+
+
+def own_corners(shape):
+    """図形の四隅（自分の回転を当てた後、親の座標系）。位置が無ければ None。"""
     try:
         left, top, width, height = shape.left, shape.top, shape.width, shape.height
     except Exception:
         return None
     if left is None or width is None:
         return None
-    return (left, top, left + width, top + height)
+    xfrm = xfrm_of(shape)
+    deg = int(xfrm.get("rot", "0")) / 60000 if xfrm is not None else 0
+    c = (left + width / 2, top + height / 2)
+    return [rotate(pt, c, deg) for pt in
+            ((left, top), (left + width, top), (left + width, top + height), (left, top + height))]
+
+
+def bbox(corners):
+    if not corners:
+        return None
+    xs, ys = [p[0] for p in corners], [p[1] for p in corners]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def raw_box(shape):
+    return bbox(own_corners(shape))
 
 
 def group_transform(xfrm, outer):
+    """グループの子座標の点を、親の座標の点へ写す関数を返す（拡縮・平行移動・反転・回転）。"""
     if xfrm is None:
         return outer
     def get(tag, attr):
@@ -128,10 +162,17 @@ def group_transform(xfrm, outer):
     cx, cy = (ox, oy) if cx is None else (cx, cy)
     sx = ex / cex if cex else 1.0
     sy = ey / cey if cey else 1.0
+    deg = int(xfrm.get("rot", "0")) / 60000
+    flip_h, flip_v = xfrm.get("flipH") in ("1", "true"), xfrm.get("flipV") in ("1", "true")
+    center = (ox + ex / 2, oy + ey / 2)
 
-    def t(b):
-        x1, y1, x2, y2 = b
-        r = (ox + (x1 - cx) * sx, oy + (y1 - cy) * sy, ox + (x2 - cx) * sx, oy + (y2 - cy) * sy)
+    def t(pt):
+        x, y = ox + (pt[0] - cx) * sx, oy + (pt[1] - cy) * sy
+        if flip_h:
+            x = 2 * center[0] - x
+        if flip_v:
+            y = 2 * center[1] - y
+        r = rotate((x, y), center, deg)
         return outer(r) if outer else r
     return t
 
@@ -145,10 +186,11 @@ def is_group(s):
 
 
 def ph_type(shape):
+    """プレースホルダの type 属性。省略時は仕様どおり obj（本文と同じ扱い）。"""
     if not shape.is_placeholder:
         return None
     ph = shape._element.find(".//" + P + "ph")
-    return ph.get("type", "body") if ph is not None else "body"
+    return ph.get("type", "obj") if ph is not None else "obj"
 
 
 def shape_kind(shape):
@@ -172,11 +214,17 @@ def shape_text(shape, limit=60):
         return clip(" / ".join(r for r in rows if r.strip(" |")), limit)
     if not shape.has_text_frame:
         return ""
-    return clip(" / ".join(p.text for p in shape.text_frame.paragraphs if p.text.strip()), limit)
+    return clip(" / ".join(p.text.replace("\v", " ") for p in shape.text_frame.paragraphs if p.text.strip()), limit)
 
 
 def has_text(shape):
     return bool(shape_text(shape, None))
+
+
+def is_content(shape):
+    """重なりを見る対象のうち、画像以外（文字・表・グラフ）。"""
+    return has_text(shape) or bool(getattr(shape, "has_table", False) and shape.has_table) \
+        or bool(getattr(shape, "has_chart", False) and shape.has_chart)
 
 
 # ---------------------------------------------------------------- 文字の大きさ
@@ -231,14 +279,17 @@ class Styles:
         return out
 
     def paragraph_sizes(self, shape, text_frame):
-        """段落ごとに (段落の文字, 最大の文字の大きさ pt, 最小の大きさ pt) を返す。"""
-        chain = self.chain(shape)
+        """段落ごとに (段落の文字, 最大の文字の大きさ pt, 文字のある run の最小の大きさ pt か None) を返す。
+        大きさは run の指定 → 段落の既定（pPr/defRPr）→ 継承の順に決める。"""
+        chain = self.chain(shape) if shape is not None else [self.default]
         result = []
         for p in text_frame.paragraphs:
             level = p.level
-            inherited = next((s for s in (size_in(level_style(c, level)) for c in chain) if s), 18.0)
-            sizes = [r.font.size.pt if r.font.size is not None else inherited for r in p.runs] or [inherited]
-            result.append((p.text, max(sizes), min(sizes)))
+            inherited = p.font.size.pt if p.font.size is not None else \
+                next((s for s in (size_in(level_style(c, level)) for c in chain) if s), 18.0)
+            sized = [(r.font.size.pt if r.font.size is not None else inherited, r.text) for r in p.runs]
+            visible = [z for z, t in sized if t.strip()]
+            result.append((p.text, max([z for z, _ in sized] or [inherited]), min(visible) if visible else None))
         return result
 
 
@@ -271,15 +322,17 @@ def overflow_estimate(shape, b, styles):
     for text, big, _ in styles.paragraph_sizes(shape, tf):
         size = big * scale * EMU_PER_PT
         lines = 0
-        for line in (text.split("\v") if text else [""]):
+        for line in (re.split(r"[\v\n]", text) if text else [""]):
             w = text_width_em(line) * size
             widest = max(widest, w)
             lines += max(1, math.ceil(w / avail_w)) if wrap else 1
         need += lines * size * LINE_HEIGHT
-    if not wrap:
-        # 折り返さない枠は横にはみ出す。高さではなく幅で判定する
-        return ("幅", widest / EMU_PER_MM, avail_w / EMU_PER_MM) if widest > avail_w * 1.05 else None
-    return ("高さ", need / EMU_PER_MM, avail_h / EMU_PER_MM) if need > avail_h * 1.05 else None
+    if need > avail_h * 1.05:
+        return ("高さ", need / EMU_PER_MM, avail_h / EMU_PER_MM)
+    if not wrap and widest > avail_w * 1.05:
+        # 折り返さない枠は横にはみ出す
+        return ("幅", widest / EMU_PER_MM, avail_w / EMU_PER_MM)
+    return None
 
 
 # ---------------------------------------------------------------- 検査
@@ -287,7 +340,7 @@ def overflow_estimate(shape, b, styles):
 def check_slide(slide, width, height, styles):
     problems, notes = [], []
     targets = []
-    for s, raw, _ in walk(slide.shapes):
+    for s, raw, _, root in walk(slide.shapes):
         b = to_mm(raw)
         if b is None or is_group(s):
             continue
@@ -298,23 +351,29 @@ def check_slide(slide, width, height, styles):
             problems.append("「%s」が空のプレースホルダ（画像には写らない。文字を入れるか消す）" % s.name)
         area = (x2 - x1) * (y2 - y1)
         is_picture = s._element.tag == P + "pic"
-        is_frame = getattr(s, "has_table", False) and s.has_table or getattr(s, "has_chart", False) and s.has_chart
-        if has_text(s) or is_frame or (is_picture and area < width * height * BACKGROUND_RATIO):
-            targets.append((s, b))
+        if is_content(s) or (is_picture and area < width * height * BACKGROUND_RATIO):
+            targets.append((s, b, root))
+        frames = []
+        if s.has_text_frame and has_text(s) and ph_type(s) not in FOOTER_TYPES:
+            frames.append((s, s.text_frame))
+        if getattr(s, "has_table", False) and s.has_table:
+            frames += [(None, c.text_frame) for r in s.table.rows for c in r.cells if c.text.strip()]
+        smallest = [z * font_scale(tf) for owner, tf in frames
+                    for _, _, z in styles.paragraph_sizes(owner, tf) if z is not None]
+        if smallest and min(smallest) < MIN_PT - 0.01:
+            notes.append("「%s」に %.0fpt の文字がある（本文は %.0fpt 以上）" % (s.name, min(smallest), MIN_PT))
         if s.has_text_frame and has_text(s):
-            scale = font_scale(s.text_frame)
-            small = [sm * scale for _, _, sm in styles.paragraph_sizes(s, s.text_frame)]
-            if small and min(small) < MIN_PT - 0.01 and ph_type(s) not in FOOTER_TYPES:
-                notes.append("「%s」に %.0fpt の文字がある（本文は %.0fpt 以上）" % (s.name, min(small), MIN_PT))
             est = overflow_estimate(s, b, styles)
             if est:
                 notes.append("「%s」の文字があふれている疑い（推定: 必要な%s %.0f mm／枠 %.0f mm）"
                              % (s.name, est[0], est[1], est[2]))
     for i in range(len(targets)):
         for j in range(i + 1, len(targets)):
-            (sa, a), (sb, b) = targets[i], targets[j]
-            if not (has_text(sa) or has_text(sb)):
-                continue  # 文字の無い図形どうし（画像と画像など）は見ない
+            (sa, a, ra), (sb, b, rb) = targets[i], targets[j]
+            if not (is_content(sa) or is_content(sb)):
+                continue  # 画像どうしは見ない
+            if ra is not None and ra == rb:
+                continue  # 同じグループの中は、組み合わせて作った図とみなす
             w = min(a[2], b[2]) - max(a[0], b[0])
             h = min(a[3], b[3]) - max(a[1], b[1])
             if w > TOLERANCE_MM and h > TOLERANCE_MM:
@@ -410,12 +469,14 @@ def main():
         slide = prs.slides[i]
         tag = "非表示" if shown[i] is None else ("画像 p%d" % shown[i]) if hidden else ""
         head = "スライド %d（%s%s）" % (i + 1, slide.slide_layout.name, "・" + tag if tag else "")
-        if args.outline:
+        if args.check and not args.outline:
+            pass  # --check だけなら図形一覧は出さない（一覧は --check なしで取る）
+        elif args.outline:
             count = sum(1 for _ in walk(slide.shapes))
             lines.append("- %s: %s［図形 %d］" % (head, clip(slide_title(slide), limit), count))
         else:
             lines.append("## " + head)
-            for s, raw, depth in walk(slide.shapes):
+            for s, raw, depth, _ in walk(slide.shapes):
                 b = to_mm(raw)
                 pos = "%.0f,%.0f %.0f×%.0f" % (b[0], b[1], b[2] - b[0], b[3] - b[1]) if b else "-"
                 text = shape_text(s, limit)
@@ -428,8 +489,9 @@ def main():
             lines.append("")
         if args.check:
             problems, notes = check_slide(slide, width, height, styles)
-            all_problems += ["スライド %d: %s" % (i + 1, p) for p in problems]
-            all_notes += ["スライド %d: %s" % (i + 1, n) for n in notes]
+            where = "スライド %d%s" % (i + 1, "（%s）" % tag if tag else "")
+            all_problems += ["%s: %s" % (where, p) for p in problems]
+            all_notes += ["%s: %s" % (where, n) for n in notes]
 
     if args.check:
         if args.outline:
