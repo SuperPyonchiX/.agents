@@ -92,7 +92,7 @@ def launcher(exe):
     return pre, post
 
 
-TIMEOUT = 300   # Windows の draw.io 31 で PNG 1ページに最大 163 秒かかった（180 秒では打ち切られた）
+TIMEOUT = 300   # draw.io の起動1回あたりの上限。Windows の draw.io 31 で PNG 1ページに最大 113 秒かかり、180 秒では SVG が打ち切られた
 NOISE = ("dbus", "Checking for beta autoupdate", "Found package-type")
 
 
