@@ -8,7 +8,7 @@
     - ブック全体: シート一覧（非表示を含む）、名前付き範囲、openpyxl で保存すると失われる恐れのある要素
     - シートごと: 値のある範囲（書式だけのセルで使用範囲が広がっていればその旨）、数式セル数、
       結合セル、ウィンドウ枠の固定、印刷範囲、テーブル、入力規則・条件付き書式の数（0・なしの項目は省く）、
-      先頭 --rows 行 × --cols 列のプレビュー（数式セルは「=式 → 保存されている計算結果」で表示）
+      先頭 --rows 行 × --cols 列のプレビュー（数式セルは「=式 → 保存されている計算結果」で表示。空文字の結果と未計算は区別できない）
     - シートが6枚以上あり --sheet を指定しないときは、プレビューを省いて各シートの概要だけを出す
 
 終了コード:
@@ -91,7 +91,7 @@ def cell_text(v, cached, limit=40):
         return ""
     if is_formula(v):
         # 長い式は式の側を切り、計算結果は残す
-        result = clip("（保存値なし）" if cached is None else cached, limit // 2)
+        result = clip("（空または未計算）" if cached is None else cached, limit // 2)
         return "%s → %s" % (clip(formula_text(v), max(limit - len(result) - 3, 10)), result)
     return clip(v, limit)
 
