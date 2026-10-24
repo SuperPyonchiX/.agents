@@ -30,6 +30,7 @@ def load(name, relative):
 trace = load('trace', 'nextdesign-cpp14-implementation/scripts/check_traceability.py')
 audit = load('audit', 'skill-portfolio-audit/scripts/audit_skills.py')
 claude = load('ask_claude', 'second-opinion/scripts/ask_claude.py')
+agy = load('ask_antigravity', 'second-opinion/scripts/ask_antigravity.py')
 sys.path.insert(0, str(ROOT / 'skills/notion-api/scripts'))
 import notion_page as notion
 
@@ -300,6 +301,44 @@ class ClaudeTests(TemporaryCase):
                 self.assertEqual(Path(run.call_args.kwargs['cwd']), self.folder)
                 if success:
                     self.assertEqual(out.read_text(encoding='utf-8').strip(), '独立した回答')
+
+
+class AntigravityTests(TemporaryCase):
+    def test_command_is_headless_without_skip_permissions(self):
+        cmd = agy.build_command('agy', 600)
+        self.assertEqual(cmd[1], '-p')
+        self.assertIn('--disable-slash-commands', cmd)
+        self.assertEqual(cmd[cmd.index('--output-format')+1], 'json')
+        self.assertNotIn('--dangerously-skip-permissions', cmd)
+        self.assertIn('別の生成AIへの相談', cmd[2])
+
+    def test_runs_on_copy_and_keeps_original(self):
+        src = self.folder/'src'
+        self.file('src/a.txt', '元の内容')
+        self.file('src/.git/HEAD', 'ref')
+        q = self.file('q.md', '根拠を示して検討してください。')
+        out = self.folder/'answer.md'
+        for status in ['SUCCESS', 'ERROR']:
+            with self.subTest(status=status):
+                def fake_run(cmd, **kwargs):
+                    ws = Path(kwargs['cwd'])
+                    self.assertNotEqual(ws, src)
+                    self.assertFalse((ws/'.git').exists())
+                    self.assertIn('根拠を示して', (ws/agy.QUESTION_NAME).read_text(encoding='utf-8'))
+                    (ws/'a.txt').write_text('書き換え', encoding='utf-8')
+                    return subprocess.CompletedProcess(cmd, 0, json.dumps({'status': status, 'response': '独立した回答'}), '')
+                with patch.object(agy.shutil, 'which', return_value='agy'), \
+                        patch.object(agy.subprocess, 'run', side_effect=fake_run), \
+                        contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    code = agy.main(['--prompt-file', str(q), '--out', str(out), '--cd', str(src)])
+                self.assertEqual(code, 0 if status == 'SUCCESS' else 1)
+                self.assertEqual((src/'a.txt').read_text(encoding='utf-8'), '元の内容')
+                self.assertEqual(out.exists(), status == 'SUCCESS')
+
+    def test_missing_cli(self):
+        q = self.file('q.md', '質問')
+        with patch.object(agy.shutil, 'which', return_value=None), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(agy.main(['--prompt-file', str(q), '--out', str(self.folder/'a.md')]), 2)
 
 
 if __name__ == '__main__':
