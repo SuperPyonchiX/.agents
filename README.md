@@ -18,7 +18,7 @@ Agent Skills は、AIエージェントに「作業手順」を渡すための�
 
 そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` と `~/.gemini/antigravity-cli/skills` からリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
 
-> Gemini CLI は 2026-06-18 に個人向けの提供が終わり、Antigravity CLI に移行した（[Google の告知](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)）。Antigravity CLI のスキルの場所は [移行ガイド](https://antigravity.google/docs/cli/gcli-migration) による。ユーザー単位で `~/.agents/skills/` を読むという記載は無いので、リンクを張る。
+> Gemini CLI は 2026-06-18 に個人向けの提供が終わり、Antigravity CLI に移行した（[Google の告知](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)）。Antigravity CLI のスキルの場所は [移行ガイド](https://antigravity.google/docs/cli/gcli-migration) による。agy 1.4.7（Windows）で試したところ、`~/.agents/skills/` は直接読まれず、`~/.gemini/antigravity-cli/skills` にジャンクションを張ると読まれた（2026-10-25 確認）。
 
 ```mermaid
 graph LR
