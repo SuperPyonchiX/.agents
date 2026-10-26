@@ -293,6 +293,18 @@ def check_links(skill_dir, md_files, rep):
                 rep.error(rel, f"参照先が存在しない: {path}")
 
 
+# 雛形一式のように、ディレクトリごとコピーして使うものを置く場所。ここでは「<dir>/」と
+# 書かれたディレクトリの配下を参照済みとみなす。references/ などは1ファイルずつ読ませるので対象にしない。
+BUNDLE_DIRS = ("assets", "templates")
+
+
+def in_referenced_bundle(rel, all_text):
+    parts = rel.split("/")
+    if parts[0] not in BUNDLE_DIRS:
+        return False
+    return any("/".join(parts[:i]) + "/" in all_text for i in range(2, len(parts)))
+
+
 def check_orphans(skill_dir, all_text, rep):
     for dir_name in ORPHAN_SCAN_DIRS:
         target = skill_dir / dir_name
@@ -304,7 +316,7 @@ def check_orphans(skill_dir, all_text, rep):
             # 同名ファイルが別ディレクトリにある場合の取り違えを避けるため、
             # ファイル名ではなく skill ディレクトリからの相対パスで照合する。
             rel = f.relative_to(skill_dir).as_posix()
-            if rel not in all_text:
+            if rel not in all_text and not in_referenced_bundle(rel, all_text):
                 rep.warn(
                     rel,
                     "SKILL.md からも参照ファイルからも一度も参照されていない。"
