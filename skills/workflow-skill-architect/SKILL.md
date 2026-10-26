@@ -237,7 +237,7 @@ Anthropic 提供の `skill-creator` スキルとは**競合しない。両方が
 python scripts/validate_skill.py <スキルディレクトリ>
 ```
 
-ステップ6の検証工程で実行する。frontmatter の有無、`name` とディレクトリ名の一致、`references/` `scripts/` `assets/` へのリンク切れ、孤児ファイル（`references/` に限らず `templates/` `examples/` `assets/` も再帰的に走査し、SKILL.md からも `references/` からも参照されていないものを WARN する）、行数超過を機械的に判定する。`evals/evals.json` がある場合だけ、JSON として読めるか・各ケースに `prompt` と空でない `expectations` があるか・`id` が重複していないかも検査し、不備を WARN にする（無ければ何も言わない）。終了コード 0 で合格、ERROR があれば 1 を返し、指摘を標準出力に列挙する。主観的な項目は見ないので、`references/review-checklist.md` と併用すること。
+ステップ6の検証工程で実行する。frontmatter の有無、`name` とディレクトリ名の一致、`references/` `scripts/` `assets/` へのリンク切れ、孤児ファイル（`references/` に限らず `templates/` `examples/` `assets/` も再帰的に走査し、SKILL.md からも `references/` からも参照されていないものを WARN する。`assets/` `templates/` の下は `assets/<雛形>/` のようにディレクトリを書けば配下ごと参照済みとみなす）、行数超過を機械的に判定する。`evals/evals.json` がある場合だけ、JSON として読めるか・各ケースに `prompt` と空でない `expectations` があるか・`id` が重複していないかも検査し、不備を WARN にする（無ければ何も言わない）。終了コード 0 で合格、ERROR があれば 1 を返し、指摘を標準出力に列挙する。主観的な項目は見ないので、`references/review-checklist.md` と併用すること。
 
 ## テンプレート
 

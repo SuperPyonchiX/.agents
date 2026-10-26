@@ -1,6 +1,6 @@
 ---
 name: daily-capture
-description: 会話に出た体調・トレード・学び・読んだ本を、Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し承認された行だけ書く。「日記に残して」「今日の学びを記録して」「今日はここまで」で使う。作業状態の引き継ぎは session-handoff。
+description: 会話に出た体調・トレード・学び・読んだ本を、Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し承認された行だけ書く。「日記に残して」「今日の学びを記録して」「読んだ本を記録して」で使う。作業状態の引き継ぎは session-handoff。
 ---
 
 # デイリーノートへの記録
@@ -105,7 +105,7 @@ python scripts/append_daily.py "D:/Users/ksk01/Documents/Obsidian/02_読書/<書
 
 ## 参照ファイル
 
-このスキルに `references/` は無い。vault のフォルダ規約と記録ルールは vault 直下の `CLAUDE.md` が正本で、書く前にそれを読む。
+このスキルに `references/` は無い。vault のフォルダ規約と記録ルールは vault 直下の `AGENTS.md`（無ければ `CLAUDE.md`）が正本で、書く前にそれを読む。両方あれば `AGENTS.md` を正とする。
 
 ## スクリプト
 

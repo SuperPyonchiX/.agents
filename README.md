@@ -61,10 +61,10 @@ graph LR
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
 | `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 89行 |
-| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 363行 |
+| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる（外部取り込み・MIT） | 124行 |
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 107行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 133行 |
-| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 129行 |
+| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 143行 |
 | `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
 | `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 331行 |
 | `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
@@ -73,10 +73,10 @@ graph LR
 | `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む。評価ケースを evals/ に残し、改修時に全件回して退行を確かめる | 250行 |
 | `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 228行 |
 | `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ、指名があればどちらからもAntigravity CLI（Gemini）へ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Antigravityは作業コピー上で答えさせ、元のディレクトリに書き込ませない。第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 188行 |
-| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 319行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 204行 |
 | `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 66行 |
-| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 60行 |
-| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
+| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 61行 |
+| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 88行 |
 | `agents-md-advisor` | AGENTS.md を整える（CLAUDE.md は作らず、残っていれば AGENTS.md への統合を提案する）。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 129行 |
 | `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する。新しい画面の設計判断は `ui-ux-pro-max`、撮影できない実機での確認は `manual-test-sheet` | 162行 |
 | `daily-capture` | 会話に出た体調・トレード・今日の学び・読んだ本を Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し、承認された行だけをスクリプトで節の直下に差し込む | 122行 |
@@ -343,6 +343,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/japanese-prose-polish/` | `skills/japanese-prose-polish/LICENSE`（MIT / Copyright (c) 2025 Siqi Chen、Copyright (c) 2026 SuguruKun_ai）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。
@@ -358,4 +359,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎを確認する。標準ライブラリのみで動き、外部通信はモックする。Excel の一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎ、Notion の見出しと太字の変換と YouTube 要約の整形、validate_skill.py の雛形ディレクトリの孤児判定、静的解析トリアージの読み出しから申請書への書き戻しまでの通し、日記への追記、reveal-file の対象の絞り込み、C++ の規約スキャンと Doxygen 検査、規約資料の番号索引を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel と静的解析トリアージの一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。

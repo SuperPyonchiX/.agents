@@ -19,6 +19,16 @@
       "expectations": [
         "新しいセッションで、このスキルが使われない"
       ]
+    },
+    {
+      "id": 3,
+      "prompt": "今日はここまでにする。続きは明日やるので、作業の状態をまとめておいて",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（「今日はここまで」は session-handoff の発火語）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
     }
   ]
 }

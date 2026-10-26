@@ -5,12 +5,13 @@
     --file を省略すると標準入力から読む。--out を省略すると標準出力へ書く。
 
 対応する記法:
-    #/##/### 見出し、> 引用、--- 区切り線、-/* 箇条書き（字下げ2以上は直前項目の子）、
+    #/##/### 見出し（#### 以下は Notion に無いので heading_3 にする）、> 引用、--- 区切り線、-/* 箇条書き（字下げ2以上は直前項目の子）、
     1. 番号リスト、``` コードフェンス（言語指定つき）、| 表 |、**太字**、`インラインコード`。
     それ以外の連続行は1つの段落にまとめる。
 
 制約の吸収:
     rich_text の1要素は2000字未満に自動分割する。
+    全体が **…** の行の内側にある ** は落とす（**a **b** c** の分割崩れを防ぐ）。
     表は2行目が区切り行（|---|）なら1行目を列見出しにする。列数は最も多い行に揃え、足りないセルは空で埋める。
     表の行が100を超えると API が受け付けないため、その場合は終了コード2で止める。
 
@@ -48,8 +49,17 @@ def chunk(text):
     return [text[i:i + MAX_TEXT] for i in range(0, len(text), MAX_TEXT)] or [""]
 
 
+def flatten_bold(text):
+    """全体が **…** で、内側にも ** がある行は内側を落とす。素朴な分割で ** が本文に残るのを防ぐ。"""
+    inner = text[2:-2]
+    if len(text) > 4 and text.startswith("**") and text.endswith("**") and "**" in inner:
+        return "**" + inner.replace("**", "") + "**"
+    return text
+
+
 def rich_text(text):
     """インライン記法を解釈して rich_text 配列を作る。"""
+    text = flatten_bold(text)
     out = []
     for part in INLINE_RE.split(text):
         if not part:
@@ -154,10 +164,11 @@ def convert(lines):
             flush_paragraph()
             blocks.append({"object": "block", "type": "divider", "divider": {}})
             continue
-        m = re.match(r"(#{1,3})\s+(.*)", stripped)
+        m = re.match(r"(#{1,6})\s+(.*)", stripped)
         if m and not line.startswith((" ", "\t")):
             flush_paragraph()
-            blocks.append(make_block("heading_{}".format(len(m.group(1))), m.group(2)))
+            level = min(len(m.group(1)), 3)  # Notion の見出しは3段まで
+            blocks.append(make_block("heading_{}".format(level), m.group(2)))
             continue
         if stripped.startswith("> "):
             flush_paragraph()

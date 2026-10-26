@@ -349,6 +349,18 @@ class AntigravityTests(TemporaryCase):
                 self.assertEqual((src/'a.txt').read_text(encoding='utf-8'), '元の内容')
                 self.assertEqual(out.exists(), status == 'SUCCESS')
 
+    def test_timeout_is_reported_as_timeout(self):
+        self.file('src/a.txt', 'x')
+        q = self.file('q.md', '質問')
+        err = io.StringIO()
+        with patch.object(agy.shutil, 'which', return_value='agy'), \
+                patch.object(agy.subprocess, 'run', side_effect=subprocess.TimeoutExpired('agy', 660)), \
+                contextlib.redirect_stderr(err):
+            code = agy.main(['--prompt-file', str(q), '--out', str(self.folder/'a.md'), '--cd', str(self.folder/'src'),
+                             '--timeout', '600'])
+        self.assertEqual(code, 1)
+        self.assertTrue(err.getvalue().startswith('タイムアウト: 600秒'))
+
     def test_missing_cli(self):
         q = self.file('q.md', '質問')
         with patch.object(agy.shutil, 'which', return_value=None), contextlib.redirect_stderr(io.StringIO()):
@@ -1379,6 +1391,323 @@ class ManualTestSheetTests(TemporaryCase):
         self.assertEqual(self.sheet('next', self.round1(), '-o', out).returncode, 0)
         self.assertTrue(out.read_text(encoding='utf-8-sig').startswith('ID,区分,'))
         self.assertEqual(self.sheet('summary', out).returncode, 1)
+
+
+class NotionMarkdownTests(unittest.TestCase):
+    def test_deep_heading_becomes_heading_3_and_nested_bold_is_flat(self):
+        import md2blocks
+        blocks = md2blocks.convert(['#### 小見出し\n', '- **a **b** c**\n', '##### さらに下\n'])
+        self.assertEqual([b['type'] for b in blocks], ['heading_3', 'bulleted_list_item', 'heading_3'])
+        self.assertEqual(blocks[0]['heading_3']['rich_text'][0]['text']['content'], '小見出し')
+        rt = blocks[1]['bulleted_list_item']['rich_text']
+        self.assertEqual([(r['text']['content'], r.get('annotations')) for r in rt], [('a b c', {'bold': True})])
+        self.assertEqual(md2blocks.convert(['  #### 字下げ\n'])[0]['type'], 'paragraph')
+
+
+class YoutubeSummaryTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/youtube-member-summary/scripts/normalize_summary.py'
+    ANSWERS = {
+        'A': '\ufeff選択されたソース**「t」**の内容に基づき、ご指定の構成で日本語要約を作成しました。\n---\n'
+             '### 1) 結論\n・円安は**続く** [1, 2]\n・介入は限定的\n### 2) トピック別の要点\n#### 金利差\n説明です [3]。\n'
+             '### 3) 専門用語・前提知識の補足\n**中学生向け説明**：金利とは値段です。\n\n\U0001F4A1 さらに深掘りしてみますか？\n',
+        'B': '1) **結論**\n* 本文1\n2) **トピック別の要点**\n### **X**\n説明\n3) **専門用語・前提知識の補足**\n説明\n',
+        'C': '**1) 結論**\n一文目。二文目は**大事**。\n**2) トピック別の要点**\n### **X**\n説明\n**3) 専門用語・前提知識の補足**\n説明\n',
+        'D': '### 1. 結論\n1. **本文一**\n2. **本文二**\n### 2. トピック別の要点\n#### X\n説明\n### 3. 専門用語・前提知識の補足\n説明\n',
+    }
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPT), *map(str, args)], capture_output=True, text=True,
+                              encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def normalize(self, answer_path, out):
+        return self.run_script('normalize', '--answer', answer_path, '--url', 'https://youtu.be/x',
+                               '--notebook', 'NB', '--out', out)
+
+    def test_every_heading_variant_passes_both_checks(self):
+        import md2blocks
+        for name, text in self.ANSWERS.items():
+            with self.subTest(variant=name):
+                src = self.file(name + '.json', json.dumps({'answer': text}, ensure_ascii=False))
+                out = self.folder/(name + '.md')
+                r = self.normalize(src, out)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                md = out.read_text(encoding='utf-8')
+                self.assertTrue(md.startswith('> https://youtu.be/x'))
+                self.assertIn('## 結論\n\n- **', md)
+                for gone in ('[1, 2]', '作成しました', '深掘り', '向け説明', '\ufeff'):
+                    self.assertNotIn(gone, md)
+                blocks = self.folder/(name + '.blocks.json')
+                blocks.write_text(json.dumps(md2blocks.convert(md.splitlines(True)), ensure_ascii=False), encoding='utf-8')
+                c = self.run_script('check', '--blocks', blocks)
+                self.assertEqual(c.returncode, 0, c.stdout)
+
+    def test_paragraph_conclusion_is_split_into_bold_items(self):
+        out = self.folder/'c.md'
+        self.assertEqual(self.normalize(self.file('c.txt', self.ANSWERS['C']), out).returncode, 0)
+        self.assertIn('- **一文目。**\n- **二文目は大事。**', out.read_text(encoding='utf-8'))
+
+    def test_unknown_layout_and_broken_blocks_fail(self):
+        r = self.normalize(self.file('x.txt', '結論\n本文だけ\n'), self.folder/'x.md')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('大見出し', r.stdout)
+        bad = self.file('bad.json', json.dumps([
+            {'type': 'heading_2', 'heading_2': {'rich_text': [{'text': {'content': '結論'}}]}},
+            {'type': 'paragraph', 'paragraph': {'rich_text': [{'text': {'content': '#### 見出し'}}]}}]))
+        c = self.run_script('check', '--blocks', bad)
+        self.assertEqual(c.returncode, 1)
+        self.assertIn('####', c.stdout)
+        self.assertEqual(self.normalize(self.file('n.json', '{"text": "x"}'), self.folder/'n.md').returncode, 2)
+
+
+class ValidatorTests(TemporaryCase):
+    def test_bundle_directory_reference_covers_its_files_only_under_assets(self):
+        self.file('s/SKILL.md', '---\nname: s\ndescription: 雛形をコピーする。「作って」で使う。\n---\n'
+                  '`assets/game/` をコピーする。\n')
+        self.file('s/assets/game/src/main.ts', 'x')
+        self.file('s/assets/other.txt', 'x')
+        self.file('s/references/note.md', 'x')
+        r = subprocess.run([sys.executable, str(ROOT/'skills/workflow-skill-architect/scripts/validate_skill.py'),
+                            str(self.folder/'s')], capture_output=True, text=True, encoding='utf-8',
+                           env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertNotIn('assets/game/src/main.ts', r.stdout)
+        self.assertIn('assets/other.txt', r.stdout)
+        self.assertIn('references/note.md', r.stdout)
+
+
+@unittest.skipUnless(HAS_OPENPYXL, 'openpyxl が無い')
+class StaticTriageTests(TemporaryCase):
+    """申請書の読み出し → クラスタ化 → 判定 → 検査 → 書き戻しを通しで回す。"""
+    SCRIPTS = ROOT/'skills/static-analysis-triage/scripts'
+    HEADER = ['No.', 'ルールID', 'ファイル名', '指摘内容', '行番号', '該当コード', '判定', '分類コード', '根拠', '代替措置']
+    ROWS = [
+        [1, 'A5-1-1', 'src/motor.cpp', "Literal '100' used", 10, 'x = 100;'],
+        [2, 'A5-1-1', 'src/motor.cpp', "Literal '200' used", 20, 'y = 200;'],
+        [3, 'A5-1-1', 'src/vendor/lib.cpp', "Literal '300' used", 30, 'z = 300;'],
+        [4, 'M0-1-9', 'src/io.cpp', 'Dead code', 40, 'return;'],
+    ]
+
+    def setUp(self):
+        super().setUp()
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = '指摘一覧'
+        ws['A1'] = '誤検知・逸脱申請書'
+        for c, h in enumerate(self.HEADER, 1):
+            ws.cell(row=3, column=c, value=h)
+        for r, row in enumerate(self.ROWS, 4):
+            for c, v in enumerate(row, 1):
+                ws.cell(row=r, column=c, value=v)
+        wb.create_sheet('表紙')['B2'] = '提出用'
+        self.book = self.folder/'申請書.xlsx'
+        wb.save(self.book)
+        self.spec = {
+            'source': {'workbook': str(self.book), 'sheet': '指摘一覧', 'header_row': 3, 'id_column': 'No.',
+                       'columns': {'rule_id': 'ルールID', 'file': 'ファイル名', 'message': '指摘内容', 'line': '行番号',
+                                   'tool': None, 'severity': None, 'function': None, 'code': '該当コード'}},
+            'application_form': {'columns': {'verdict': '判定', 'code': '分類コード', 'rationale': '根拠',
+                                             'alternative': '代替措置'},
+                                 'verdict_labels': {'fix': '修正', 'deviate': '逸脱', 'false_positive': '誤検知',
+                                                    'deferred': '保留'}},
+            'deviation_record': {'template': None, 'sheet': '逸脱記録', 'header_row': 1, 'start_row': 2,
+                                 'columns': {'seq': 'No.', 'rule_id': '逸脱ルール', 'file': '対象ファイル', 'line': '行番号',
+                                             'code': '逸脱理由区分', 'rationale': '逸脱理由', 'alternative': '代替措置',
+                                             'message': '指摘内容'}}}
+        self.scope = {'tools': [{'name': 'Helix QAC', 'version': '2024.2'}], 'external_paths': ['src/vendor/'],
+                      'decisions_db': str(self.folder/'db/decisions.json')}
+        self.spec_path = self.file('work/form-spec.json', json.dumps(self.spec, ensure_ascii=False))
+        self.scope_path = self.file('work/triage-scope.json', json.dumps(self.scope, ensure_ascii=False))
+
+    def run_script(self, name, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPTS/name), *map(str, args)], capture_output=True,
+                              text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def clusters(self):
+        findings = self.folder/'work/findings.json'
+        r = self.run_script('read_findings.py', '--form-spec', self.spec_path, '-o', findings)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        out = self.folder/'work/clusters.json'
+        r = self.run_script('cluster_findings.py', '--findings', findings, '--scope', self.scope_path, '-o', out)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return out, json.loads(out.read_text(encoding='utf-8'))
+
+    def judge(self, data):
+        for c in data['clusters']:
+            c['uniformity'] = 'uniform'
+            c['status'] = 'done'
+            if c['external']:
+                c.update(verdict='deviate', code='DV-EXT', rationale='外部提供コードで変更できないため逸脱とする',
+                         alternative='提供元に報告し、結合試験で該当箇所の動作を確認する')
+            else:
+                c.update(verdict='fix', code=None, rationale='名前付き定数に置き換えて修正する', alternative=None)
+
+    def test_whole_flow_writes_copy_and_deviation_record(self):
+        out, data = self.clusters()
+        sizes = sorted(c['member_count'] for c in data['clusters'])
+        self.assertEqual(sizes, [1, 1, 2])  # 数値だけ違う2件は束ねられ、外部コードは別クラスタ
+        self.assertEqual(self.run_script('check_triage.py', out).returncode, 1)  # 未判定のまま
+        self.judge(data)
+        out.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        r = self.run_script('check_triage.py', out)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        before = self.book.read_bytes()
+        r = self.run_script('write_forms.py', '--clusters', out, '--form-spec', self.spec_path,
+                            '--out-dir', self.folder/'out')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self.book.read_bytes(), before)  # 原本は書き換えない
+        import openpyxl
+        ws = openpyxl.load_workbook(self.folder/'out'/self.book.name)['指摘一覧']
+        self.assertEqual([ws.cell(row=r, column=7).value for r in range(4, 8)], ['修正', '修正', '逸脱', '修正'])
+        self.assertEqual(ws.cell(row=6, column=8).value, 'DV-EXT')
+        self.assertEqual(ws.cell(row=4, column=4).value, "Literal '100' used")
+        records = [p for p in (self.folder/'out').iterdir() if p.name != self.book.name]
+        self.assertEqual(len(records), 1, [p.name for p in records])
+        rec = openpyxl.load_workbook(records[0]).active
+        rows = [[c.value for c in row] for row in rec.iter_rows(min_row=2) if any(c.value for c in row)]
+        self.assertEqual(len(rows), 1)
+        self.assertIn('src/vendor/lib.cpp', rows[0])
+
+    def test_writing_into_finding_column_stops_without_output(self):
+        out, data = self.clusters()
+        self.judge(data)
+        out.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        self.spec['application_form']['columns']['rationale'] = '指摘内容'
+        spec = self.file('work/bad-spec.json', json.dumps(self.spec, ensure_ascii=False))
+        r = self.run_script('write_forms.py', '--clusters', out, '--form-spec', spec, '--out-dir', self.folder/'out')
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('重なっている', r.stderr)
+        self.assertFalse((self.folder/'out'/self.book.name).exists())
+
+    def test_deviate_without_alternative_fails_check(self):
+        out, data = self.clusters()
+        self.judge(data)
+        for c in data['clusters']:
+            if c['external']:
+                c['alternative'] = ''
+        out.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        r = self.run_script('check_triage.py', out)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('代替措置', r.stdout + r.stderr)
+
+    def test_saved_decision_is_reapplied_next_time(self):
+        out, data = self.clusters()
+        self.judge(data)
+        out.write_text(json.dumps(data, ensure_ascii=False), encoding='utf-8')
+        r = self.run_script('cluster_findings.py', '--clusters', out, '--scope', self.scope_path, '--save-decisions')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        _, again = self.clusters()
+        self.assertTrue(all(c['auto_applied'] for c in again['clusters'] if c['uniformity'] != 'individual'))
+
+
+class DailyCaptureTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/daily-capture/scripts/append_daily.py'
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPT), *map(str, args)], capture_output=True, text=True,
+                              encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_fills_blanks_skips_duplicates_and_keeps_crlf(self):
+        tpl = self.file('tpl.md', '# {{date}}\n\n## 体調\n- 睡眠:\n- 調子:\n\n## 今日の学び\n-\n\n## 雑記\n')
+        note = self.folder/'01_日記/2026-10-26.md'
+        r = self.run_script(note, '--template', tpl, '--date', '2026-10-26', '--section', '体調', '--line', '- 睡眠:6時間',
+                            '--section', '今日の学び', '--line', '- effort で精度が変わる', '--line', '- 二つ目')
+        self.assertEqual(r.returncode, 0, r.stdout)
+        text = note.read_text(encoding='utf-8')
+        self.assertIn('# 2026-10-26', text)
+        self.assertIn('- 睡眠:6時間\n- 調子:\n', text)
+        self.assertIn('## 今日の学び\n- effort で精度が変わる\n- 二つ目\n', text)
+        note.write_bytes(note.read_bytes().replace(b'\n', b'\r\n'))
+        r = self.run_script(note, '--section', '今日の学び', '--line', '- 二つ目', '--section', '読書', '--line', '- 新しい節')
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn('SKIP', r.stdout)
+        raw = note.read_bytes().decode('utf-8')
+        self.assertEqual(raw.count('- 二つ目'), 1)
+        self.assertTrue(raw.rstrip('\r\n').endswith('## 読書\r\n- 新しい節'))
+        self.assertNotIn('\n', raw.replace('\r\n', ''))
+
+    def test_missing_note_without_template_and_bad_args(self):
+        self.assertEqual(self.run_script(self.folder/'none.md', '--section', '体調', '--line', '- x').returncode, 1)
+        self.assertEqual(self.run_script(self.folder/'none.md', '--line', '- x').returncode, 2)
+
+
+class RevealFileTests(TemporaryCase):
+    def test_dry_run_selects_first_of_same_folder_and_missing_path_fails(self):
+        reveal = load('reveal', 'reveal-file/scripts/reveal.py')
+        a = self.file('a.pdf', 'x')
+        b = self.file('b.pdf', 'x')
+        with patch.object(reveal.platform, 'system', return_value='Darwin'), \
+                patch.object(reveal, 'is_wsl', return_value=False), \
+                patch.object(reveal, 'is_remote_shell', return_value=False):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(reveal.main(['--dry-run', str(a), str(b)]), 0)
+            self.assertIn('SAME-FOLDER', out.getvalue())
+            self.assertIn('-R', out.getvalue())
+            self.assertIn('a.pdf', out.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(reveal.main(['--dry-run', str(self.folder/'none.pdf')]), 1)
+
+
+class CppScriptTests(TemporaryCase):
+    def run_script(self, rel, *args):
+        return subprocess.run([sys.executable, str(ROOT/'skills'/rel), *map(str, args)], capture_output=True,
+                              text=True, encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_scan_finds_code_but_not_comments_or_strings(self):
+        self.file('src/a.cpp', '#include <cstdlib>\nint f(int a) {\n  int* p = (int*)malloc(4);\n  goto end;\nend:\n  return a;\n}\n')
+        self.file('src/b.cpp', '// malloc(4) goto end;\nconst char* s = "goto end; malloc(1)";\n/* (int*)x */\n')
+        out = self.folder/'scan.json'
+        r = self.run_script('cpp14-code-review/scripts/scan_cpp_rules.py', self.folder/'src', '-o', out)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        found = {(Path(x['file']).name, x['rule'], x['line']) for x in json.loads(out.read_text(encoding='utf-8'))['findings']}
+        for hit in [('a.cpp', 'BAN-003', 3), ('a.cpp', 'CAST-001', 3), ('a.cpp', 'CTRL-001', 4)]:
+            self.assertIn(hit, found)
+        self.assertFalse({f for f in found if f[0] == 'b.cpp' and f[1] in ('BAN-003', 'CAST-001', 'CTRL-001')})
+        self.assertEqual(self.run_script('cpp14-code-review/scripts/scan_cpp_rules.py', self.folder/'none',
+                                         '-o', out).returncode, 1)
+
+    def test_doxygen_requires_sideeffect_and_matching_params(self):
+        good = ('/**\n * @brief 加算\n * @param[in] a 左\n * @param[in] b 右\n * @return 和\n * @sideeffect なし\n */\n'
+                'int add(int a, int b);\n')
+        self.file('ok.h', '#pragma once\n' + good)
+        self.file('ng.h', '#pragma once\n' + good + '\n/**\n * @brief 初期化\n * @param[in] x 値\n */\nvoid init(int y);\n')
+        script = 'nextdesign-cpp14-implementation/scripts/validate_doxygen.py'
+        self.assertEqual(self.run_script(script, self.folder/'ok.h').returncode, 0)
+        r = self.run_script(script, self.folder/'ng.h')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('@sideeffect', r.stdout)
+        self.assertIn('引数 y', r.stdout)
+
+
+class RuleIndexTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/cpp14-rule-reference/scripts/rule_index.py'
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPT), *map(str, args)], capture_output=True, text=True,
+                              encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_build_marks_definitions_and_find_lists_them_first(self):
+        local = self.folder/'local'
+        self.file('local/autosar/g.txt', 'See A7-1-2 below.\nRule A7-1-2 (required, implementation)\n本文\n')
+        self.file('local/cert/c.md', 'EXP34-CPP. Do not dereference null pointers\n')
+        self.assertEqual(self.run_script('find', 'A7-1-2', '--local', local).returncode, 2)  # 索引がまだ無い
+        r = self.run_script('build', '--local', local)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        r = self.run_script('find', 'a7-1-2', 'EXP34-CPP', '--local', local)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        lines = r.stdout.splitlines()
+        self.assertIn('定義(required)', lines[0])
+        self.assertIn('l.2', lines[0])
+        self.assertIn('言及', lines[1])
+        self.assertIn('CERT C++', lines[2])
+        r = self.run_script('find', 'M0-1-9', '--local', local)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('NOTFOUND', r.stdout)
+
+    def test_empty_local_and_missing_local(self):
+        (self.folder/'local/autosar').mkdir(parents=True)
+        self.assertEqual(self.run_script('build', '--local', self.folder/'local').returncode, 1)
+        self.assertEqual(self.run_script('build', '--local', self.folder/'none').returncode, 2)
 
 
 if __name__ == '__main__':

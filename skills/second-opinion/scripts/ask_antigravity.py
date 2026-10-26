@@ -163,7 +163,11 @@ def main(argv=None):
                                     stdin=subprocess.DEVNULL, capture_output=True, text=True,
                                     encoding='utf-8', errors='replace', cwd=str(workspace),
                                     timeout=args.timeout + 60)
-        except (OSError, subprocess.TimeoutExpired) as exc:
+        except subprocess.TimeoutExpired:
+            print(f'タイムアウト: {args.timeout}秒で回答が返りませんでした。同じ問いでの再試行はしないでください。',
+                  file=sys.stderr)
+            return 1
+        except OSError as exc:
             print(str(exc), file=sys.stderr)
             return 1
         changed = snapshot(workspace) != before
