@@ -13,12 +13,12 @@ Agent Skills は、AIエージェントに「作業手順」を渡すための�
 | --- | --- |
 | GitHub Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` |
 | Codex | `.agents/skills/` |
-| Antigravity CLI（`agy`） | プロジェクト内の `.agents/skills/` と、ユーザー単位では `~/.gemini/antigravity-cli/skills/` など。**`~/.agents/skills/` は読まない** |
+| Antigravity CLI（`agy`） | プロジェクトは `.agents/skills/`、ユーザー単位は `~/.gemini/antigravity-cli/skills/`。**`~/.agents/skills/` は読まない** |
 | Claude Code | `.claude/skills/` のみ |
 
 そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` と `~/.gemini/antigravity-cli/skills` からリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
 
-> Antigravity CLI の前身の Gemini CLI は `~/.agents/skills/` を読んでいたが、Antigravity CLI はこの場所を**プロジェクト内でしか**見ない。開発側の回答と未解決の issue は [google-antigravity/antigravity-cli#103](https://github.com/google-antigravity/antigravity-cli/issues/103)。対応されたらこのリンクは不要になる。
+> Gemini CLI は 2026-06-18 に個人向けの提供が終わり、Antigravity CLI に移行した（[Google の告知](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)）。Antigravity CLI のスキルの場所は [移行ガイド](https://antigravity.google/docs/cli/gcli-migration) による。agy 1.4.7（Windows）で試したところ、`~/.agents/skills/` は直接読まれず、`~/.gemini/antigravity-cli/skills` にジャンクションを張ると読まれた（2026-10-25 確認）。開発側は「`.agents/skills/` はプロジェクト内専用」と答えており、未解決の issue は [google-antigravity/antigravity-cli#103](https://github.com/google-antigravity/antigravity-cli/issues/103)。対応されたらこのリンクは不要になる。
 
 ```mermaid
 graph LR
@@ -64,37 +64,36 @@ graph LR
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
 | `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 89行 |
-| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる | 363行 |
+| `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる（外部取り込み・MIT） | 124行 |
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 107行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 133行 |
-| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 129行 |
+| `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 143行 |
 | `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
 | `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 331行 |
 | `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
 | `cpp14-defect-analysis` | 動いているコードが期待どおり動かないときの原因究明。現象の確定をゲートにし、仮説を確度と切り分けコストで並べて1件ずつ検証、根本原因の確定・再発防止テストのRED確認・同種パターンの水平展開まで行う | 285行 |
 | `static-analysis-triage` | CodeSonar / Helix QAC の大量指摘を修正・逸脱・誤検知に仕分ける。同種の指摘をフィンガープリントで束ねて代表1件で判断し、過去の判定を判定DBから再適用する。申請書Excelへの書き戻しと逸脱記録書の生成まで行う | 255行 |
-| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む。評価ケースを evals/ に残し、改修時に全件回して退行を確かめる | 249行 |
+| `workflow-skill-architect` | スキルそのものの設計。ループ設計・DAG分解・状態管理・データ受け渡し契約まで含む。評価ケースを evals/ に残し、改修時に全件回して退行を確かめる | 250行 |
 | `skill-portfolio-audit` | スキル置き場の横断検査。description の200文字超過・発火競合・READMEとの乖離を機械検査し、競合候補を1組ずつ判定する。モデル更新時は本文監査モードで、古いモデル前提・過剰な強調・確認なしの危険操作を行単位で拾って見直す | 228行 |
-| `show-me` | 会話の流れの中でその場に図を出す。簡潔な図・コードの形のスケッチ・小さなHTMLから、いちばん小さく伝わるものを選ぶ（外部取り込み・MIT） | 128行 |
-| `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Claude経路は通常のツール・MCPを使用し、第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 165行 |
-| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 319行 |
-| `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 84行 |
-| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 60行 |
-| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 71行 |
-| `agents-md-advisor` | AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 124行 |
+| `second-opinion` | ClaudeからCodex CLIへ、CodexからClaude Code CLIへ、指名があればどちらからもAntigravity CLI（Gemini）へ同じ問いを独立に投げ、相違点だけを最大2ラウンド反論させる。Antigravityは作業コピー上で答えさせ、元のディレクトリに書き込ませない。第三AIへの相談・委任は禁止。結果をリサーチフォルダに残す | 188行 |
+| `youtube-member-summary` | YouTube動画（メンバー限定を含む）を要約してNotionの「DB_YouTube要約」に保存する。公開動画はNotebookLMにURL直接登録、メンバー限定はClaude in Chromeで字幕を抜いてから登録し、notion-api 経由で書き込む | 204行 |
+| `implementation-plan-grill` | 実装計画・設計案を着工前に観点表で問い詰めて穴を潰す。汎用7観点＋組込み8観点で論点を台帳化し、調べて潰せないものだけ推奨回答つきで質問する。プランモードで計画を出す前のチェックリストとしても使う。要件書・議事録からは質問を立てて資料だけで自答し、根拠つきの Q&A 表を作る | 66行 |
+| `session-handoff` | 作業セッションの状態をリポジトリ直下の HANDOFF.md 1枚に圧縮して次セッションへ引き継ぐ。再開時は実際のリポジトリ状態と突き合わせ、ズレていたら報告してから続行する | 61行 |
+| `cpp14-rule-reference` | AUTOSAR C++14 / CERT C++ の規約をルール番号や違反内容から引き、番号・要旨・根拠・出典箇所を返す基盤。規約資料は git 管理外の local/ に置く（vendor/NOTICE.md 参照） | 88行 |
+| `agents-md-advisor` | AGENTS.md を整える（CLAUDE.md は作らず、残っていれば AGENTS.md への統合を提案する）。未整備なら導入診断して AGENTS.md 草案・スキル候補・運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得てから適用する | 129行 |
 | `ui-visual-verify` | Web 画面の見た目の指摘を、要素の合意→修正→同条件で再撮影→前後比較→ユーザー確認で1件ずつ閉じる。playwright-cli で撮影・計測し、指摘台帳の未クローズ残ゼロを機械判定する。新しい画面の設計判断は `ui-ux-pro-max`、撮影できない実機での確認は `manual-test-sheet` | 162行 |
 | `daily-capture` | 会話に出た体調・トレード・今日の学び・読んだ本を Obsidian のデイリーノートと読書ログへ1行ずつ追記する。候補を表で提示し、承認された行だけをスクリプトで節の直下に差し込む | 122行 |
 | `reveal-file` | 生成した PDF・Excel などの成果物をエクスプローラー（macOS は Finder）で選択状態にして開く。OS ごとの差はスクリプトが吸収する | 65行 |
-| `session-history-mining` | Claude Code / Codex のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 132行 |
+| `session-history-mining` | Claude Code / Codex / Antigravity CLI のセッション履歴を集計し、反復する依頼と指摘を拾って、既存スキルへの追記・常時ルール・新スキル候補・見送りに仕分ける。作るかどうかは提案で止める | 136行 |
 | `ui-ux-pro-max` | UI を作る前に、画面の種類に合うスタイル・配色・フォント・UX ガイドライン・22スタック（WPF・WinUI を含む）の実装指針をローカルのデータから検索し、デザインシステムとして返す（外部取り込み・MIT） | 217行 |
-| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 157行 |
-| `drawio-diagram` | 構成図・フロー図・スイムレーン図・シーケンス図・状態遷移図・クラス図・ER図を、人が後から直せる draw.io 形式（.drawio）で作る。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 155行 |
+| `manual-test-sheet` | エージェントが実行できない環境（実機・MT5 端末・VPS・テスター）での確認を ID 付きの確認シートでまとめて依頼し、スモーク先行で回して NG だけを直して再確認する | 106行 |
+| `drawio-diagram` | 図の種類を問わず、人が後から直せる draw.io 形式（.drawio）で図を作る。UML の型に収まらない構成図・概念図も自由な配置で描ける。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 136行 |
 | `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 219行 |
 | `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
-| `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 113行 |
-| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 114行 |
-| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換、コメント・変更履歴、PDF にしての見た目確認まで行う | 93行 |
-| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレートのレイアウト利用、はみ出しと重なりの検査、全スライドの画像確認まで行う | 102行 |
+| `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 129行 |
+| `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 113行 |
+| `operate-word` | Word 文書を python-docx で読む・作る・直す。A4・和文フォントの雛形、断片をまたぐ書式保持の置換（テキストボックス・脚注・全ヘッダーを含み、変更履歴付きの置換もできる）、コメント・変更履歴、PDF にしての見た目確認まで行う。長い文書は見出し一覧から節ごとに読む | 119行 |
+| `operate-powerpoint` | PowerPoint を python-pptx で読む・作る・直す。16:9 化・和文フォント・テンプレート（.potx）のレイアウト利用、はみ出し・重なり・空の枠・あふれの疑いの検査、全スライドの画像確認まで行う | 118行 |
 
 **表の行数は実測値。** `skill-portfolio-audit` が実体と突き合わせるので、スキルを直したらここも直す。
 
@@ -119,8 +118,8 @@ mkdir "%USERPROFILE%\.gemini\antigravity-cli"
 if not exist "%USERPROFILE%\.gemini\antigravity-cli\skills" mklink /J "%USERPROFILE%\.gemini\antigravity-cli\skills" "%USERPROFILE%\.agents\skills"
 ```
 
-フォルダが既にある場合、`mkdir` は「既に存在します」と出るが無視してよい。`if not exist` があるので、何度流しても既存のリンクやフォルダは壊さない。
-**ただし `skills` が既に実フォルダとして存在すると、リンクは張られずに素通りする。** 中身があれば `~/.agents/skills` へ移してから空のフォルダを消し、もう一度流す。
+`.claude` や `.gemini\antigravity-cli` が既にある場合、`mkdir` は「既に存在します」と出るが無視してよい。`if not exist` があるので、何度流しても既存のリンクやフォルダは壊さない。
+**ただし `skills` が既に実フォルダとして存在すると、リンクは張られずに素通りする。** 中身を `.agents\skills` へ移してから空のフォルダを消し、もう一度流す。Antigravity CLI を使わない環境では後半の2行は要らない。
 `mklink /J`（ジャンクション）は**管理者権限も開発者モードも要らない**。`mklink /D`（シンボリックリンク）はどちらかが無いと権限不足で失敗する。
 
 **Linux / macOS / WSL**
@@ -138,12 +137,11 @@ mkdir -p ~/.gemini/antigravity-cli
 ### 3. 確認
 
 ```bash
-ls -la ~/.claude/skills     # → skills -> .../.agents/skills と出れば成功
+ls -la ~/.claude/skills                      # → skills -> .../.agents/skills と出れば成功
+ls -la ~/.gemini/antigravity-cli/skills      # Antigravity CLI を使う場合。同上
 ```
 
-Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。すでに起動していた場合は再起動が必要。
-
-Antigravity CLI は、Windows なら `dir "%USERPROFILE%\.gemini\antigravity-cli"` で `skills` が `<JUNCTION>` と出ればリンクは張れている。読み込まれたかどうかは、対話画面の `/skills` で一覧を見る（issue #103 で使われている方法。このリポジトリでは未確認）か、`agy -p "利用可能なスキルの name を一覧で" --mode plan` と聞いて確かめる。
+Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。Antigravity CLI は `agy` の中で `/skills` を打って確かめる。どちらも、すでに起動していた場合は再起動が必要。
 
 ### Obsidian の無い PC（会社PCなど）
 
@@ -355,9 +353,9 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 対象 | 適用されるライセンス |
 | --- | --- |
 | 自作スキル、`tools/`、README・AGENTS.md | ルートの `LICENSE`（MIT / Copyright (c) 2026 SuperPyonchiX） |
-| `skills/show-me/` | `skills/show-me/LICENSE`（MIT / Copyright (c) 2026 HumanLayer）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/japanese-prose-polish/` | `skills/japanese-prose-polish/LICENSE`（MIT / Copyright (c) 2025 Siqi Chen、Copyright (c) 2026 SuguruKun_ai）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。
@@ -373,4 +371,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限を確認する。標準ライブラリのみで動き、外部通信はモックする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎ、Notion の見出しと太字の変換と YouTube 要約の整形、validate_skill.py の雛形ディレクトリの孤児判定、静的解析トリアージの読み出しから申請書への書き戻しまでの通し、日記への追記、reveal-file の対象の絞り込み、C++ の規約スキャンと Doxygen 検査、規約資料の番号索引を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel と静的解析トリアージの一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。

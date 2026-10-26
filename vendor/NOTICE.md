@@ -10,23 +10,6 @@
 
 ライセンスが再配布を許可しており、`skills/<name>/LICENSE` に全文を同梱しているもの。
 
-### show-me
-
-| | |
-|---|---|
-| 出典 | https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me |
-| ライセンス | MIT（Copyright (c) 2026 HumanLayer）。全文は `skills/show-me/LICENSE` |
-| 取得時のコミット | `6ab9013a10c28f5046f7f999549cd5328a0b30d7`（2026-08-13） |
-| 取得日 | 2026-08-29 |
-| 改変 | **あり**（下記） |
-
-frontmatterと、環境依存の表示手順を改変している。本文の記述言語は英語で保持している。
-
-- `description` を日本語に差し替えた。上流は英語のみで、日本語の依頼では発火しないため。あわせて `markdown-doc` との棲み分けを1文追加（2026-09-03 に統合前の `markdown-explanation-doc` から改名）
-- 2026-10-03 に `description` を200文字以内へ短縮し、`metadata.web-description` を削除した（CLI 用と WEB 用を1本に統一）
-- `license: MIT` を追加
-- 2026-10-03にmacOS専用のBash(open)手順を、ホストのプレビューとOS別の表示手順へ置き換えた
-
 ### ui-ux-pro-max
 
 | | |
@@ -77,7 +60,7 @@ frontmatterと、環境依存の表示手順を改変している。本文の記
 | ライセンス | MIT。著作権表示を含む上流の全文を `skills/japanese-prose-polish/LICENSE` に同梱 |
 | LICENSEの取得コミット | `a1e343696e43aa50e7218891f3319ab22cde3464` |
 | LICENSE取得日 | 2026-10-03。既存本文の初回取得時コミットは未記録であり、この値で代用しない |
-| 改変 | あり。改名、description短縮、業務文書モード、保護対象、ルール21を追加済み |
+| 改変 | あり。改名、description短縮、業務文書モード、保護対象、ルール21を追加済み。2026-10-26 に21パターンの例文を `references/patterns.md` へ移し、SKILL.md には索引表を置いた |
 
 2026-10-03に上流の本文・著作者表示を照合し、欠落していたLICENSEを原文のまま補った。原文SHA-256は `f75eb14ec27966cd36603902343e942aa1d125e7ef78cfb786ba71b29938b7dc`。
 再取得は上記コミットのLICENSEを取得する。本文を更新する場合は、業務文書モードと引用・テンプレート・事実の保護規定を維持して差分を適用する。
@@ -159,6 +142,23 @@ Standard の公開 Wiki を参照するか、SEI 配布の PDF を入手する�
 `local/autosar/` `local/cert/` `local/inhouse/` の骨組みは `.gitkeep` でコミット済みなので、各環境では
 資料ファイルを該当ディレクトリに置くだけでよい。`.gitignore` は `.gitkeep` 以外を全て除外し、
 `tools/pack_skill.py` も `local/` を zip に入れない。資料を置いたままパッケージしても再配布にはならない。
+
+## 削除したもの
+
+再び取り込むときのために出典だけ残す。
+
+### show-me
+
+| | |
+|---|---|
+| 出典 | https://github.com/humanlayer/skills/tree/main/plugins/show-me/skills/show-me |
+| ライセンス | MIT（Copyright (c) 2026 HumanLayer） |
+| 取り込んでいた版 | `6ab9013a10c28f5046f7f999549cd5328a0b30d7`（2026-08-13、取得日 2026-08-29） |
+| 削除日 | 2026-10-24 |
+
+会話中に図・スケッチを出すときの表現の選び方を例示するだけのスキルで、手順・検査・状態を持たず、
+現行モデルの素の振る舞いと重なるため削除した。`markdown-doc` と `drawio-diagram` の description にあった
+show-me への振り分けは「その場で見せるだけの図には使わない」旨の記述に置き換えた。
 
 ## ラッパースクリプト（リポジトリ外）
 

@@ -1,0 +1,9 @@
+評価用のサンプル資料（実在の規約本文ではない）
+
+Rule A7-1-2 (required, implementation, automated)
+サンプル条文: コンパイル時に値が決まる変数は constexpr で宣言する。
+Rationale: サンプルの根拠。実行時の初期化順序の問題を避ける。
+
+Rule A5-1-1 (required, implementation, partially automated)
+サンプル条文: 型の初期化以外でリテラル値を直接使わない。
+See also A7-1-2.

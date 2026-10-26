@@ -16,6 +16,7 @@
 """
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,29 @@ def build_command(codex, args):
     return [codex, "exec", "-s", "read-only"] + common + ["-"]
 
 
+def match_console_encoding():
+    """標準出力・標準エラーの符号化を、受け取る側のコンソール出力コードページに合わせる。
+
+    PowerShell は外部コマンドの出力をパイプで受け、[Console]::OutputEncoding（コンソール出力
+    コードページ）で読む。Python は既定でロケール（日本語環境は cp932）で書くので、UTF-8 に固定すると
+    cp932 のコンソールで化け、既定のままだと chcp 65001 のコンソールで化ける。
+    PYTHONIOENCODING が指定されていれば呼び出し側の意図とみなして触らない。
+    """
+    if sys.platform != "win32" or os.environ.get("PYTHONIOENCODING"):
+        return
+    import codecs
+    import ctypes
+    cp = ctypes.windll.kernel32.GetConsoleOutputCP()  # コンソールが無ければ 0
+    try:
+        encoding = codecs.lookup(f"cp{cp}").name if cp else None
+    except LookupError:
+        encoding = None
+    for stream in (sys.stdout, sys.stderr):
+        # コンソール直結は Python が UTF-16 で書くので化けない
+        if hasattr(stream, "reconfigure") and not stream.isatty():
+            stream.reconfigure(encoding=encoding or stream.encoding, errors="backslashreplace")
+
+
 def main():
     p = argparse.ArgumentParser(description="Codex CLI に read-only で1ターン質問する")
     p.add_argument("--prompt-file", required=True, type=Path)
@@ -48,8 +72,6 @@ def main():
     args.prompt_file = args.prompt_file.resolve()
     args.out = args.out.resolve()
     args.cd = args.cd.resolve()
-    for stream in (sys.stdout, sys.stderr):
-        stream.reconfigure(encoding="utf-8")
 
     codex = shutil.which("codex")
     if codex is None:
@@ -106,4 +128,5 @@ def main():
 
 
 if __name__ == "__main__":
+    match_console_encoding()
     sys.exit(main())

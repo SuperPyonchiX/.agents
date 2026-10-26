@@ -1,0 +1,37 @@
+{
+  "skill_name": "session-history-mining",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Claude と Codex と Antigravity の履歴から、同じ指摘を繰り返していないか見て",
+      "expected_output": "このスキルが使われ、H0 で 3 ツールの履歴の場所を確かめて範囲を提示する",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）",
+        "H0 で ~/.gemini/antigravity-cli/ の存在を確かめてから範囲に含める",
+        "H1 の extract_history.py に --antigravity-dir を付けて実行する",
+        "second-opinion の自動相談（作業コピー second-opinion-agy-*）を人の発話として数えていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Antigravity の IDE で作った会話も含めて月次の棚卸しをして",
+      "expected_output": "IDE 版の履歴（conversations/*.pb）は読めないと報告し、読めない履歴を反復なしとして扱わない",
+      "files": [],
+      "expectations": [
+        "~/.gemini/antigravity/conversations/*.pb を読めなかった履歴として報告に書く",
+        "読めなかった履歴を推測で埋めない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "このスキルの description を短くして",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（workflow-skill-architect の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}

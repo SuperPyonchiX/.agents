@@ -1,0 +1,35 @@
+{
+  "skill_name": "notion-api",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Notion の API で、データベースのスキーマ（列と選択肢）を取得して見せて。トークンは環境変数 NOTION_TOKEN に入っている",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "見出しが #### まである Markdown を Notion のブロック JSON に変換して。投稿はしない（確認は不要）。内容: 「## 概要\\n#### 詳細\\n- **重要 **語** を含む**」",
+      "expected_output": "md2blocks.py の出力で #### が heading_3 になり、太字の行が1つの太字要素になる",
+      "files": [],
+      "expectations": [
+        "scripts/md2blocks.py が終了コード 0",
+        "出力に「#### 詳細」という文字列の paragraph が無く、heading_3「詳細」がある",
+        "箇条書きの rich_text が「重要 語 を含む」の太字1要素で、本文に ** が残っていない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "この会話で分かったことを Notion のノウハウまとめに載せて",
+      "should_trigger": false,
+      "expected_output": "このスキルを直接は使わない（notion-knowhow-page の担当。書き込みの基盤として後から使われるのはよい）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで最初に使われるスキルが notion-knowhow-page で、このスキルではない"
+      ]
+    }
+  ]
+}

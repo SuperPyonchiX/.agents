@@ -1,0 +1,46 @@
+{
+  "skill_name": "cpp14-rule-reference",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "A5-1-1ってどんなルール？",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "規約資料は evals/files/sample-local に置いてある（local/ の代わりに使って）。A7-1-2 の要旨と根拠を出典つきで教えて（確認は不要）",
+      "expected_output": "rule_index.py で索引を作って場所を引き、その箇所を読んで出力形式どおりに返す",
+      "files": ["evals/files/sample-local/autosar/sample-guideline.txt"],
+      "expectations": [
+        "scripts/rule_index.py build と find を --local evals/files/sample-local で実行している",
+        "出典が sample-guideline.txt の行番号（l.3 付近）を指している",
+        "分類が required、確認状態が「資料で確認済み」になっている",
+        "要旨と根拠がサンプル資料の記述（constexpr で宣言する、初期化順序）に沿っていて、資料に無い内容を条文として足していない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "M0-1-9 の条文と根拠を教えて（規約資料はまだ置いていない）",
+      "expected_output": "資料が無いので引き当てを始めずに止まり、資料の配置を依頼する",
+      "files": [],
+      "expectations": [
+        "学習知識だけで M0-1-9 の条文を確認済みとして返していない",
+        "local/ への資料の配置をユーザーに依頼している"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "この C++ の差分をレビューして",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（cpp14-code-review の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで最初に使われるスキルがこのスキルではない"
+      ]
+    }
+  ]
+}

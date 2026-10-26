@@ -53,71 +53,13 @@ nlm source add <notebook-id> --url "https://www.youtube.com/watch?v=<videoId>" -
 
 ### 2. メンバー限定動画: Claude in Chrome で字幕を抽出する
 
-前提知識(2026-08-30 実測):
-- メンバー限定動画には「文字起こしを表示」パネルが提供されない(`ytInitialData.engagementPanels` に transcript パネルが無い)。
-- `ytInitialPlayerResponse` の captionTracks の baseUrl を直接 fetch すると **200 で空ボディ**が返る(トークン必須化のため)。プレイヤー自身が発行したリクエストURLを使い回すこと。
-- **動画本編は再生できないことがある**(`readyState` が 0 のままバッファリングで停止し、`buffered` が 0 のまま進まない)。これは公開動画でも同じで、この環境ではメディアストリームが読み込めない。**再生に依存する手順を組んではいけない。**
-- 字幕リクエストは再生しなくても発生させられる。プレイヤーAPIの `setOption('captions','reload',true)` が引き金になる。
-- 発行されたリクエストのうち**1本目は空ボディで返る**。2本目以降を使う。全部まとめて fetch して、長さが1000文字を超えたものを採用するのが確実。
-- 無効なリクエストURLを fetch すると**レスポンスが返らずハングする**。必ず `AbortController` でタイムアウト(20〜25秒)を付ける。付けないと `javascript_tool` が45秒でCDPタイムアウトになる。
+`references/member-transcript.md` を読み、その手順で字幕を抜く。要点は次の3つで、詳細と実測の根拠は参照先にある。
 
-手順:
+- **動画は再生しない。** この環境ではメディアが読み込めないことがある。字幕リクエストはプレイヤーAPIの `setOption('captions','reload',true)` で発生させる
+- 字幕本文やURLをツール結果として返さない（拡張のプライバシーフィルタで BLOCKED になる）。返すのはステータスと文字数だけにし、全文は DOM 置換 + `get_page_text` で受け取る
+- fetch には必ず `AbortController` で20〜25秒のタイムアウトを付ける
 
-1. claude-in-chrome スキルを発動してから `mcp__claude-in-chrome__*` ツールを使う(未ロードなら ToolSearch で一括ロード)。
-2. `tabs_context_mcp` で現状確認 → `tabs_create_mcp` / `navigate` で動画URLを開く。
-3. ページ読み込みを9秒ほど待ってから、`javascript_tool` でメタ情報と字幕トラックの有無を確認する。見る場所: `ytInitialPlayerResponse` の `videoDetails.title / .lengthSeconds`、`microformat.playerMicroformatRenderer.publishDate`、`captions.playerCaptionsTracklistRenderer.captionTracks`(空なら字幕なし→抽出不可として終了)。
-   - `videoDetails.author` は拡張のプライバシーフィルタで BLOCKED になる。チャンネル名は動画一覧やページ見出しから別途取る。
-4. 字幕リクエストを発生させる。**再生はしない。**
-   ```js
-   const p = document.getElementById('movie_player');
-   for (let k = 0; k < 3; k++) {
-     try { p.loadModule('captions'); } catch(e) {}
-     try { p.setOption('captions','track',{languageCode:'ja'}); } catch(e) {}
-     try { p.setOption('captions','reload',true); } catch(e) {}
-     await new Promise(r => setTimeout(r, 5000));
-     if (performance.getEntriesByType('resource')
-           .filter(e => e.name.includes('timedtext')).length) break;
-   }
-   ```
-   `reload` を1回で駄目なら複数回叩く。3周しても0件ならページを再読み込みして1度だけやり直す。
-5. 発行済みリクエストを全部 `fmt=json3` に差し替えて fetch し、中身のあるものを拾う。**URLや本文をツール結果として返さない**(プライバシーフィルタでBLOCKされる)。返すのはステータスと文字数だけ。
-   ```js
-   window.__r = []; window.__d0 = null;
-   const hits = performance.getEntriesByType('resource')
-     .filter(e => e.name.includes('timedtext'));
-   hits.forEach((h, i) => {
-     const u = new URL(h.name); u.searchParams.set('fmt','json3');
-     const c = new AbortController(); setTimeout(() => c.abort(), 25000);
-     fetch(u.toString(), {credentials:'include', signal:c.signal})
-       .then(async res => { const t = await res.text();
-         window.__r.push([i, res.status, t.length]);
-         if (t.length > 1000) window.__d0 = t; })
-       .catch(e => window.__r.push([i, 'err', e.name]));
-   });
-   ```
-   別呼び出しで `window.__r` を数回ポーリングして結果を確認する(fetch の解決を同一呼び出しで待つとCDPタイムアウトになる)。
-6. `window.__d0` を整形する。`events[].segs` を連結し、**30〜60秒ごとのブロックにまとめて**「M:SS 本文」の行にする(1行ずつだと転送量が増える。60分超の動画は60秒ブロック)。ヘッダを付けて `window.__out` に入れる。
-   ```
-   タイトル: <動画タイトル>
-   チャンネル: <チャンネル名>
-   公開日: <YYYY-MM-DD>
-   URL: <動画URL>
-   ---
-   0:00 <本文...>
-   ```
-7. 検証: 末尾タイムスタンプが `lengthSeconds` とおおむね一致すること。大きく短ければ手順4〜5をやり直す(2回まで)。
-8. 転送: 以下の順で試す。
-   1. **DOM置換 + `get_page_text`(推奨)**。`document.body` を空にして `<pre>` に `window.__out` を入れ、`get_page_text` で丸ごと受け取る。1往復で全文が取れる。
-      ```js
-      const b = document.body; while (b.firstChild) b.removeChild(b.firstChild);
-      const pre = document.createElement('pre'); pre.textContent = window.__out; b.appendChild(pre);
-      ```
-      `innerHTML` は Trusted Types で拒否されるので使わない。
-   2. 受け取った内容を **Write ツール**で scratchpad に `transcript_<videoId>.txt` として保存する。Bash のヒアドキュメントは1万字を超えると途中で切れて構文エラーになるので使わない。
-   
-   クリップボード経由(`navigator.clipboard.writeText` → `Get-Clipboard -Raw`)は、MCPタブが `document.hidden === true` のため writeText が解決せず**失敗する**。`document.execCommand('copy')` も同様に失敗する。localhost へのPOSTや `window.open` は YouTube の CSP でブロックされ、`window.name` はクロスオリジン遷移で消える。いずれも当てにしない。
-9. 使い終わったタブは `tabs_close_mcp` で閉じる。
-10. NotebookLM に登録: `nlm source add <notebook-id> --file transcript_<videoId>.txt --wait`（長文を引数へ展開しない）。
+完了条件: `transcript_<videoId>.txt` が scratchpad にあり、末尾のタイムスタンプが動画の長さとおおむね一致すること。`nlm source add <notebook-id> --file transcript_<videoId>.txt --wait` で登録し、手順3へ進む。
 
 ### 3. NotebookLM の準備とソース登録
 
@@ -140,7 +82,11 @@ notebooklm スキルの手順に従う。要点:
 
 ```powershell
 $query = Get-Content -LiteralPath prompt.txt -Raw -Encoding utf8
-nlm notebook query <notebook-id> $query --source-ids <新ソースID> --json
+nlm notebook query <notebook-id> $query --source-ids <新ソースID> --json | Out-File -Encoding utf8 q_<videoId>.json
+```
+
+```bash
+nlm notebook query <notebook-id> "$(cat prompt.txt)" --source-ids <新ソースID> --json > q_<videoId>.json
 ```
 
 prompt.txt の中身:
@@ -156,14 +102,7 @@ prompt.txt の中身:
 - **タイムスタンプを書かせない**。URL登録した動画は NotebookLM 側に時間情報が渡らないことがあり、その場合 `0:00〜2:15` のような表記が**実際の再生位置ではなく推測値**になる(「推定タイムスタンプ」と断ってくることもあれば、黙って書いてくることもある)。頭出しに使えない数字を残すより書かせない。字幕ファイルを渡したメンバー限定動画だけは実時刻が入るが、資料全体で揃えるため同じ扱いにする。
 - **「中学生向け説明」のラベルを書かせない**。毎項目に同じ見出しが並ぶだけで情報量がない。説明文だけでよい。
 
-- 出力が大きい場合は persisted-output ファイルに落ちるので、PowerShell の ConvertFrom-Json で `answer` を取り出す。複数本まとめてやるなら `> q_<sourceId>.json` にリダイレクトしてから処理する。
-- 要約本体以外に、以下が混ざる。まとめて落とす。
-  - 出典マーカー `[1, 2]` → `-replace '\s?\[[0-9,\s\-]+\]',''`
-  - 冒頭の前置き「選択されたソース**「〜」**の内容に基づき、ご指定の構成で日本語要約を作成しました。」とそれに続く `---` 行(付くときと付かないときがある) → `-replace '(?s)^[^\n]*(ソース|ご指定)[^\n]*要約を作成しました。\s*(\r?\n-{3,})?\r?\n',''`
-  - 末尾の追い質問「…さらに深掘りしてみますか？」「…いつでもおっしゃってくださいね」。**行頭の絵文字は毎回変わる**(⚖️ / 🧸 / ✅ / 💡 …)ので、特定の絵文字を決め打ちしないこと。空行に続く「絵文字で始まる最終ブロック」として落とす → `-replace '(?s)\r?\n\s*\r?\n[←-⯿\uD83C-\uDBFF][\s\S]*$',''`
-  - ファイル先頭のBOM → `.TrimStart([char]0xFEFF)`
-  - 但し書きを入れてもラベルが付いてくることがあるので、保険として `**〜向け説明**：` の並びを落とす処理も通す
-- 除去後の先頭が結論の見出しになっていることを確認する。ただし**見出しの記法は実行ごとに変わる**(下表)ので、`### 1) 結論` だけを期待して判定しない。
+- 回答の JSON（`--json` の出力）は `q_<videoId>.json` にそのまま保存する。整形は手順5のスクリプトが行うので、ここで出典マーカーや前置きを手で消さない。元の回答は根拠の確認用に残す
 - 返答が動画と無関係(別ソースの内容)なら `--source-ids` の指定を確認して1回だけやり直す。
 
 ### 5. Notion保存
@@ -174,58 +113,32 @@ DB「DB_YouTube要約」は作成済み。データソースID: `52e0eace-9cf1-4
 
 1ページの作り方:
 
-1. 本文 Markdown を組む: 冒頭に元動画URLの引用行 → 要約全文(下の「Notion 用の整形」で変換する) → 末尾に `---` を2行分と「NotebookLM: <ノートブック名>」。**「専門用語・前提知識の補足」も省略せず入れる**。`summaries/<videoId>.md` に置く。
+1. 本文 Markdown を作る。`scripts/normalize_summary.py` が出典マーカー・前置き・末尾の追い質問・BOM・「〜向け説明」のラベルを落とし、見出しの記法の揺れを吸収して、冒頭の元動画URLの引用行と末尾の「NotebookLM: <ノートブック名>」まで付ける。**「専門用語・前提知識の補足」も省略せず入る。**
+
+   ```bash
+   python scripts/normalize_summary.py normalize --answer q_<videoId>.json --url "<動画URL>" \
+     --notebook "<ノートブック名>" --out summaries/<videoId>.md
+   ```
+
+   終了コード1（NG）なら投稿しない。表示された理由を見て `references/notion-format.md` を読み、記法の表とスクリプトを直してから回し直す。回答の本文が `answer` 以外のキーにあれば `--field` で渡す
 2. プロパティ JSON を組む: `タイトル`(title) / `URL`(url) / `チャンネル`(select) / `カテゴリ`(select) / `公開日`(date) / `追加日`(date)。
 3. アイコンの絵文字を1つ決める(下の「アイコンの付け方」)。`--icon` は必須。
 4. 変換して投稿する。
 
    ```bash
    python "<notion-api-dir>/scripts/md2blocks.py" --file summaries/<videoId>.md --out blocks_<videoId>.json
+   python scripts/normalize_summary.py check --blocks blocks_<videoId>.json
    python "<notion-api-dir>/scripts/notion_page.py" create \
      --data-source-id 52e0eace-9cf1-436d-9f0d-5456b98e8703 \
      --properties props_<videoId>.json --blocks blocks_<videoId>.json \
      --icon "<決めた絵文字>" --progress progress_<videoId>.json
    ```
 
-   2000字分割・100ブロック超の追送はスクリプトが吸収する。一括処理ではこの2コマンドをドライバスクリプトから回す。
+   `check` が終了コード1なら投稿しない（heading_2 が3つ、結論の直後が太字の箇条書き、本文に `####` `***` `**` が無いことを見ている。2026-09-21 に `***` 混入と結論の段落化を投稿後に見つけ、3ページを差し替えた）。2000字分割・100ブロック超の追送は notion_page.py が吸収する。一括処理ではこの3コマンドをドライバスクリプトから回す。
+
 5. 投稿後、`notion_query.py query --compact` の `icon` フィールドで、作ったページにアイコンが入っていることを確認する。抜けていたら `notion_page.py set-icon --page-id <id> --icon <絵文字>` で入れる。
 
-#### Notion 用の整形(手順4の出力をそのまま渡さない)
-
-**`md2blocks.py` は `#` 3つまでしか見出しにしない。** Notion に heading_4 が無いため、`####` の行は変換されず `#### 見出し` という文字列のまま段落として画面に出る。手順4の出力は `### 1) 結論` と `#### 小見出し` を含むので、**そのまま渡すと必ず崩れる**。
-
-既存ページと同じ見た目にするため、Markdown を組む前に次の変換を当てる。
-
-| 手順4の出力 | 変換後 | Notion 上のブロック |
-|---|---|---|
-| 大見出し(3つ。記法は下表のとおり揺れる) | `## 結論` など(**番号 `N)` と太字を落とす**) | heading_2 |
-| 結論セクションの各項目 | `- **本文**` | bulleted_list_item(全文太字) |
-| 小見出し(記法は下表のとおり揺れる) | `- **小見出し**` | bulleted_list_item(全文太字) |
-| 小見出し配下の説明文 | そのまま | paragraph |
-| `---` | そのまま | divider |
-
-**記法は実行ごとに変わる。** 同じプロンプトで 5 本流して 3 通り出た(2026-09-21 実測)。2026-10-03 に4通り目(D)が出た。**どれか1つを決め打ちした変換を書かない。**
-
-| | 大見出し | 小見出し | 結論の項目 |
-|---|---|---|---|
-| A | `### 1) 結論` | `#### X` | `・本文` |
-| B | `1) **結論**` | `### **X**` | `* 本文` |
-| C | `**1) 結論**` | `### **X**` | **箇条書きにならず1段落で来る** |
-| D | `### 1. 結論`(`)` ではなく `.`) | `#### X` | `1. **本文**`(番号付き・全文太字) |
-
-受け方の目安:
-
-- 大見出し: `^#{0,4}\s*\*{0,2}\s*\d[\)\.]\s*(.+?)$` — 行頭の `#` と `**` の有無を問わず「数字 + `)` または `.`」で拾い、番号と太字を落とす
-  - **D では結論の項目も `1. **…**` で、この正規表現に当たる。** D の大見出しは必ず `###` 付きなので、`.` 区切りの行は `#` があるときだけ大見出しとし、`#` の無い `\d\. ` 行は結論の項目として扱う
-- 小見出し: `^#{3,4}\s+(.+?)$` — `###` と `####` の両方を受ける(大見出しの判定を先に通すこと)
-- 結論の項目: `・` / `* ` / `- ` / `\d\. ` のいずれか。**C のように箇条書きで来ない場合は句点で文を割って1文ずつ `- **…**` にする**
-
-- **`- **…**` で包む行に `**` が既に含まれていたら、内側の `**` を先に落とす。** `make_block()` は `**` で素朴に分割するのでネストで壊れ、`**` が本文に残る。結論の行は NotebookLM が語句を太字にしてくることが多い。
-- 小見出し配下に `・A: 〜` の列挙がある場合は **paragraph のまま置く**(連続行は1ブロックに結合される)。`- ` に変換すると小見出しと同じ階層になり区別がつかなくなる。
-- **箇条書きの判定で `*` と `-` は後ろに空白を要求する。** `^[・*-]` だけで拾うと `**太字**` の先頭 `*` を箇条書き記号と誤認し、`- ***本文**` のように `*` が1つ余って本文に残る。`・` だけは空白なしを許す。
-- 組み終えたら `md2blocks.py` に通し、`heading_2` → `bulleted_list_item`(bold) → `paragraph` の並びになっていること、本文に `####` と `***` が無いこと、`## ` 見出しがちょうど3つあることを確認してから投稿する。**この3点は毎回機械的に確かめる**(2026-09-21 に `***` 混入と結論の段落化を投稿後に発見し、3ページを差し替えた)。
-
-**既に崩れた書式で投稿してしまったときは、ページを作り直さない。** URL が変わるとユーザーへ渡したリンクが死ぬ。`notion_http.request()` で `GET /v1/blocks/<page-id>/children` → 各ブロックを `DELETE /v1/blocks/<id>` → 正しいブロックを `PATCH /v1/blocks/<page-id>/children` に 100 件ずつ追送すると、URL を保ったまま中身だけ差し替えられる。削除前に取得結果をファイルへ退避しておく。この経路では目次が自動で入らないので、送るブロックの先頭に目次ブロック（`table_of_contents`）を置く。
+**既に崩れた書式で投稿してしまったときは、ページを作り直さない。** URL が変わるとユーザーへ渡したリンクが死ぬ。手順は `references/notion-format.md` の末尾にある。
 
 #### アイコンの付け方
 
@@ -267,45 +180,17 @@ NotionページのURL、使用したノートブック名を伝える。scratchp
 
 ## チャンネル単位でまとめて処理する場合
 
-「このチャンネルの今月の動画を全部」のような依頼のとき。
+「このチャンネルの今月の動画を全部」のような依頼のときは `references/bulk-processing.md` を読む。対象の一覧の取り方（DOM・innertube）、実日付の引き方、状態ファイル（`worklist.tsv` `state.tsv` ほか）、二重登録の防ぎ方がある。
+対象リストをユーザーに見せてから実行に入る。1本あたり約85秒かかるので、1セッションで終わらない規模ならその旨と再開方法を先に伝える。
 
-1. `https://www.youtube.com/@<handle>/videos` を開く。`/videos` を指定してもホームタブが出ることがあるので、その場合は「動画」タブをクリックする。
-2. 下端まで数回スクロールしてから、動画一覧を取る。`ytInitialData` の走査は BLOCKED になりやすいので DOM から拾う:
-   ```js
-   [...document.querySelectorAll('ytd-rich-item-renderer')].map(it => {
-     const a = it.querySelector('a[href*="/watch?v="]');
-     const id = a ? (a.getAttribute('href').match(/v=([\w-]{11})/)||[])[1] : '';
-     return id + ' :: ' + it.innerText.replace(/\s*\n\s*/g,' | ').trim();
-   });
-   ```
-   `innerText` に「再生時間 | タイトル | 再生数 | 公開時期 | メンバー限定」が入る。再生数が無く「メンバー限定」が付くものが限定動画。
-3. 公開時期は「3 日前」「4 週間前」のような相対表記。実日付は**ブラウザを使わず** `curl` で取れるので、対象が決まったら一括で引く。相対表記だけで月をまたぐ判定をしない。
-   ```bash
-   curl -s -A "Mozilla/5.0" "https://www.youtube.com/watch?v=<id>" | grep -o '"publishDate":"[^"]*"'
-   ```
-4. Notion の DB を `notion_query.py query --compact` で引いて、既に登録済みのURLを除外してから処理対象を確定する。対象リストをユーザーに見せてから実行に入る。
+## スクリプト
 
-### 数十本以上を一括処理するとき
+`scripts/normalize_summary.py` — 依存は標準ライブラリのみ。
 
-DOMスクロールでは全件出ない(仮想リストで30件しか描画されない)。innertube の継続トークンを回して全件取る。
-
-1. `ytInitialData` を走査して `lockupViewModel`(動画は `contentId`/`metadata.lockupMetadataViewModel`)と `continuationItemRenderer.continuationEndpoint.continuationCommand.token` を集める。**変数名に `token` を使うと拡張のプライバシーフィルタに BLOCKED されるので別名にする**。
-2. 集めたトークンで `POST /youtubei/v1/browse?key=<INNERTUBE_API_KEY>`(body に `context: ytcfg.get('INNERTUBE_CONTEXT')`)を繰り返し、新規が増えなくなるまで回す。最初のページには他タブ由来のトークンも混ざるので、**新規が増えたものを当たりとして採用する**。
-3. 一覧・進捗・分類・公開日を scratchpad のファイルに落とし、処理はドライバスクリプトに任せる。会話に長文を載せない。
-   - `worklist.tsv` … status(TODO/DONE/SKIP) / class / videoId / 相対日付 / タイトル
-   - `state.tsv` … videoId / ok・pending・member・fail / source_id
-   - `meta.tsv` `cat.tsv` … 公開日、カテゴリ
-   - `summaries/<videoId>.md` … 整形済み要約
-4. ドライバは「登録に成功したら即 `pending` を書き、要約まで済んだら `ok` に上書き」する。途中で落ちても登録済みのものを二重登録しない。
-5. ノートブックは1冊50ソースが上限。45件を超えたら `YouTube_<チャンネル名>_02` のように作って切り替える。
-6. 1本あたり登録40秒＋要約45秒。**数十本で1時間、200本超なら数時間**かかる。1セッションで終わらない規模なら、その旨と再開方法を先に伝える。
-
-#### `nlm source add` の落とし穴(実測)
-
-- JSONの形とソースIDの位置を実出力で確かめる。未確認の旧版の形式を決め打ちしない。パースできなければ結果不明として止め、一覧から実体を照合する。
-- その誤記録を消して再試行させると**同じ動画が二重登録される**。取り込み失敗と判定したら、消す前に `nlm source list` で実体が無いことを確かめる。
-- 判別のための登録は動画1件ずつ行う。まとめて処理するときも入力URLと返されたソースを照合する。
-- 重複を削除するときは `nlm source delete --help` の構文と確認方法を使う。削除対象を列挙し、ユーザーの承認範囲で実行する。要約と紐づくソースIDを残す。
+| サブコマンド | 使う場面 | 終了コード |
+|---|---|---|
+| `normalize --answer <回答> --url <URL> --notebook <名前> --out <md> [--field answer]` | 手順5の1。回答（JSON か本文テキスト）を Notion 用の Markdown にする | 0 合格 / 1 見出しが3つ拾えない・`####` `***` が残る（投稿しない）/ 2 引数・入力の不備 |
+| `check --blocks <blocks.json>` | 手順5の4。md2blocks の出力を投稿前に検査する | 0 合格 / 1 構造が崩れている（投稿しない）/ 2 読めない |
 
 ## 終了条件と失敗時の扱い
 

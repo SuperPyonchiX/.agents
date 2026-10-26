@@ -10,7 +10,7 @@ check_drawio.py は XML の構造しか見ない。線の経路は draw.io が�
   INSIDE   線が、自分の source / target の四角い箱の内側を通っている（矢印が箱の中で止まる、箱の中を横断する）
   TOUCH    線が、そういう箱の縁に沿って走るか、4px 以内まで寄っている（枠線と重なって見分けられない）
   OVERLAP  source も target も異なる2本の線が、同じ直線上で 20px 以上重なっている
-  HEADER   線が、スイムレーン・枠の見出し帯（名前が書かれた帯）を横切っている
+  HEADER   線が、スイムレーンの見出し帯（左端の名前の帯）か、囲み枠の見出しの文字の上を横切っている
   BORDER   線が、枠の辺に沿って 20px 以上走っている（枠線と見分けられない）
   PARALLEL 2本の線が 12px 未満の間隔で 20px 以上並走している（重なってはいないが二重線に見える。同じ箱に入る線も対象）
   JOG      線の途中に 16px 未満の短い折れ（段差）がある。つながる箱の中心がわずかにずれているときに出る
@@ -331,10 +331,18 @@ def main():
         st = dict(kv.partition("=")[::2] for kv in c.get("style", "").split(";") if kv)
         band = float(st.get("startSize") or 23)
         x, y, w, h = rects[vid]
-        hb = (x, y, band, h) if st.get("horizontal") == "0" else (x, y, w, band)
+        if st.get("horizontal") == "0":   # スイムレーンの左の見出し帯は帯全体
+            hb = (x, y, band, h)
+        else:   # 見出しが上の枠は、見出しの文字の上だけ（帯の文字の無い所を線が横切るのは構わない）
+            # 中の箱の g は枠の g の内側に入れ子で出るので、見出しが空の枠では中の箱のラベルを拾ってしまう
+            if not (c.get("value") or "").strip():
+                continue
+            title = label_box(groups[vid]) if vid in groups else None
+            # 文字の位置を SVG から取れないときは、帯全体を見る（取れないことを「問題なし」にしない）
+            hb = (title[0] - 4, y, title[2] + 8, band) if title else (x, y, w, band)
         for cid, (_, segs) in edges.items():
             if any(clip(s, t, hb, 1.0) for s, t in segs):
-                problems.append(f"HEADER   線「{cid}」が枠「{vid}」の見出し帯を横切っている")
+                problems.append(f"HEADER   線「{cid}」が枠「{vid}」の見出し（{'帯' if st.get('horizontal') == '0' else '文字'}）を横切っている")
 
     for vid in containers:
         if vid not in rects:

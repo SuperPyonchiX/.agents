@@ -41,8 +41,12 @@ skills/<skill-name>/SKILL.md   ← 各スキルの本体
 ## 移植性の規約
 
 このリポジトリのスキルは Claude Code 以外（Codex / Antigravity CLI / Copilot）でも使う前提。
-**Claude Code 独自拡張（サブエージェント実行、動的コンテキスト注入、呼び出し制御）は使わない。**
+**Claude Code 独自拡張（frontmatter の `context: fork` などによるサブエージェント実行、動的コンテキスト注入、呼び出し制御）は使わない。**
 標準仕様の範囲（`scripts/` `references/` `assets/` の同梱）に留める。
+
+本文に自然文で「この工程はサブエージェントに渡す」と書くのは独自拡張に当たらず、使ってよい。
+ただし委任を指示するのはレビューの工程だけにし、使えない環境での代わり方を併記する（Codex は委任の
+指示が無いと分割しない。書き方は `workflow-skill-architect` の `references/graph-engineering.md`）。
 
 スクリプトが**特定のディレクトリ配置を前提にしない**ことは必須。スキルディレクトリからの相対パスと
 引数で受け取ったパスだけで動くようにする。

@@ -1,0 +1,39 @@
+{
+  "skill_name": "youtube-member-summary",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この動画を要約して Notion に残しておいて https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "この3本の PDF を NotebookLM に入れて、違いを比較して",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（notebooklm の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "YouTube 動画を NotebookLM で要約した回答が evals/files/answer_variant_c.txt と evals/files/answer_variant_d.txt にある。DB_YouTube要約 に投稿する前の整形と検査だけやって（投稿はしない。確認は不要）",
+      "expected_output": "normalize_summary.py で2本とも整形され、md2blocks の出力の check が合格する",
+      "files": [
+        "evals/files/answer_variant_c.txt",
+        "evals/files/answer_variant_d.txt"
+      ],
+      "expectations": [
+        "scripts/normalize_summary.py normalize が2本とも終了コード 0",
+        "出力した Markdown に「## 」の見出しがちょうど3つあり、「####」と「***」が無い",
+        "md2blocks.py の出力に対する normalize_summary.py check が終了コード 0",
+        "Notion への投稿（notion_page.py create）を実行していない"
+      ]
+    }
+  ]
+}

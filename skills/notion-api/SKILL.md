@@ -29,7 +29,7 @@ Notion を REST API で操作するための基盤。ワークフローは持た
 
 | スクリプト | 用途 |
 | --- | --- |
-| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで）。コードフェンスの `csharp` `cpp` などは Notion の言語名（`c#` `c++`）へ直す |
+| `scripts/md2blocks.py` | Markdown → ブロック JSON 変換。2000字分割を吸収。Markdown の表は table ブロックにする（1表100行まで）。コードフェンスの `csharp` `cpp` などは Notion の言語名（`c#` `c++`）へ直す。`####` 以下の見出しは heading_3 にし、全体が太字の行の内側の `**` は落とす |
 | `scripts/notion_page.py` | `create`（目次付きページ作成と分割追送）/ `append`（読み戻しで照合した不足分の追送）/ `set-icon` / `archive`。create/appendは `--progress <json>` で途中結果を保存する |
 | `scripts/notion_query.py` | `schema`（プロパティ定義と選択肢一覧）/ `query`（全件クエリ。`--compact` は `icon` も返す）/ `blocks`（本文読み戻し） |
 

@@ -1,20 +1,22 @@
 ---
 name: agents-md-advisor
-description: AGENTS.md / CLAUDE.md を整える。未整備なら導入診断して AGENTS.md 草案と運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得て適用する。「AIエージェントを導入したい」「CLAUDE.mdを見直したい」で使う。skills ディレクトリの横断検査は skill-portfolio-audit。
+description: AGENTS.md を整える。未整備なら導入診断して AGENTS.md 草案と運用ルールの提案書に、整備済みなら監査して台帳化し1件ずつ判定を得て適用する。「AIエージェントを導入したい」「AGENTS.mdを見直したい」で使う。skills ディレクトリの横断検査は skill-portfolio-audit。
 ---
 
-# AGENTS.md / CLAUDE.md Advisor
+# AGENTS.md Advisor
 
 常時読み込みされる指示ファイルを「作る」と「削る」の両方から扱う。最初に**モードを1つに決める**。
 
 | リポジトリの状態 | モード | 成果物 |
 |---|---|---|
-| AGENTS.md / CLAUDE.md が無い、または数行の雛形しか無い | **導入診断** | 導入提案書1枚（AGENTS.md 草案を含む） |
+| AGENTS.md が無い、または数行の雛形しか無い | **導入診断** | 導入提案書1枚（AGENTS.md 草案を含む） |
 | 既に運用中で、行数が増えている・効いていない | **監査** | 指摘台帳と、判定済み指摘の適用 |
 
 判定に迷う場合（雛形はあるが中身が薄い）は導入診断を選び、既存の記述は診断シートの「既存のAI設定」に取り込む。
 
-共通の前提: チームは Claude Code / GitHub Copilot / Codex / Gemini CLI のどれを使うか分からない。**全ツールが読む資産（AGENTS.md、`.agents/skills/` の Agent Skills、リポジトリ内ドキュメント）を主とし、ツール固有機能は分離した節に書く。** CLAUDE.md は AGENTS.md を参照するだけの薄い形にする。
+共通の前提: チームは Claude Code / GitHub Copilot / Codex / Antigravity CLI のどれを使うか分からない。**全ツールが読む資産（AGENTS.md、`.agents/skills/` の Agent Skills、リポジトリ内ドキュメント）を主とし、ツール固有機能は分離した節に書く。**
+
+**指示ファイルは AGENTS.md の1本にし、CLAUDE.md は作らない。** Claude Code は v2.1.277 以降、CLAUDE.md が無ければ AGENTS.md を直接読む。逆に、作業ディレクトリかその上位に CLAUDE.md / CLAUDE.local.md が1つでもあると、既定では AGENTS.md を読まない（[公式ドキュメント](https://code.claude.com/docs/en/memory) の「AGENTS.md」節）。だから既存の CLAUDE.md は放置せず、AGENTS.md へ統合して消す対象として扱う。
 
 ---
 
@@ -47,11 +49,11 @@ description: AGENTS.md / CLAUDE.md を整える。未整備なら導入診断し
 章立ては固定（追加・削除しない）:
 
 1. **現状診断** — 診断シートと、導入に効く強み・障害
-2. **段階導入プラン** — Phase 1（AGENTS.md 整備＋ビルド・テストコマンドの明文化）→ Phase 2（定型作業のスキル化 2〜3本）→ Phase 3（CI 連携・チーム展開）。各 Phase に完了条件を書く
+2. **段階導入プラン** — Phase 1（AGENTS.md 整備＋ビルド・テストコマンドの明文化。既存の CLAUDE.md があれば AGENTS.md へ統合して削除）→ Phase 2（定型作業のスキル化 2〜3本）→ Phase 3（CI 連携・チーム展開）。各 Phase に完了条件を書く
 3. **AGENTS.md 草案** — 実際に使える形の全文。診断で確認した事実だけで書き、推測箇所は TODO と明記
 4. **スキル候補一覧** — 定型作業ごとに「スキル名案 / 何をするか / 効果の根拠（その作業が繰り返されている証拠）」。作成は workflow-skill-architect で別途
 5. **運用ルール** — レビュー必須の範囲、コミットの扱い、機密の扱い、うまくいかないときの見直し先
-6. **ツール固有の補足** — ツールごとに1節。使わないツールの節は読まなくてよいと明記
+6. **ツール固有の補足** — ツールごとに1節。使わないツールの節は読まなくてよいと明記。Claude Code の節には CLAUDE.md を置かない理由（上の共通の前提）と、v2.1.277 未満では読まれないことを書く
 
 保存先はユーザーに確認する（既定の提案: 対象リポジトリの `docs/ai-adoption-proposal.md`）。
 
@@ -62,6 +64,7 @@ description: AGENTS.md / CLAUDE.md を整える。未整備なら導入診断し
 - リポジトリを解析せずに一般論だけで提案書を書くこと
 - 特定ツールの独自機能を Phase 1 の必須項目に置くこと
 - AGENTS.md 草案に、診断で確認していないコマンドや規約を書くこと（推測は TODO と明記）
+- AGENTS.md を参照するだけの CLAUDE.md を新たに作る提案をすること
 
 ---
 
@@ -82,7 +85,9 @@ for 各指摘（重要度順）:
 
 ### B1. 対象と現状を確定する
 
-CLAUDE.md / AGENTS.md / `.claude/` 配下の指示ファイルを列挙し、行数と参照関係（@import や「〜を参照」）を把握する。行数を報告し、どのファイルを監査するか合意する。
+AGENTS.md（サブディレクトリと `.claude/AGENTS.md` を含む）と `.claude/` 配下の指示ファイルを列挙し、行数と参照関係（「〜を参照」など）を把握する。行数を報告し、どのファイルを監査するか合意する。
+
+CLAUDE.md / CLAUDE.local.md が見つかったら、監査対象とは別に台帳へ「CLAUDE.md の残存」として積む（`references/audit-checklist.md` の f）。
 
 ### B2. 検査して台帳を作る
 
@@ -92,7 +97,7 @@ CLAUDE.md / AGENTS.md / `.claude/` 配下の指示ファイルを列挙し、行
 | # | 対象（ファイル:節） | 観点 | 指摘 | 提案 | 状態 |
 |---|---|---|---|---|---|
 | 1 | AGENTS.md: ディレクトリ構成 | 導出可能 | ls で分かる内容の羅列 | 削除 | 未判定 |
-| 2 | CLAUDE.md: レビュー手順 | 手順書化 | 12行の手順に育っている | スキル切り出し | 未判定 |
+| 2 | AGENTS.md: レビュー手順 | 手順書化 | 12行の手順に育っている | スキル切り出し | 未判定 |
 ```
 
 台帳を全件提示してから判定ループに入る。**台帳提示前に修正を始めない。**
