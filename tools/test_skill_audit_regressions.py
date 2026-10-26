@@ -1381,5 +1381,71 @@ class ManualTestSheetTests(TemporaryCase):
         self.assertEqual(self.sheet('summary', out).returncode, 1)
 
 
+class NotionMarkdownTests(unittest.TestCase):
+    def test_deep_heading_becomes_heading_3_and_nested_bold_is_flat(self):
+        import md2blocks
+        blocks = md2blocks.convert(['#### 小見出し\n', '- **a **b** c**\n', '##### さらに下\n'])
+        self.assertEqual([b['type'] for b in blocks], ['heading_3', 'bulleted_list_item', 'heading_3'])
+        self.assertEqual(blocks[0]['heading_3']['rich_text'][0]['text']['content'], '小見出し')
+        rt = blocks[1]['bulleted_list_item']['rich_text']
+        self.assertEqual([(r['text']['content'], r.get('annotations')) for r in rt], [('a b c', {'bold': True})])
+        self.assertEqual(md2blocks.convert(['  #### 字下げ\n'])[0]['type'], 'paragraph')
+
+
+class YoutubeSummaryTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/youtube-member-summary/scripts/normalize_summary.py'
+    ANSWERS = {
+        'A': '\ufeff選択されたソース**「t」**の内容に基づき、ご指定の構成で日本語要約を作成しました。\n---\n'
+             '### 1) 結論\n・円安は**続く** [1, 2]\n・介入は限定的\n### 2) トピック別の要点\n#### 金利差\n説明です [3]。\n'
+             '### 3) 専門用語・前提知識の補足\n**中学生向け説明**：金利とは値段です。\n\n\U0001F4A1 さらに深掘りしてみますか？\n',
+        'B': '1) **結論**\n* 本文1\n2) **トピック別の要点**\n### **X**\n説明\n3) **専門用語・前提知識の補足**\n説明\n',
+        'C': '**1) 結論**\n一文目。二文目は**大事**。\n**2) トピック別の要点**\n### **X**\n説明\n**3) 専門用語・前提知識の補足**\n説明\n',
+        'D': '### 1. 結論\n1. **本文一**\n2. **本文二**\n### 2. トピック別の要点\n#### X\n説明\n### 3. 専門用語・前提知識の補足\n説明\n',
+    }
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPT), *map(str, args)], capture_output=True, text=True,
+                              encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def normalize(self, answer_path, out):
+        return self.run_script('normalize', '--answer', answer_path, '--url', 'https://youtu.be/x',
+                               '--notebook', 'NB', '--out', out)
+
+    def test_every_heading_variant_passes_both_checks(self):
+        import md2blocks
+        for name, text in self.ANSWERS.items():
+            with self.subTest(variant=name):
+                src = self.file(name + '.json', json.dumps({'answer': text}, ensure_ascii=False))
+                out = self.folder/(name + '.md')
+                r = self.normalize(src, out)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                md = out.read_text(encoding='utf-8')
+                self.assertTrue(md.startswith('> https://youtu.be/x'))
+                self.assertIn('## 結論\n\n- **', md)
+                for gone in ('[1, 2]', '作成しました', '深掘り', '向け説明', '\ufeff'):
+                    self.assertNotIn(gone, md)
+                blocks = self.folder/(name + '.blocks.json')
+                blocks.write_text(json.dumps(md2blocks.convert(md.splitlines(True)), ensure_ascii=False), encoding='utf-8')
+                c = self.run_script('check', '--blocks', blocks)
+                self.assertEqual(c.returncode, 0, c.stdout)
+
+    def test_paragraph_conclusion_is_split_into_bold_items(self):
+        out = self.folder/'c.md'
+        self.assertEqual(self.normalize(self.file('c.txt', self.ANSWERS['C']), out).returncode, 0)
+        self.assertIn('- **一文目。**\n- **二文目は大事。**', out.read_text(encoding='utf-8'))
+
+    def test_unknown_layout_and_broken_blocks_fail(self):
+        r = self.normalize(self.file('x.txt', '結論\n本文だけ\n'), self.folder/'x.md')
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('大見出し', r.stdout)
+        bad = self.file('bad.json', json.dumps([
+            {'type': 'heading_2', 'heading_2': {'rich_text': [{'text': {'content': '結論'}}]}},
+            {'type': 'paragraph', 'paragraph': {'rich_text': [{'text': {'content': '#### 見出し'}}]}}]))
+        c = self.run_script('check', '--blocks', bad)
+        self.assertEqual(c.returncode, 1)
+        self.assertIn('####', c.stdout)
+        self.assertEqual(self.normalize(self.file('n.json', '{"text": "x"}'), self.folder/'n.md').returncode, 2)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
