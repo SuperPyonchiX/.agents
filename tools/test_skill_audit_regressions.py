@@ -1679,5 +1679,36 @@ class CppScriptTests(TemporaryCase):
         self.assertIn('引数 y', r.stdout)
 
 
+class RuleIndexTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/cpp14-rule-reference/scripts/rule_index.py'
+
+    def run_script(self, *args):
+        return subprocess.run([sys.executable, str(self.SCRIPT), *map(str, args)], capture_output=True, text=True,
+                              encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_build_marks_definitions_and_find_lists_them_first(self):
+        local = self.folder/'local'
+        self.file('local/autosar/g.txt', 'See A7-1-2 below.\nRule A7-1-2 (required, implementation)\n本文\n')
+        self.file('local/cert/c.md', 'EXP34-CPP. Do not dereference null pointers\n')
+        self.assertEqual(self.run_script('find', 'A7-1-2', '--local', local).returncode, 2)  # 索引がまだ無い
+        r = self.run_script('build', '--local', local)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        r = self.run_script('find', 'a7-1-2', 'EXP34-CPP', '--local', local)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        lines = r.stdout.splitlines()
+        self.assertIn('定義(required)', lines[0])
+        self.assertIn('l.2', lines[0])
+        self.assertIn('言及', lines[1])
+        self.assertIn('CERT C++', lines[2])
+        r = self.run_script('find', 'M0-1-9', '--local', local)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('NOTFOUND', r.stdout)
+
+    def test_empty_local_and_missing_local(self):
+        (self.folder/'local/autosar').mkdir(parents=True)
+        self.assertEqual(self.run_script('build', '--local', self.folder/'local').returncode, 1)
+        self.assertEqual(self.run_script('build', '--local', self.folder/'none').returncode, 2)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)
