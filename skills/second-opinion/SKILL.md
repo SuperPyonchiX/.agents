@@ -61,7 +61,7 @@ python "<skill-dir>/scripts/ask_codex.py" --prompt-file <scratch>/q0.md --out <s
 python "<skill-dir>/scripts/ask_claude.py" --prompt-file <scratch>/q0.md --out <scratch>/a0.md --cd <参照元のディレクトリ>
 ```
 
-Antigravity経路は次を使う。`--cd` の中身を一時フォルダへ複製し、そこをワークスペースにして実行する（`.git` などは複製しない）。複製は `--cd` の中身がワークスペース直下に来るので、質問中のパスは `--cd` 起点の相対パスで書く（Codex経路と同じ）。一般論の相談ならスクラッチパッドを渡す。
+Antigravity経路は次を使う。`--cd` の中身を一時フォルダへ複製し、そこをワークスペースにして実行する（`.git` などは複製しない）。複製は `--cd` の中身がワークスペース直下に来るので、質問中のパスは `--cd` 起点の相対パスで書く（Codex経路と同じ）。一般論の相談ならスクラッチパッドを渡す。差分のレビューでは、リポジトリ全体ではなく対象ファイルだけを置いたディレクトリを `--cd` に渡す（読む範囲が広いとタイムアウトしやすい。原因は特定できていない）。
 
 ```bash
 python "<skill-dir>/scripts/ask_antigravity.py" --prompt-file <scratch>/q0.md --out <scratch>/a0.md --cd <読ませるディレクトリ>
@@ -171,7 +171,7 @@ python "<skill-dir>/scripts/ask_codex.py" --prompt-file Q.md --out A.md [--cd DI
 `scripts/ask_antigravity.py`は標準ライブラリのみ。引数は `--prompt-file Q.md --out A.md [--cd DIR] [--model MODEL] [--timeout SEC]`。`agy` をPATHから探し、`agy -p ... --output-format json --disable-slash-commands --sandbox --print-timeout` で1ターン実行して（`--sandbox` は端末コマンドの隔離。v1.4.7 で動作確認）、JSONの `status` が `SUCCESS` の `response` を保存する。モデル指定はユーザーが希望した場合だけ行う（`agy models` で一覧）。
 
 - 0: 回答を保存済み。`--out`を読む。stderrに「作業コピーのファイルを変更した」と出たら、回答の前提が作業コピーの改変後でないか確かめる。
-- 1: 実行失敗・タイムアウト・空回答・未ログイン（`authentication required`）。未ログインなら対話モードの `agy` でのサインインを案内し、再試行しない。それ以外の再試行は1回まで。
+- 1: 実行失敗・タイムアウト・空回答・未ログイン（`authentication required`）。未ログインなら対話モードの `agy` でのサインインを案内し、再試行しない。**タイムアウト（stderr が「タイムアウト:」で始まる）も再試行しない。** 2026-10-24 に数百行の差分のレビューで600秒のタイムアウトが2回続き、同じ問いの再試行は20分を失うだけだった（Codex は同じ問いに答えた）。Antigravity の回答なしで手順6へ進むか、`--cd` をレビュー対象のファイルだけに絞った質問で1回だけ送り直すかをユーザーに確認する。それ以外の失敗の再試行は1回まで。
 - 2: `agy`・入力・保存先・`--cd` の不備。`--cd` が2万ファイルか200MBを超えたら、読ませるサブディレクトリに絞って再実行する。
 
 読み取り専用は作業コピーで担保している。ユーザーの `~/.gemini/antigravity-cli/settings.json` でコマンドやワークスペース外へのアクセスを許可していると、その範囲は防げない。サブエージェントの禁止は指示による抑止で、技術的な遮断ではない。

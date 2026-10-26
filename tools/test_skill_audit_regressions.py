@@ -349,6 +349,18 @@ class AntigravityTests(TemporaryCase):
                 self.assertEqual((src/'a.txt').read_text(encoding='utf-8'), '元の内容')
                 self.assertEqual(out.exists(), status == 'SUCCESS')
 
+    def test_timeout_is_reported_as_timeout(self):
+        self.file('src/a.txt', 'x')
+        q = self.file('q.md', '質問')
+        err = io.StringIO()
+        with patch.object(agy.shutil, 'which', return_value='agy'), \
+                patch.object(agy.subprocess, 'run', side_effect=subprocess.TimeoutExpired('agy', 660)), \
+                contextlib.redirect_stderr(err):
+            code = agy.main(['--prompt-file', str(q), '--out', str(self.folder/'a.md'), '--cd', str(self.folder/'src'),
+                             '--timeout', '600'])
+        self.assertEqual(code, 1)
+        self.assertTrue(err.getvalue().startswith('タイムアウト: 600秒'))
+
     def test_missing_cli(self):
         q = self.file('q.md', '質問')
         with patch.object(agy.shutil, 'which', return_value=None), contextlib.redirect_stderr(io.StringIO()):
@@ -1445,6 +1457,21 @@ class YoutubeSummaryTests(TemporaryCase):
         self.assertEqual(c.returncode, 1)
         self.assertIn('####', c.stdout)
         self.assertEqual(self.normalize(self.file('n.json', '{"text": "x"}'), self.folder/'n.md').returncode, 2)
+
+
+class ValidatorTests(TemporaryCase):
+    def test_bundle_directory_reference_covers_its_files_only_under_assets(self):
+        self.file('s/SKILL.md', '---\nname: s\ndescription: 雛形をコピーする。「作って」で使う。\n---\n'
+                  '`assets/game/` をコピーする。\n')
+        self.file('s/assets/game/src/main.ts', 'x')
+        self.file('s/assets/other.txt', 'x')
+        self.file('s/references/note.md', 'x')
+        r = subprocess.run([sys.executable, str(ROOT/'skills/workflow-skill-architect/scripts/validate_skill.py'),
+                            str(self.folder/'s')], capture_output=True, text=True, encoding='utf-8',
+                           env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertNotIn('assets/game/src/main.ts', r.stdout)
+        self.assertIn('assets/other.txt', r.stdout)
+        self.assertIn('references/note.md', r.stdout)
 
 
 if __name__ == '__main__':
