@@ -1,7 +1,7 @@
 # ~/.agents — Agent Skills 置き場
 
 個人用 Agent Skills（`SKILL.md`）の**実体を1箇所に集めたリポジトリ**。
-Claude Code / GitHub Copilot / Codex / Gemini CLI のどれを使っても、同じスキルが効くようにするための置き場所である。
+Claude Code / GitHub Copilot / Codex / Antigravity CLI のどれを使っても、同じスキルが効くようにするための置き場所である。
 
 ## これは何か
 
@@ -13,18 +13,21 @@ Agent Skills は、AIエージェントに「作業手順」を渡すための�
 | --- | --- |
 | GitHub Copilot | `.github/skills/`, `.claude/skills/`, `.agents/skills/` |
 | Codex | `.agents/skills/` |
-| Gemini CLI | `.agents/skills/` |
+| Antigravity CLI（`agy`） | プロジェクト内の `.agents/skills/` と、ユーザー単位では `~/.gemini/antigravity-cli/skills/` など。**`~/.agents/skills/` は読まない** |
 | Claude Code | `.claude/skills/` のみ |
 
-そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` からシンボリックリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
+そこで **`~/.agents/skills/` を実体とし、`~/.claude/skills` と `~/.gemini/antigravity-cli/skills` からリンクを張る**。これで4ツールすべてが同じファイルを読む。二重管理は発生しない。
+
+> Antigravity CLI の前身の Gemini CLI は `~/.agents/skills/` を読んでいたが、Antigravity CLI はこの場所を**プロジェクト内でしか**見ない。開発側の回答と未解決の issue は [google-antigravity/antigravity-cli#103](https://github.com/google-antigravity/antigravity-cli/issues/103)。対応されたらこのリンクは不要になる。
 
 ```mermaid
 graph LR
     A["~/.agents/skills/<br/>（実体・Git管理対象）"] --> B[Codex]
-    A --> C[Gemini CLI]
     A --> D[GitHub Copilot]
     A --> E["~/.claude/skills<br/>（シンボリックリンク・Git管理外）"]
     E --> F[Claude Code]
+    A --> G["~/.gemini/antigravity-cli/skills<br/>（シンボリックリンク・Git管理外）"]
+    G --> C[Antigravity CLI]
 ```
 
 リンクは環境ごとに1回張るだけ。リポジトリには含めない（後述）。
@@ -111,17 +114,24 @@ git clone <このリポジトリ> ~/.agents
 
 ```bat
 mkdir "%USERPROFILE%\.claude"
-mklink /J "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
+if not exist "%USERPROFILE%\.claude\skills" mklink /J "%USERPROFILE%\.claude\skills" "%USERPROFILE%\.agents\skills"
+mkdir "%USERPROFILE%\.gemini\antigravity-cli"
+if not exist "%USERPROFILE%\.gemini\antigravity-cli\skills" mklink /J "%USERPROFILE%\.gemini\antigravity-cli\skills" "%USERPROFILE%\.agents\skills"
 ```
 
-`.claude` が既にある場合、1行目は「既に存在します」と出るが無視してよい。
+フォルダが既にある場合、`mkdir` は「既に存在します」と出るが無視してよい。`if not exist` があるので、何度流しても既存のリンクやフォルダは壊さない。
+**ただし `skills` が既に実フォルダとして存在すると、リンクは張られずに素通りする。** 中身があれば `~/.agents/skills` へ移してから空のフォルダを消し、もう一度流す。
 `mklink /J`（ジャンクション）は**管理者権限も開発者モードも要らない**。`mklink /D`（シンボリックリンク）はどちらかが無いと権限不足で失敗する。
 
 **Linux / macOS / WSL**
 
 ```bash
-ln -s ~/.agents/skills ~/.claude/skills
+[ -e ~/.claude/skills ] || ln -s ~/.agents/skills ~/.claude/skills
+mkdir -p ~/.gemini/antigravity-cli
+[ -e ~/.gemini/antigravity-cli/skills ] || ln -s ~/.agents/skills ~/.gemini/antigravity-cli/skills
 ```
+
+> Antigravity CLI のリンクで全スキルが読まれることを実機で確かめたのは **Windows（agy 1.4.7、2026-10-25）だけ**。Linux / macOS でも同じ場所を読む前提で書いているが、未確認。
 
 > VirtualBox 上の Ubuntu と Windows ホストの両方で作業する場合、ホームディレクトリは互いに独立しているため**両方で実行する**。
 
@@ -132,6 +142,8 @@ ls -la ~/.claude/skills     # → skills -> .../.agents/skills と出れば成�
 ```
 
 Claude Code を起動し、上の「収録スキル」の一覧が出ることを確認する。すでに起動していた場合は再起動が必要。
+
+Antigravity CLI は、Windows なら `dir "%USERPROFILE%\.gemini\antigravity-cli"` で `skills` が `<JUNCTION>` と出ればリンクは張れている。読み込まれたかどうかは、対話画面の `/skills` で一覧を見る（issue #103 で使われている方法。このリポジトリでは未確認）か、`agy -p "利用可能なスキルの name を一覧で" --mode plan` と聞いて確かめる。
 
 ### Obsidian の無い PC（会社PCなど）
 
@@ -313,6 +325,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | 同上 | リンクが切れている | `ls -la ~/.claude/skills` で参照先を確認。壊れていれば張り直す |
 | 同上 | セッションを再起動していない | Claude Code を再起動する。スキルは起動時に列挙される |
 | 同上 | frontmatter が壊れている | `validate_skill.py` を通す |
+| Antigravity CLI でだけスキルが出ない | `~/.gemini/antigravity-cli/skills` のリンクが無い。Antigravity CLI は `~/.agents/skills` を直接読まない | セットアップ手順2の Antigravity CLI の行を流す。`skills` が実フォルダになっていたら中身を移してから張り直す |
 | 意図しない場面で発火する | `description` が広すぎる | 対象範囲を絞る |
 | 手順を飛ばす | 完了条件がない | 完了条件を判定可能な形で書く。必須ゲートは hooks / CI で担保する |
 | Windows でリンクが作れない（権限不足） | `mklink /D` を開発者モード無効の環境で実行した | `mklink /J` で作り直す。権限なしで作れる |
