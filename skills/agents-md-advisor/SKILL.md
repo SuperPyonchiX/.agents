@@ -14,7 +14,7 @@ description: AGENTS.md を整える。未整備なら導入診断して AGENTS.m
 
 判定に迷う場合（雛形はあるが中身が薄い）は導入診断を選び、既存の記述は診断シートの「既存のAI設定」に取り込む。
 
-共通の前提: チームは Claude Code / GitHub Copilot / Codex / Gemini CLI のどれを使うか分からない。**全ツールが読む資産（AGENTS.md、`.agents/skills/` の Agent Skills、リポジトリ内ドキュメント）を主とし、ツール固有機能は分離した節に書く。**
+共通の前提: チームは Claude Code / GitHub Copilot / Codex / Antigravity CLI のどれを使うか分からない。**全ツールが読む資産（AGENTS.md、`.agents/skills/` の Agent Skills、リポジトリ内ドキュメント）を主とし、ツール固有機能は分離した節に書く。**
 
 **指示ファイルは AGENTS.md の1本にし、CLAUDE.md は作らない。** Claude Code は v2.1.277 以降、CLAUDE.md が無ければ AGENTS.md を直接読む。逆に、作業ディレクトリかその上位に CLAUDE.md / CLAUDE.local.md が1つでもあると、既定では AGENTS.md を読まない（[公式ドキュメント](https://code.claude.com/docs/en/memory) の「AGENTS.md」節）。だから既存の CLAUDE.md は放置せず、AGENTS.md へ統合して消す対象として扱う。
 

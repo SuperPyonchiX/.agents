@@ -40,7 +40,7 @@ skills/<skill-name>/SKILL.md   ← 各スキルの本体
 
 ## 移植性の規約
 
-このリポジトリのスキルは Claude Code 以外（Codex / Gemini CLI / Copilot）でも使う前提。
+このリポジトリのスキルは Claude Code 以外（Codex / Antigravity CLI / Copilot）でも使う前提。
 **Claude Code 独自拡張（frontmatter の `context: fork` などによるサブエージェント実行、動的コンテキスト注入、呼び出し制御）は使わない。**
 標準仕様の範囲（`scripts/` `references/` `assets/` の同梱）に留める。
 
