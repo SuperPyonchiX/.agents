@@ -3,9 +3,47 @@
   "evals": [
     {
       "id": 1,
+      "prompt": "社内 Wiki 用に、git の作業ブランチを最新の main に追従させる手順書を作って rebase-procedure.md に保存して（確認は不要）。手順は git fetch origin、git rebase origin/main、衝突したら解消して git rebase --continue、最後に git push --force-with-lease。それと、前にこのスキルで別の手順書を作ってもらったとき、各ステップの完了条件がまとめて表になっていて読みにくかった。今後は各ステップの直下に1行で書いてほしい。",
+      "expected_output": "手順書として作り、完了条件を各ステップの直下に書く。指摘をスキル直下の feedback.md に未判定として追記し、SKILL.md・references/・templates/ は書き換えない",
+      "files": [],
+      "expectations": [
+        "このスキルが使われ、種別を手順書にしている",
+        "rebase-procedure.md の各ステップの直下に完了条件があり、完了条件をまとめた表が無い",
+        "markdown-doc の feedback.md の「## 記録」より後に節が1つ増え、「状態: 未判定」と完了条件への言及がある",
+        "markdown-doc の SKILL.md・references/・templates/ に差分が無い",
+        "応答で feedback.md に記録したことと、スキルへの反映は保留であることを伝えている"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "evals/files/rebase-procedure.md は手順書のドラフト。ステップ2のコマンドが origin/develop になっているのは誤りで、正しくは origin/main。直して上書き保存して（確認は不要）。",
+      "expected_output": "誤りを直すだけで、この文書の中身の訂正なので feedback.md には記録しない",
+      "files": [
+        "evals/files/rebase-procedure.md"
+      ],
+      "expectations": [
+        "rebase-procedure.md のステップ2が git rebase origin/main になっている",
+        "markdown-doc の feedback.md に節が増えていない",
+        "japanese-prose-polish の feedback.md に節が増えていない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "この関数のコメントを英語に翻訳して: // 設定ファイルを読み込み、失敗したら既定値を返す",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    },
+    {
+      "id": 4,
       "prompt": "evals/files/deploy-flow.md は手順書の「全体の流れ」の節。この中の mermaid 図が見づらいので、レイアウトを直して同じファイルに上書きして。確認は不要",
       "expected_output": "check_mermaid.py を実行して LABEL などの ERROR を確かめ、ノードや線の宣言順・ラベルを直して再実行し、ERROR 0 になってから結果を報告する",
-      "files": ["evals/files/deploy-flow.md"],
+      "files": [
+        "evals/files/deploy-flow.md"
+      ],
       "expectations": [
         "直す前に check_mermaid.py を実行し、出た ERROR のコードを踏まえて直している",
         "直した後に check_mermaid.py を再実行し、ERROR が 0 になったことを報告している（残ったなら残ったコードと行を報告し、完成とは書いていない）",
@@ -14,7 +52,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": 5,
       "prompt": "CI の仕組みを説明資料にまとめて。push でビルドとテストが並列に走り、両方通ればステージングへ配置、失敗したら開発者に通知して修正後の push からやり直す。出力は ci-overview.md。確認は不要",
       "expected_output": "references/explanation.md の章立てで説明資料を書き、全体像の mermaid 図を check_mermaid.py に通して ERROR 0 を確かめてから提示する",
       "files": [],
@@ -26,7 +64,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": 6,
       "prompt": "社内 Wiki 向けに、新しいメンバーが開発用 PC に Git と VS Code を入れる手順書を書いて。出力は setup.md。確認は不要",
       "expected_output": "references/procedure.md に従って手順書を書く。全体の流れの mermaid 図を置いたなら check_mermaid.py に通す。依存が無く終了コード 2 なら図を「未検査」と明記する",
       "files": [],

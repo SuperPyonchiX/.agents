@@ -5,7 +5,9 @@
       "id": 1,
       "prompt": "evals/files/ai-draft.md は社内向けの説明資料。AIっぽさを消して書き直し、evals/files/ai-draft.polished.md に保存して（確認は不要）",
       "expected_output": "業務文書モードで書き換え、事実・数値・コードを保ったまま定型表現を除いた版を保存する",
-      "files": ["evals/files/ai-draft.md"],
+      "files": [
+        "evals/files/ai-draft.md"
+      ],
       "expectations": [
         "このスキルが使われ、業務文書モードを宣言している",
         "出力に全角ダッシュ（——）、「することができます」「と言えるでしょう」「今後の展開が注目されます」「ここでは〜について解説します」が無い",
@@ -33,6 +35,20 @@
       "files": [],
       "expectations": [
         "新しいセッションで、このスキルが使われない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "evals/files/ai-draft.md は社内向けの説明資料。AIっぽさを消して evals/files/ai-draft.polished.md に保存して（確認は不要）。それと、前にこのスキルで推敲してもらったとき「〜することができます」を「〜し得る」に直されたのが硬すぎた。今後は「〜できる」にしてほしい。",
+      "expected_output": "推敲結果を保存し、指摘をスキル直下の feedback.md に未判定として追記する。SKILL.md と references/ は書き換えない",
+      "files": [
+        "evals/files/ai-draft.md"
+      ],
+      "expectations": [
+        "このスキルが使われ、ai-draft.polished.md に「し得る」が無い",
+        "japanese-prose-polish の feedback.md の「## 記録」より後に節が1つ増え、「状態: 未判定」と「し得る」への言及がある",
+        "japanese-prose-polish の SKILL.md と references/ に差分が無い",
+        "応答で feedback.md に記録したことと、スキルへの反映は保留であることを伝えている"
       ]
     }
   ]
