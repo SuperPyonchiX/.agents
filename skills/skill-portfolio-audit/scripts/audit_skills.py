@@ -11,12 +11,11 @@ A1（機械検査）で実行する。1スキル単位の検証（validate_skill
 
 検査するもの:
     1. frontmatter       name とディレクトリ名の一致、description の200文字以内と山括弧
-                         （pack_skill.py の判定条件と同じ。廃止した web-description の残りは WARN）
-    2. （欠番。旧 web-description 検査は 1 に統合）
-    3. 個別検証の集約    --validator を渡すと各スキルに対して実行し、結果を1表にまとめる
-    4. 発火競合          description のトリガー文言と特徴語が重なるスキルのペアを候補として出す
-    5. 棲み分け宣言      競合候補が互いの description で名指しの振り分けをしているか
-    6. README 突合       --readme を渡すと収録スキル表と実体、および表中の行数を突き合わせる
+                         （pack_skill.py の判定条件と同じ）
+    2. 個別検証の集約    --validator を渡すと各スキルに対して実行し、結果を1表にまとめる
+    3. 発火競合          description のトリガー文言と特徴語が重なるスキルのペアを候補として出す
+    4. 棲み分け宣言      競合候補が互いの description で名指しの振り分けをしているか
+    5. README 突合       --readme を渡すと収録スキル表と実体、および表中の行数を突き合わせる
                          .gitignore で除外されたスキルは、表に無くても不備として扱わない
 
 終了コード:
@@ -181,8 +180,8 @@ def load_skill(skills_dir, name, rep):
         if "<" in desc or ">" in desc:
             rep.error(where, "description に山括弧が含まれる。仕様で弾かれる")
 
-    # claude.ai の上限。200文字を超えるなら、旧方式の web-description がある
-    # git 管理外の取り込みスキルだけ許す（pack_skill.py の判定条件と同じ）
+    # claude.ai の上限。200文字を超えてよいのは、metadata.web-description を持つ
+    # git 管理外の取り込みスキルだけ（pack_skill.py の判定条件と同じ）
     web = skill["web_description"]
     if desc and len(desc) > WEB_DESC_LIMIT:
         if not web:
@@ -193,7 +192,7 @@ def load_skill(skills_dir, name, rep):
             rep.error(where, "description が %d 文字で、代わりの metadata.web-description も"
                              "上限 %d 文字超過か山括弧を含む" % (len(desc), WEB_DESC_LIMIT))
     elif web:
-        rep.warn(where, "metadata.web-description は廃止した。description が %d 文字以内なので削除すること"
+        rep.warn(where, "description が %d 文字以内なので metadata.web-description は要らない。削除すること"
                  % WEB_DESC_LIMIT)
 
     if body_lines > SKILL_BODY_LIMIT:
