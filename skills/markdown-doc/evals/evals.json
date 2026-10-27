@@ -9,7 +9,7 @@
       "expectations": [
         "このスキルが使われ、種別を手順書にしている",
         "rebase-procedure.md の各ステップの直下に完了条件があり、完了条件をまとめた表が無い",
-        "markdown-doc の feedback.md の「## 記録」より後に節が1つ増え、「状態: 未判定」と完了条件への言及がある",
+        "markdown-doc の feedback.md（無ければ新しく作られる）に節が1つ増え、「状態: 未判定」と完了条件への言及がある",
         "markdown-doc の SKILL.md・references/・templates/ に差分が無い",
         "応答で feedback.md に記録したことと、スキルへの反映は保留であることを伝えている"
       ]

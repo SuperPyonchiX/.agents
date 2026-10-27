@@ -46,7 +46,7 @@
       ],
       "expectations": [
         "このスキルが使われ、ai-draft.polished.md に「し得る」が無い",
-        "japanese-prose-polish の feedback.md の「## 記録」より後に節が1つ増え、「状態: 未判定」と「し得る」への言及がある",
+        "japanese-prose-polish の feedback.md（無ければ新しく作られる）に節が1つ増え、「状態: 未判定」と「し得る」への言及がある",
         "japanese-prose-polish の SKILL.md と references/ に差分が無い",
         "応答で feedback.md に記録したことと、スキルへの反映は保留であることを伝えている"
       ]
