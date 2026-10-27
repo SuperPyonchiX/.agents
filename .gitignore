@@ -27,3 +27,7 @@ skills/deep-research/
 # Claude Code が claude.ai から同期するスキルのキャッシュ。~/.claude/skills が
 # このリポジトリへのシンボリックリンクなので、ここに着地してしまう。
 skills/synced/
+
+# スキルが溜めるユーザーの指摘ログ。仕事の文書の言い回しが入りうるので公開しない。
+# PC ごとに別々に溜まる。書式は各スキルの references/feedback-format.md
+skills/*/feedback.md
