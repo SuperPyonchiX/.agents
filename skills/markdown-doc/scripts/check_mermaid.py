@@ -31,11 +31,17 @@ render_mermaid.cjs がヘッドレス Chromium で描いて箱・線・ラベル
           mermaid は描いた環境のフォントで枠の大きさを決めるので、閲覧先のフォントが違うと見切れる。
           差し替えの効果は検査する PC にそのフォントが入っているときだけ出る。--png の画像も差し替え後になる
   --png   各図を <dir>/<通し番号>-<ファイル名>-<行番号>.png に撮る。機械検査で判断がつかないときだけ使う
-  --deps  playwright と mermaid を npm install した場所（その下の node_modules を探す）。
-          省略時は環境変数 MERMAID_CHECK_DEPS、次に npm のグローバル（npm root -g）を探す
+  --deps  playwright と mermaid を入れる・入れた場所（その下の node_modules を探す）。省略時は環境変数
+          MERMAID_CHECK_DEPS、無ければ利用者のキャッシュフォルダの mermaid-check（Windows は
+          %LOCALAPPDATA%\\mermaid-check、Linux は ~/.cache/mermaid-check）。npm のグローバルも探す
+  --no-install  依存が無くても自動で導入せず、終了コード 2 で止める
+
+依存の自動導入: playwright・mermaid が見つからなければ --deps の場所へ npm install し、Chromium が無ければ
+見つかった playwright と同じ版のものを入れて、そのまま検査を続ける（初回だけ。npm のレジストリと
+Playwright の配布元からダウンロードする。図の内容は送らない）。Node.js と npm 自体は入れない。
 
 終了コード: 0 = ERROR なし（WARN のみも 0） / 1 = ERROR あり
-          2 = 引数の誤り・ファイルが読めない・node / playwright / mermaid / Chromium が無い
+          2 = 引数の誤り・ファイルが読めない・Node.js が無い・依存の自動導入に失敗した（--no-install なら依存が無い）
 外部への通信: しない。mermaid は npm で入れた手元のファイルを読み込み、描画するページからの通信は
 render_mermaid.cjs がすべて遮断する。遮断した通信があれば WARN で件数を出す。
 依存: Python は標準ライブラリのみ。別に Node.js と npm の playwright・mermaid（v11）、Playwright の Chromium
@@ -56,12 +62,11 @@ for _stream in (sys.stdout, sys.stderr):
 HERE = os.path.dirname(os.path.abspath(__file__))
 RENDERER = os.path.join(HERE, "render_mermaid.cjs")
 INSTALL_HINT = """\
-導入（1回だけ）:
-  npm install -g playwright mermaid@11
-  npx playwright install chromium
-グローバルに入れたくなければ、任意のフォルダに入れて --deps で渡す:
+手で入れる場合:
   npm install --prefix <dir> playwright mermaid@11
-  npx --prefix <dir> playwright install chromium"""
+  node <dir>/node_modules/playwright/cli.js install chromium
+  入れた <dir> は --deps か環境変数 MERMAID_CHECK_DEPS で渡す"""
+NPM_PACKAGES = {"playwright": "playwright", "mermaid": "mermaid@11"}
 
 INSET = 3.0         # 箱の縁から内側へこの距離より深く入ったら「内側を通った」とみなす
 MIN_GRAZE = 8.0     # 箱の内側をこの長さ以上通ったら THROUGH。これ未満は角をかすめただけ（GRAZE）
@@ -314,9 +319,53 @@ def check(r):
 
 # ---- 実行 ----
 
+def default_deps():
+    """自動導入の置き場所。利用者ごとのキャッシュフォルダの下に作る"""
+    if os.environ.get("MERMAID_CHECK_DEPS"):
+        return os.environ["MERMAID_CHECK_DEPS"]
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    elif sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Caches")
+    else:
+        base = os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache")
+    return os.path.join(base, "mermaid-check")
+
+
+def run_quiet(cmd, timeout):
+    """導入コマンドを実行する。失敗したら出力の末尾を返し、成功なら None"""
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    if proc.returncode == 0:
+        return None
+    lines = []
+    for line in (proc.stdout + proc.stderr).decode("utf-8", "replace").splitlines():
+        if line.strip() and line not in lines and not line.lstrip().startswith("at "):
+            lines.append(line)
+    return "\n".join(lines[-10:])
+
+
+def install_packages(target, missing):
+    """見つからなかったパッケージだけを入れる。既に別の場所にある playwright は入れ直さない"""
+    npm = shutil.which("npm")
+    if not npm:
+        return "npm が見つからない"
+    specs = [NPM_PACKAGES[m] for m in missing if m in NPM_PACKAGES]
+    print(f"導入: npm パッケージ {' '.join(specs)} を {target} に入れる（初回だけ）", flush=True)
+    os.makedirs(target, exist_ok=True)
+    return run_quiet([npm, "install", "--prefix", target, "--no-fund", "--no-audit"] + specs, 900)
+
+
+def install_browser(node, cli):
+    print("導入: Playwright の Chromium を入れる（初回だけ。約 150MB をダウンロードする）", flush=True)
+    return run_quiet([node, cli, "install", "chromium"], 1200)
+
+
 def node_path(deps):
     paths = []
-    for d in (deps, os.environ.get("MERMAID_CHECK_DEPS")):
+    for d in (deps, default_deps()):
         if d:
             paths.append(os.path.join(os.path.abspath(d), "node_modules"))
     npm = shutil.which("npm")
@@ -355,11 +404,12 @@ def main():
     ap.add_argument("--png")
     ap.add_argument("--deps")
     ap.add_argument("--node")
+    ap.add_argument("--no-install", action="store_true")
     a = ap.parse_args()
 
     node = a.node or shutil.which("node")
     if not node:
-        print("ERROR: Node.js が見つからない。https://nodejs.org/ から入れるか --node で場所を渡す\n" + INSTALL_HINT)
+        print("ERROR: Node.js が見つからない。https://nodejs.org/ から LTS 版を入れるか、--node で場所を渡す。Node.js と npm は自動では入れない")
         return 2
 
     diagrams, where = [], {}
@@ -379,15 +429,30 @@ def main():
         return 0
 
     data = render(diagrams, a.font, a.png, a.deps, node)
-    if data.get("error") == "deps":
-        print("ERROR: 見つからない npm パッケージ: " + ", ".join(data["missing"]) + "\n" + INSTALL_HINT)
+    # 依存が無ければ入れて描き直す。npm パッケージ → Chromium の順に、それぞれ1回まで
+    for _ in range(2):
+        if data.get("error") not in ("deps", "browser"):
+            break
+        if data["error"] == "deps":
+            what = "npm パッケージ " + ", ".join(data["missing"])
+        else:
+            what = "Playwright の Chromium"
+        if a.no_install:
+            print(f"ERROR: {what} が無い（--no-install のため導入しない）\n" + INSTALL_HINT)
+            return 2
+        if data["error"] == "deps":
+            failed = install_packages(os.path.abspath(a.deps or default_deps()), data["missing"])
+        else:
+            failed = install_browser(node, data["cli"])
+        if failed:
+            print(f"ERROR: {what} の自動導入に失敗した:\n{failed}\n" + INSTALL_HINT)
+            return 2
+        data = render(diagrams, a.font, a.png, a.deps, node)
+    if data.get("error") in ("deps", "browser"):
+        print("ERROR: 導入したが読み込めない\n" + INSTALL_HINT)
         return 2
     if data.get("error"):
-        msg = data.get("message", "")
-        if "Executable doesn't exist" in msg or "playwright install" in msg:
-            print("ERROR: Playwright の Chromium が入っていない\n" + INSTALL_HINT)
-        else:
-            print("ERROR: 描画に失敗した: " + msg[:400])
+        print("ERROR: 描画に失敗した: " + data.get("message", "")[:400])
         return 2
 
     if data.get("blocked"):
