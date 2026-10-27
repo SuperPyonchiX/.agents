@@ -1797,6 +1797,47 @@ class MermaidCheckTests(TemporaryCase):
         self.assertEqual(mermaid_check.extract(str(md)),
                          [(4, 'flowchart TB\n  A-->B'), (9, 'graph LR')])
 
+    def run_main(self, *extra, renders=(), install_result=None):
+        md = self.folder/'doc.md'
+        md.write_text("```mermaid\nflowchart TB\n  A-->B\n```\n", encoding='utf-8')
+        calls, out = [], io.StringIO()
+        queue = list(renders)
+        ok = {'results': [{'id': '01-doc-2', 'nodes': [], 'clusters': [], 'edges': [], 'labels': [], 'clips': []}]}
+
+        def fake_render(*args):
+            calls.append('render')
+            return queue.pop(0) if queue else ok
+
+        def fake_install(*args):
+            calls.append(('install', args[-1]))
+            return install_result
+
+        with patch.object(sys, 'argv', ['check_mermaid.py', str(md), '--deps', str(self.folder/'deps'), *extra]), \
+                patch.object(mermaid_check.shutil, 'which', return_value='/usr/bin/node'), \
+                patch.object(mermaid_check, 'render', fake_render), \
+                patch.object(mermaid_check, 'install_packages', fake_install), \
+                patch.object(mermaid_check, 'install_browser', fake_install), contextlib.redirect_stdout(out):
+            code = mermaid_check.main()
+        return code, calls, out.getvalue()
+
+    def test_missing_packages_are_installed_then_checked(self):
+        code, calls, out = self.run_main(renders=[{'error': 'deps', 'missing': ['mermaid']},
+                                                  {'error': 'browser', 'cli': 'cli.js'}])
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, ['render', ('install', ['mermaid']), 'render', ('install', 'cli.js'), 'render'])
+        self.assertIn('問題なし', out)
+
+    def test_failed_install_exits_2_with_reason(self):
+        code, calls, out = self.run_main(renders=[{'error': 'browser', 'cli': 'cli.js'}], install_result='403 blocked')
+        self.assertEqual(code, 2)
+        self.assertIn('403 blocked', out)
+        self.assertEqual(calls.count('render'), 1)
+
+    def test_no_install_stops_without_installing(self):
+        code, calls, out = self.run_main('--no-install', renders=[{'error': 'deps', 'missing': ['playwright']}])
+        self.assertEqual(code, 2)
+        self.assertEqual(calls, ['render'])
+
     def test_missing_node_exits_2(self):
         md = self.folder/'doc.md'
         md.write_text("```mermaid\nflowchart TB\n```\n", encoding='utf-8')
@@ -1804,7 +1845,7 @@ class MermaidCheckTests(TemporaryCase):
         with patch.object(sys, 'argv', ['check_mermaid.py', str(md)]), \
                 patch.object(mermaid_check.shutil, 'which', return_value=None), contextlib.redirect_stdout(out):
             self.assertEqual(mermaid_check.main(), 2)
-        self.assertIn('npm install', out.getvalue())
+        self.assertIn('Node.js', out.getvalue())
 
 
 if __name__ == '__main__':

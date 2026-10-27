@@ -3,7 +3,8 @@
 // 箱・線・ラベル・文字のはみ出しの座標を JSON で標準出力に返す。判定はしない（判定は check_mermaid.py）。
 // --png <dir> を付けると、各図を <dir>/<id>.png にも撮る（人が目で確かめるとき用）。
 // ページからのネットワーク通信はすべて遮断する。図の内容を外部へ送らない。
-// 終了コード: 0 = 返せた / 2 = playwright か mermaid が見つからない（{"error":"deps","missing":[...]} を出す）
+// 終了コード: 0 = 返せた / 2 = playwright か mermaid が見つからない（{"error":"deps","missing":[...]} を出す）、
+//           または Chromium が入っていない（{"error":"browser","cli":"<その playwright の cli.js>"} を出す）
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -110,7 +111,18 @@ async function measure({ item, font }) {
 }
 
 (async () => {
-  const browser = await chromium.launch();
+  let browser;
+  try {
+    browser = await chromium.launch();
+  } catch (e) {
+    if (/Executable doesn't exist|playwright install/.test(String(e && e.message))) {
+      // 見つかった playwright と版の合う Chromium を入れられるよう、その cli.js の場所を返す
+      const cli = path.join(path.dirname(require.resolve("playwright/package.json")), "cli.js");
+      process.stdout.write(JSON.stringify({ error: "browser", cli }));
+      process.exit(2);
+    }
+    throw e;
+  }
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
     // 図の中身を外へ出さない。ページからの通信はすべて止め、止めた件数を返す（mermaid は手元のファイルから読む）

@@ -99,7 +99,7 @@ description: 業務用 Markdown 文書を種別ごとの定型で作る。説明
 python scripts/check_mermaid.py <文書.md> [...] [--font "<読者のフォント>"] [--png <dir>] [--deps <dir>]
 ```
 
-文書中の mermaid 図をヘッドレスの Chromium で描き（`render_mermaid.cjs` を呼ぶ）、描かれた箱・線・ラベルの座標から崩れを判定する。問題のある図だけを `<ファイル>:<行> <図の種類> <ERROR|WARN> <コード> <内容>` の1行で出し、最後に件数を1行出す。終了コード: 0=ERROR なし（WARN のみも 0）/ 1=ERROR あり / 2=引数の誤り・読めない・依存が無い。
+文書中の mermaid 図をヘッドレスの Chromium で描き（`render_mermaid.cjs` を呼ぶ）、描かれた箱・線・ラベルの座標から崩れを判定する。問題のある図だけを `<ファイル>:<行> <図の種類> <ERROR|WARN> <コード> <内容>` の1行で出し、最後に件数を1行出す。終了コード: 0=ERROR なし（WARN のみも 0）/ 1=ERROR あり / 2=引数の誤り・読めない・Node.js が無い・依存の自動導入に失敗した。
 
 | コード | 重大度 | 直し方の第一候補 |
 |---|---|---|
@@ -113,7 +113,7 @@ python scripts/check_mermaid.py <文書.md> [...] [--font "<読者のフォン�
 - 判定に納得できないとき（直したのに消えない、どこが崩れているか分からない）だけ `--png` で画像を撮って見る。最初から画像を見ない。トークンが画像1枚ぶん増えるうえ、目視は線の突き抜けを見落とす
 - `--font` は閲覧先のフォント（例 `Meiryo`）が分かっていて、文字の見切れを疑うときだけ付ける。mermaid は描いた環境のフォントで枠を決めるので、閲覧先のフォントが違うと見切れる
 - 線と箱を測れるのは flowchart・stateDiagram・classDiagram など。sequenceDiagram などは PARSE と CLIP だけを見る
-- 依存: Node.js と npm の `playwright`・`mermaid`（v11）、Playwright の Chromium。入っているかは推測せず、まず実行して確かめる。終了コード 2 で導入方法が出たときだけ、ユーザーに導入してよいか聞く。導入しないなら図は「未検査」と明記して提示し、検査済みと書かない
+- 依存: Node.js と npm の `playwright`・`mermaid`（v11）、Playwright の Chromium。npm パッケージと Chromium は、無ければスクリプトが利用者のキャッシュフォルダ（`--deps` で変更可）へ自動で入れてそのまま検査を続けるので、事前に入れたり確認を取ったりしない。Node.js と npm は入れない。終了コード 2（Node.js が無い、ダウンロードが遮断されたなど）なら出力をユーザーに伝え、図は「未検査」と明記して提示し、検査済みと書かない。自動導入を止めたいときは `--no-install`
 - `render_mermaid.cjs` は check_mermaid.py の部品で、単独では呼ばない
 
 ### check_knowhow.py（AIノウハウ記録だけ）
