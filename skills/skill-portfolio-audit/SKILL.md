@@ -211,7 +211,7 @@ python scripts/audit_skills.py <skills-dir> [-o <出力先.json>] [--validator <
 
 個別validatorのERROR/WARNは要約行を除いて数え、全出力をJSONに保存する。終了コード0のWARNも全体に列挙する。WARNは根拠を見て採否を判定し、件数を欠陥数と同一視しない。
 
-検査するのは、`name` とディレクトリ名の一致、`description` の200文字超過と山括弧（廃止した web-description の残りは WARN）、個別検証の集約、発火競合の候補抽出、棲み分け宣言の有無、README 突合の8項目。終了コードは 0（ERROR なし。WARN のみでも 0）/ 1（ERROR あり）/ 2（引数の指定ミス）。依存は標準ライブラリのみ。
+検査するのは、`name` とディレクトリ名の一致、`description` の200文字超過と山括弧、個別検証の集約、発火競合の候補抽出、棲み分け宣言の有無、README 突合の8項目。終了コードは 0（ERROR なし。WARN のみでも 0）/ 1（ERROR あり）/ 2（引数の指定ミス）。依存は標準ライブラリのみ。
 
 ```
 python scripts/scan_bodies.py <skills-dir> [-o work/body-scan.json] [--skills a,b,c]
