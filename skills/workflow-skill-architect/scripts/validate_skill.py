@@ -12,7 +12,7 @@ WARN のみなら合格（0）だが、内容は表示する。
 1. **仕様適合** — frontmatter の許可キー、name の kebab-case と長さ、
    description の山括弧禁止と長さ。Agent Skill の公式仕様に基づく。
 2. **構造** — name とディレクトリ名の一致、description の 200 文字以内
-   （claude.ai の上限。超過は ERROR）、廃止した metadata.web-description の残り、リンク切れ、
+   （claude.ai の上限。超過は ERROR）、リンク切れ、
    同梱ファイル（references/ templates/ examples/ assets/）の孤児、行数、
    evals/evals.json の形式（ファイルがある場合のみ。不備は WARN）。
    references/review-checklist.md と AGENTS.md に基づく、この置き場固有の検査。
@@ -21,9 +21,9 @@ WARN のみなら合格（0）だが、内容は表示する。
 そのまま持ち出せるようにするためで、外部パッケージや特定のディレクトリ配置を
 前提にしない。
 
-なお Claude Code に skill-creator が入っている場合、その
-scripts/quick_validate.py が上記 1 と同じ範囲を見る（あちらは PyYAML を要求
-するので、こちらから委譲はしていない）。**仕様が変わったら両方に追随が要る**
+なお skill-creator に scripts/quick_validate.py が同梱されている場合、それが
+上記 1 と同じ範囲を見る（あちらは PyYAML を要求するので、こちらから委譲は
+していない）。**仕様が変わったら両方に追随が要る**
 ことは意識しておくこと。ルールの出典は各定数のコメントに書いてある。
 
 このスクリプトが見るのは references/review-checklist.md のうち
@@ -132,7 +132,7 @@ def parse_frontmatter(text):
     """--- で囲まれた frontmatter を素朴に行パースする。
 
     PyYAML に依存しないため、`key: value` の 1 行形式と、`metadata:` 直下の
-    1 段ネスト（`  web-description: ...`）だけを解釈する。
+    1 段ネスト（`  version: ...` など）だけを解釈する。
     戻り値は (フィールド辞書, エラー文字列 or None)。`metadata` の値はネストした
     キーの辞書になる。
     """
@@ -266,15 +266,6 @@ def check_frontmatter(skill_dir, skill_md_text, rep):
                 "claude.ai の上限であり、毎セッション読み込まれる固定費でもあるので、"
                 "定型句と不要な名指しを削ること",
             )
-
-    # 旧方式の短縮版。description を 200 文字以内の1本に統一したので置かない
-    meta = fields.get("metadata")
-    if isinstance(meta, dict) and "web-description" in meta:
-        rep.warn(
-            "SKILL.md",
-            "`metadata.web-description` は廃止した。description を "
-            f"{DESCRIPTION_LOCAL_MAX_CHARS} 文字以内にして、このキーは削除すること",
-        )
 
     compat = fields.get("compatibility")
     if compat and len(compat) > COMPATIBILITY_MAX_CHARS:
