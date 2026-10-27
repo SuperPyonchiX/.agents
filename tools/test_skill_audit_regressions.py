@@ -47,6 +47,7 @@ PDF = ROOT/'skills/operate-pdf'
 HAS_PYPDF = importlib.util.find_spec('pypdf') is not None
 HAS_PDFIUM = importlib.util.find_spec('pypdfium2') is not None and importlib.util.find_spec('PIL') is not None
 DRAWIO = ROOT/'skills/drawio-diagram'
+mermaid_check = load('check_mermaid', 'markdown-doc/scripts/check_mermaid.py')
 
 
 class TemporaryCase(unittest.TestCase):
@@ -1708,6 +1709,102 @@ class RuleIndexTests(TemporaryCase):
         (self.folder/'local/autosar').mkdir(parents=True)
         self.assertEqual(self.run_script('build', '--local', self.folder/'local').returncode, 1)
         self.assertEqual(self.run_script('build', '--local', self.folder/'none').returncode, 2)
+
+
+class MermaidCheckTests(TemporaryCase):
+    """描画はせず、render_mermaid.cjs が返す形の座標を手で作って判定だけを確かめる"""
+
+    def box(self, label, x, y, w=80, h=40):
+        return {'label': label, 'box': [x, y, w, h]}
+
+    def line(self, *points, eid=None):
+        pts = []
+        for (x0, y0), (x1, y1) in zip(points, points[1:]):
+            n = max(1, int(max(abs(x1 - x0), abs(y1 - y0)) // 3))
+            pts += [[x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n] for k in range(n)]
+        pts.append(list(points[-1]))
+        return {'id': eid, 'points': pts}
+
+    def codes(self, **geometry):
+        r = {'nodes': [], 'clusters': [], 'edges': [], 'labels': [], 'clips': []}
+        r.update(geometry)
+        return [(sev, code) for sev, code, _ in mermaid_check.check(r)]
+
+    def test_clean_chain_has_no_findings(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 100)]
+        self.assertEqual(self.codes(nodes=nodes, edges=[self.line((40, 40), (40, 100))]), [])
+
+    def test_line_through_unrelated_box(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 100), self.box('C', 0, 200)]
+        self.assertIn(('ERROR', 'THROUGH'), self.codes(nodes=nodes, edges=[self.line((40, 40), (40, 200))]))
+
+    def test_corner_graze_is_warning_only(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 200, 0), self.box('C', 100, 36)]
+        found = self.codes(nodes=nodes, edges=[self.line((80, 20), (100, 40), (104, 40), (200, 20))])
+        self.assertIn(('WARN', 'GRAZE'), found)
+        self.assertNotIn(('ERROR', 'THROUGH'), found)
+
+    def test_line_across_unrelated_cluster_and_title(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 300), self.box('M', 200, 150)]
+        clusters = [{'label': 'G', 'box': [-20, 100, 200, 150], 'title': [0, 100, 80, 20]}]
+        found = self.codes(nodes=nodes, clusters=clusters, edges=[self.line((40, 40), (40, 300))])
+        self.assertIn(('ERROR', 'CLUSTER'), found)
+        self.assertIn(('ERROR', 'TITLE'), found)
+
+    def test_line_into_own_cluster_is_allowed(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 150)]
+        clusters = [{'label': 'G', 'box': [-20, 120, 120, 100], 'title': None}]
+        self.assertEqual(self.codes(nodes=nodes, clusters=clusters, edges=[self.line((40, 40), (40, 150))]), [])
+
+    def test_overlapping_boxes(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 50, 20)]
+        self.assertIn(('ERROR', 'OVERLAP'), self.codes(nodes=nodes))
+
+    def test_label_on_other_line(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 200), self.box('C', 200, 0), self.box('D', 200, 200)]
+        edges = [self.line((40, 40), (40, 200), eid='ab'), self.line((240, 40), (240, 200), eid='cd')]
+        labels = [{'edge': 'ab', 'label': 'x', 'box': [20, 100, 240, 20]}]
+        self.assertIn(('ERROR', 'LABEL'), self.codes(nodes=nodes, edges=edges, labels=labels))
+
+    def test_lines_on_top_of_each_other(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 0, 300), self.box('C', 100, 0), self.box('D', 100, 300)]
+        edges = [self.line((40, 40), (90, 60), (90, 280), (40, 300)),
+                 self.line((140, 40), (91, 60), (91, 280), (140, 300))]
+        self.assertIn(('ERROR', 'SAMELINE'), self.codes(nodes=nodes, edges=edges))
+
+    def test_crossing_and_detour_are_warnings(self):
+        nodes = [self.box('A', 0, 0), self.box('B', 200, 200), self.box('C', 200, 0), self.box('D', 0, 200)]
+        edges = [self.line((80, 40), (200, 200)), self.line((200, 40), (80, 200)),
+                 self.line((0, 20), (-100, 20), (-100, 600), (600, 600), (600, 20), (280, 20))]
+        found = self.codes(nodes=nodes, edges=edges)
+        self.assertIn(('WARN', 'CROSS'), found)
+        self.assertIn(('WARN', 'DETOUR'), found)
+        self.assertFalse([c for c in found if c[0] == 'ERROR'])
+
+    def test_parse_error_keeps_line_and_token(self):
+        msg = "Parse error on line 2:\n...A[x\n----^\nExpecting 'SQE', 'PE', got 'EOF'"
+        self.assertEqual(mermaid_check.check({'parseError': msg}),
+                         [('ERROR', 'PARSE', "Parse error on line 2: got 'EOF'")])
+
+    def test_clip_render_is_error_and_font_is_warning(self):
+        clips = [{'phase': 'render', 'label': 'a', 'need': [10, 5], 'have': [8, 5]},
+                 {'phase': 'font', 'label': 'b', 'need': [10, 5], 'have': [8, 5]}]
+        self.assertEqual(self.codes(clips=clips), [('ERROR', 'CLIP'), ('WARN', 'CLIPFONT')])
+
+    def test_extract_reports_first_source_line(self):
+        md = self.folder/'doc.md'
+        md.write_text("# t\n\n```mermaid\nflowchart TB\n  A-->B\n```\n\n~~~mermaid\ngraph LR\n~~~\n", encoding='utf-8')
+        self.assertEqual(mermaid_check.extract(str(md)),
+                         [(4, 'flowchart TB\n  A-->B'), (9, 'graph LR')])
+
+    def test_missing_node_exits_2(self):
+        md = self.folder/'doc.md'
+        md.write_text("```mermaid\nflowchart TB\n```\n", encoding='utf-8')
+        out = io.StringIO()
+        with patch.object(sys, 'argv', ['check_mermaid.py', str(md)]), \
+                patch.object(mermaid_check.shutil, 'which', return_value=None), contextlib.redirect_stdout(out):
+            self.assertEqual(mermaid_check.main(), 2)
+        self.assertIn('npm install', out.getvalue())
 
 
 if __name__ == '__main__':
