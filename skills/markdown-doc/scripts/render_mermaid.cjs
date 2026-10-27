@@ -2,6 +2,7 @@
 // 標準入力で {"diagrams":[{"id","src"}], "font": "..."} を受け取り、ヘッドレス Chromium で mermaid を描いて
 // 箱・線・ラベル・文字のはみ出しの座標を JSON で標準出力に返す。判定はしない（判定は check_mermaid.py）。
 // --png <dir> を付けると、各図を <dir>/<id>.png にも撮る（人が目で確かめるとき用）。
+// ページからのネットワーク通信はすべて遮断する。図の内容を外部へ送らない。
 // 終了コード: 0 = 返せた / 2 = playwright か mermaid が見つからない（{"error":"deps","missing":[...]} を出す）
 "use strict";
 const fs = require("fs");
@@ -112,6 +113,9 @@ async function measure({ item, font }) {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({ viewport: { width: 1600, height: 1200 } });
+    // 図の中身を外へ出さない。ページからの通信はすべて止め、止めた件数を返す（mermaid は手元のファイルから読む）
+    let blocked = 0;
+    await page.route("**/*", (route) => { blocked++; route.abort(); });
     await page.setContent('<html><body style="margin:0"><div id="o"></div></body></html>');
     await page.addScriptTag({ path: mermaidJs });
     await page.evaluate(() => mermaid.initialize({ startOnLoad: false, securityLevel: "strict" }));
@@ -124,7 +128,7 @@ async function measure({ item, font }) {
       }
       results.push(r);
     }
-    process.stdout.write(JSON.stringify({ results }));
+    process.stdout.write(JSON.stringify({ results, blocked }));
   } finally {
     await browser.close();
   }

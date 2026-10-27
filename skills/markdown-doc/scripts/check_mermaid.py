@@ -36,6 +36,8 @@ render_mermaid.cjs がヘッドレス Chromium で描いて箱・線・ラベル
 
 終了コード: 0 = ERROR なし（WARN のみも 0） / 1 = ERROR あり
           2 = 引数の誤り・ファイルが読めない・node / playwright / mermaid / Chromium が無い
+外部への通信: しない。mermaid は npm で入れた手元のファイルを読み込み、描画するページからの通信は
+render_mermaid.cjs がすべて遮断する。遮断した通信があれば WARN で件数を出す。
 依存: Python は標準ライブラリのみ。別に Node.js と npm の playwright・mermaid（v11）、Playwright の Chromium
 """
 import argparse
@@ -388,6 +390,8 @@ def main():
             print("ERROR: 描画に失敗した: " + msg[:400])
         return 2
 
+    if data.get("blocked"):
+        print(f"WARN: 描画中の外部への通信 {data['blocked']} 件を遮断した（図の表示に影響していないか --png で確かめる）")
     errors = warns = bad = 0
     for r in data["results"]:
         path, line = where[r["id"]]
