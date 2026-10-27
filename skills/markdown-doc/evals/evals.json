@@ -1,0 +1,40 @@
+{
+  "skill_name": "markdown-doc",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "evals/files/deploy-flow.md は手順書の「全体の流れ」の節。この中の mermaid 図が見づらいので、レイアウトを直して同じファイルに上書きして。確認は不要",
+      "expected_output": "check_mermaid.py を実行して LABEL などの ERROR を確かめ、ノードや線の宣言順・ラベルを直して再実行し、ERROR 0 になってから結果を報告する",
+      "files": ["evals/files/deploy-flow.md"],
+      "expectations": [
+        "直す前に check_mermaid.py を実行し、出た ERROR のコードを踏まえて直している",
+        "直した後に check_mermaid.py を再実行し、ERROR が 0 になったことを報告している（残ったなら残ったコードと行を報告し、完成とは書いていない）",
+        "図が表す工程と戻り先（D0〜D4 と4本の点線）を変えていない",
+        "判定に迷っていないのに、最初から --png で画像を撮って見ていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "CI の仕組みを説明資料にまとめて。push でビルドとテストが並列に走り、両方通ればステージングへ配置、失敗したら開発者に通知して修正後の push からやり直す。出力は ci-overview.md。確認は不要",
+      "expected_output": "references/explanation.md の章立てで説明資料を書き、全体像の mermaid 図を check_mermaid.py に通して ERROR 0 を確かめてから提示する",
+      "files": [],
+      "expectations": [
+        "全体像に mermaid 図が1つ以上あり、並列（ビルドとテスト）と失敗時の戻りが図に表れている",
+        "提示前に check_mermaid.py を ci-overview.md に対して実行している",
+        "check_mermaid.py に ERROR が残ったまま完成として提示していない",
+        "文書タイトルの見出しが無く、常体で書かれている"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "社内 Wiki 向けに、新しいメンバーが開発用 PC に Git と VS Code を入れる手順書を書いて。出力は setup.md。確認は不要",
+      "expected_output": "references/procedure.md に従って手順書を書く。全体の流れの mermaid 図を置いたなら check_mermaid.py に通す。依存が無く終了コード 2 なら図を「未検査」と明記する",
+      "files": [],
+      "expectations": [
+        "手順書の章立て（全体の流れ・手順・完了確認）になっている",
+        "mermaid 図を置いた場合、check_mermaid.py を実行し、その結果（合格か、依存が無く未検査か）を報告している",
+        "確認していないバージョン番号やダウンロード URL を断定していない"
+      ]
+    }
+  ]
+}

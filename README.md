@@ -63,7 +63,7 @@ graph LR
 
 | スキル | 用途 | SKILL.md |
 | --- | --- | --- |
-| `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す | 89行 |
+| `markdown-doc` | 業務用 Markdown 文書を5種別の定型で作る。説明資料・ナレッジベース記事、業務手順書、ツール・スキル紹介（README 型）、生成AI活用のノウハウ記録、不具合報告書。種別を決めてから references/ の該当1本だけを読む。環境構築はコピー1回で済むコマンドブロックを目指す。mermaid 図はヘッドレス Chromium で描いて、線の突き抜け・ラベルへの重なりなどの崩れをスクリプトで検査する | 115行 |
 | `japanese-prose-polish` | AIくさい日本語を人間の文章に直す。21パターンを検出して書き換え、文書種別に応じて業務文書モード／個人発信モードを使い分ける。文書系スキルの最終工程から呼ばれる（外部取り込み・MIT） | 124行 |
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 107行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 133行 |
@@ -371,4 +371,4 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 
 ## 監査修正の回帰検査
 
-`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎ、Notion の見出しと太字の変換と YouTube 要約の整形、validate_skill.py の雛形ディレクトリの孤児判定、静的解析トリアージの読み出しから申請書への書き戻しまでの通し、日記への追記、reveal-file の対象の絞り込み、C++ の規約スキャンと Doxygen 検査、規約資料の番号索引を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel と静的解析トリアージの一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
+`python tools/test_skill_audit_regressions.py` で、台帳の誤合格、監査の集計と再開、Notionの途中失敗、Claude相談の制限、相談スクリプトの Windows コンソール向け出力符号化、セッション履歴の Antigravity 読み取り（second-opinion の自動相談の除外・切り詰められた発話の復元）、Excel の再計算検査・構造把握・差分の誤判定、PowerPoint の検査の見逃しとスライド削除後の破損、Word の読み取りの取りこぼしと置換の誤り（タブ・改行・脚注番号をまたぐ一致、件数の食い違い、変更履歴付き置換）、mermaid 図の崩れの判定（線の突き抜け・サブグラフの横切り・ラベルの重なり・角のかすめ）と構文エラーの行、draw.io の図の線の微小な傾き・半角ラベルの箱幅・枠の外の大回り・分岐の頂点の共有・書き出しのページ番号と Linux での起動、確認シートの次の回へのスモーク行と説明文の引き継ぎ、Notion の見出しと太字の変換と YouTube 要約の整形、validate_skill.py の雛形ディレクトリの孤児判定、静的解析トリアージの読み出しから申請書への書き戻しまでの通し、日記への追記、reveal-file の対象の絞り込み、C++ の規約スキャンと Doxygen 検査、規約資料の番号索引を確認する。標準ライブラリのみで動き、外部通信はモックする。Excel と静的解析トリアージの一部のケースは openpyxl か LibreOffice が無ければ、PowerPoint のケースは python-pptx が、Word のケースは python-docx が、draw.io の見出しの検査のケースは draw.io デスクトップ版が無ければスキップする。終了コード0は全件成功、1はテスト失敗。
