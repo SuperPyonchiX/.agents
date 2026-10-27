@@ -75,7 +75,7 @@ AGENTS.md の一節が説明ではなく手順書に育ってきたら、スキ�
 <details>
 <summary>補足：claude.ai（WEB 版）の description は200文字まで</summary>
 
-claude.ai は description の上限が200文字である。このリポジトリでは CLI 用と WEB 用を分けず、description を200文字以内の1本にしている。以前は CLI 用の長い description と、`metadata.web-description` に置いた短縮版を使い分けていたが、2026-10-03 に統一した。
+claude.ai は description の上限が200文字である。このリポジトリでは CLI 用と WEB 用を分けず、description を200文字以内の1本にしている。
 
 </details>
 
