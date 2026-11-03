@@ -34,6 +34,28 @@
         "保存したファイルを inspect_pptx.py --outline で開き、5枚（タイトル・不具合は3件・残課題・再発防止・次回）が順に並ぶ",
         "原本 q3_report.pptx を上書きしない"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "会社のテンプレート company-template.potx を使って、定例報告のスライドを作って。",
+      "expected_output": "operate-powerpoint を使い、テンプレートのレイアウトから作る",
+      "files": [],
+      "expectations": ["operate-powerpoint のスキルが呼ばれる", "visual-pptx-slides のスキルが呼ばれない"]
+    },
+    {
+      "id": 5,
+      "prompt": "この report.pptx の3枚目のタイトルを直して、誤字も見て。",
+      "expected_output": "operate-powerpoint を使い、既存資料を別名で保存して直す",
+      "files": [],
+      "expectations": ["operate-powerpoint のスキルが呼ばれる"]
+    },
+    {
+      "id": 6,
+      "prompt": "来期のテスト自動化の提案を、図解中心の分かりやすいスライドにして。",
+      "should_trigger": false,
+      "expected_output": "operate-powerpoint ではなく visual-pptx-slides を使う",
+      "files": [],
+      "expectations": ["operate-powerpoint のスキルが呼ばれない", "visual-pptx-slides のスキルが呼ばれる"]
     }
   ]
 }

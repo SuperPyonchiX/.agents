@@ -1,0 +1,33 @@
+{
+  "name": "corporate",
+  "description": "白地に紺・青緑・橙・赤。設計レビューや社内報告向けの落ち着いた配色",
+  "font": "BIZ UDPGothic",
+  "colors": {
+    "bg": "FFFFFF",
+    "panel": "F7F8FA",
+    "ink": "1B1F24",
+    "sub": "5F6670",
+    "muted": "A3A9B1",
+    "rule": "D5D9DE",
+    "white": "FFFFFF",
+    "primary": "1F3A5F",
+    "primary_mid": "5B7397",
+    "primary_soft": "E2E8F0",
+    "secondary": "1F8A8A",
+    "secondary_soft": "DDF0EF",
+    "tertiary": "E39B2D",
+    "tertiary_soft": "FCEFD9",
+    "accent": "C8372D",
+    "accent_soft": "F8E1DE"
+  },
+  "sizes": {
+    "cover_title": 44,
+    "title": 32,
+    "kicker": 13,
+    "heading": 20,
+    "body": 16,
+    "small": 13,
+    "caption": 11,
+    "source": 9
+  }
+}

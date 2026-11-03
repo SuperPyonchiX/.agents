@@ -1,0 +1,64 @@
+{
+  "skill_name": "visual-pptx-slides",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "来期のテスト自動化の提案を部内の設計者向けに、図解中心のスライド6枚くらいでpptxにして。素材は evals/files/proposal-notes.md。配布のみ、構成案の確認は不要でそのまま作って。",
+      "expected_output": "構成案→生成→検証ループを回し、検査済みの deck.pptx を渡す",
+      "files": ["evals/files/proposal-notes.md"],
+      "expectations": [
+        "slides-work/<deck名>/outline.md があり、先頭に置いた前提が書かれている",
+        "check_deck.py --json の出力が status ok かつ errors 0",
+        "check.json の sha256 と out/deck.pptx の sha256 が一致する",
+        "render/render.json があるときは、その sha256 も out/deck.pptx と一致する",
+        "log.md に周回ごとの sha256・ERROR/WARN 件数・目視の結果がある",
+        "数字は proposal-notes.md にあるものだけが使われている",
+        "ユーザー確認: タイトルだけを読んで話の筋が通る"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "設計レビュー資料をpptxで作って。判定方式の案A〜Cを比べる表を1枚入れたい。表の各セルの説明文は evals/files/long-table.md の文をそのまま使って。確認は不要。",
+      "expected_output": "表のセルのあふれを TABLE_GROW で検出し、文を短くするか表を分けて ERROR 0 にする。直せなければ未解決として報告する",
+      "files": ["evals/files/long-table.md"],
+      "expectations": [
+        "初回の check_deck.py の出力に TABLE_GROW がある（log.md か check.json の履歴で確認できる）",
+        "納品時点の check.json の errors が 0、または TABLE_GROW が未解決として報告に列挙されている",
+        "3周目に修正していない（log.md の最終周に「直した箇所」が無い）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "python-pptx を入れていない環境で、図解スライドを3枚作って（素材は evals/files/proposal-notes.md）。パッケージのインストールは禁止。確認は不要。",
+      "expected_output": "python-pptx が無いことを終了コード 2 で検出し、スライドを直そうとせず止まってユーザーに伝える",
+      "files": ["evals/files/proposal-notes.md"],
+      "expectations": [
+        "python-pptx が無いことをユーザーへの報告で明示している",
+        "build_deck.py の修正を検査不能の対処として繰り返していない",
+        "成功・合格と報告していない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "LibreOffice も PowerPoint も無いマシンで、図解スライドを4枚作って（素材は evals/files/proposal-notes.md）。確認は不要。",
+      "expected_output": "render.py が終了コード 2 を返し、機械検査のみ合格として見た目未確認を明記して納品する",
+      "files": ["evals/files/proposal-notes.md"],
+      "expectations": [
+        "render.py の終了コード 2 が log.md か報告に記録されている",
+        "報告に「機械検査のみ合格」または「見た目未確認」とあり、「成功」とだけは書いていない",
+        "render/ に以前の PNG が残っていない"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "会社のテンプレート company-template.potx を使って、定例報告のスライドを作って。",
+      "should_trigger": false,
+      "expected_output": "visual-pptx-slides ではなく operate-powerpoint を使う",
+      "files": [],
+      "expectations": [
+        "visual-pptx-slides のスキルが呼ばれない",
+        "operate-powerpoint のスキルが呼ばれる"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "default",
+  "description": "クリーム地に藍・碧・山吹・朱。動向まとめや社内勉強会向けの明るい配色",
+  "font": "BIZ UDPGothic",
+  "colors": {
+    "bg": "FAF7EF",
+    "panel": "FFFFFF",
+    "ink": "1E1E1E",
+    "sub": "6B6B6B",
+    "muted": "A8A8A8",
+    "rule": "DCD6C8",
+    "white": "FFFFFF",
+    "primary": "27348B",
+    "primary_mid": "6670B3",
+    "primary_soft": "E3E6F5",
+    "secondary": "17A589",
+    "secondary_soft": "DCF3EC",
+    "tertiary": "E9B526",
+    "tertiary_soft": "FBF0CC",
+    "accent": "D93B2B",
+    "accent_soft": "FBE3E0"
+  },
+  "sizes": {
+    "cover_title": 46,
+    "title": 34,
+    "kicker": 13,
+    "heading": 20,
+    "body": 16,
+    "small": 13,
+    "caption": 11,
+    "source": 9
+  }
+}
