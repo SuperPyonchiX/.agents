@@ -9,6 +9,13 @@ agy のヘッドレス実行はワークスペース内のファイル書き込�
 終了コード: 0=回答保存、1=実行失敗・タイムアウト・空回答・未ログイン、
 2=agy が見つからない／入力・保存先・--cd の不備。
 反論時は前の回答と論点を prompt-file へ含める。会話の継続（--conversation）は使わない。
+
+モデル: --model を付けなければ MODEL_CHAIN を順に試す（Gemini 4 Neon (High) → Gemini 4 Argon (High) → Claude Opus 5.5 (High)）。
+Antigravity の利用枠はモデルの群（Gemini の群・Claude と GPT の群）ごとに週と5時間の上限がある
+（https://antigravity.google/docs/cli/commands/usage/ ）。上限に達したときのエラーの文言は公式に書かれていないので、
+未ログインとタイムアウト以外の失敗（status が SUCCESS でない・空回答）はすべて次のモデルへ切り替える。
+環境変数 AGY_MODEL_CHAIN（カンマ区切りのモデル ID）で順番を替えられる。--model を付けたらそのモデルだけを使う。
+使ったモデルは標準出力の「モデル:」の行に、切り替えの経緯は標準エラーに出す。
 """
 import argparse
 import json
@@ -24,6 +31,8 @@ QUESTION_NAME = '.second-opinion-question.md'
 SKIP_DIRS = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', '.cache'}
 MAX_FILES = 20000
 MAX_BYTES = 200 * 1024 * 1024
+# 利用枠の上限などで失敗したときに順に試すモデル（agy models の ID）。Gemini の群 → Claude/GPT の群
+MODEL_CHAIN = ['gemini-4-neon-high', 'gemini-4-argon-high', 'claude-opus-5-5-high']
 
 INSTRUCTION = (
     'あなたは second-opinion スキルの相談先。ワークスペース直下の ' + QUESTION_NAME + ' を読み、'
@@ -158,32 +167,45 @@ def main(argv=None):
         shutil.copytree(args.cd, workspace, ignore=ignore)
         (workspace / QUESTION_NAME).write_text(prompt, encoding='utf-8')
         before = snapshot(workspace)
-        try:
-            result = subprocess.run(build_command(agy, args.timeout, args.model),
-                                    stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                    encoding='utf-8', errors='replace', cwd=str(workspace),
-                                    timeout=args.timeout + 60)
-        except subprocess.TimeoutExpired:
-            print(f'タイムアウト: {args.timeout}秒で回答が返りませんでした。同じ問いでの再試行はしないでください。',
-                  file=sys.stderr)
-            return 1
-        except OSError as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
+        chain = [args.model] if args.model else [m.strip() for m in os.environ.get('AGY_MODEL_CHAIN', ','.join(MODEL_CHAIN)).split(',') if m.strip()]
+        answer = used = None
+        for i, model in enumerate(chain):
+            try:
+                result = subprocess.run(build_command(agy, args.timeout, model),
+                                        stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                                        encoding='utf-8', errors='replace', cwd=str(workspace),
+                                        timeout=args.timeout + 60)
+            except subprocess.TimeoutExpired:
+                print(f'タイムアウト: {args.timeout}秒で回答が返りませんでした（モデル {model}）。同じ問いでの再試行はしないでください。',
+                      file=sys.stderr)
+                return 1
+            except OSError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            stderr = result.stderr.strip()
+            try:
+                data = parse_envelope(result.stdout)
+                text = data.get('response', '')
+                if result.returncode or data.get('status') != 'SUCCESS' or not isinstance(text, str) or not text.strip():
+                    raise ValueError(f"agy の実行失敗または空回答（status={data.get('status')}）。"
+                                     + str(data.get('error') or text)[:1000])
+            except (ValueError, AttributeError) as exc:
+                if 'authentication required' in stderr.lower():
+                    print(str(exc) + ' / CLI stderr: ' + stderr[-1000:], file=sys.stderr)
+                    print('未ログイン。対話モードの `agy` を一度起動してサインインしてください。', file=sys.stderr)
+                    return 1
+                rest = '・'.join(chain[i + 1:])
+                print(f'モデル {model} で失敗: {str(exc)[:300]} / CLI stderr: {stderr[-300:]}'
+                      + (f' → 次のモデルへ切り替える（残り: {rest}）' if rest else ' → 試すモデルが残っていない'), file=sys.stderr)
+                continue
+            answer, used = text, model
+            if i:
+                print(f'モデルを切り替えた: {" → ".join(chain[:i + 1])}（前のモデルは利用枠の上限などで失敗）', file=sys.stderr)
+            break
         changed = snapshot(workspace) != before
-
-    try:
-        data = parse_envelope(result.stdout)
-        answer = data.get('response', '')
-        if result.returncode or data.get('status') != 'SUCCESS' or not isinstance(answer, str) or not answer.strip():
-            raise ValueError(f"agy の実行失敗または空回答（status={data.get('status')}）。"
-                             + str(data.get('error') or answer)[:1000])
-    except (ValueError, AttributeError) as exc:
-        stderr = result.stderr.strip()
-        print(str(exc) + '\nCLI stderr: ' + stderr[-1000:], file=sys.stderr)
-        if 'authentication required' in stderr.lower():
-            print('未ログイン。対話モードの `agy` を一度起動してサインインしてください。', file=sys.stderr)
+    if answer is None:
         return 1
+
     if changed:
         print('注意: 相談先が作業コピーのファイルを変更した。元のディレクトリには影響しない。', file=sys.stderr)
     try:
@@ -192,6 +214,7 @@ def main(argv=None):
         print(str(exc), file=sys.stderr)
         return 2
     print('回答保存: ' + str(args.out.resolve()))
+    print('モデル: ' + used)
     return 0
 
 
