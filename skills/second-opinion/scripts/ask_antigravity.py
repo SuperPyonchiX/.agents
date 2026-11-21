@@ -11,8 +11,9 @@ agy のヘッドレス実行はワークスペース内のファイル書き込�
 反論時は前の回答と論点を prompt-file へ含める。会話の継続（--conversation）は使わない。
 
 モデル: --model を付けなければ MODEL_CHAIN を順に試す（Gemini 4 Neon (High) → Gemini 4 Argon (High) → Claude Opus 5.5 (High)）。
-Antigravity の利用枠はモデルの群（Gemini の群・Claude と GPT の群）ごとに週と5時間の上限がある
-（https://antigravity.google/docs/cli/commands/usage/ ）。上限に達したときのエラーの文言は公式に書かれていないので、
+Antigravity の利用枠は Gemini の群・Claude と GPT の群にそれぞれ週と5時間の上限があり
+（https://antigravity.google/docs/cli/commands/usage/ ）、Gemini 4 Argon だけは独自の週の上限を持つ
+（公式の説明には無い。ユーザーの使用量の画面で 2026-11-21 に確認）。上限に達したときのエラーの文言は公式に書かれていないので、
 未ログインとタイムアウト以外の失敗（status が SUCCESS でない・空回答）はすべて次のモデルへ切り替える。
 環境変数 AGY_MODEL_CHAIN（カンマ区切りのモデル ID）で順番を替えられる。--model を付けたらそのモデルだけを使う。
 使ったモデルは標準出力の「モデル:」の行に、切り替えの経緯は標準エラーに出す。
@@ -31,7 +32,7 @@ QUESTION_NAME = '.second-opinion-question.md'
 SKIP_DIRS = {'.git', 'node_modules', '.venv', 'venv', '__pycache__', 'dist', 'build', '.next', '.cache'}
 MAX_FILES = 20000
 MAX_BYTES = 200 * 1024 * 1024
-# 利用枠の上限などで失敗したときに順に試すモデル（agy models の ID）。Gemini の群 → Claude/GPT の群
+# 利用枠の上限などで失敗したときに順に試すモデル（agy models の ID）。Gemini の群 → 独自の枠の Argon → Claude/GPT の群
 MODEL_CHAIN = ['gemini-4-neon-high', 'gemini-4-argon-high', 'claude-opus-5-5-high']
 
 INSTRUCTION = (
