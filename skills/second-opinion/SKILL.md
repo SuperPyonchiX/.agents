@@ -170,7 +170,9 @@ python "<skill-dir>/scripts/ask_codex.py" --prompt-file Q.md --out A.md [--cd DI
 
 `scripts/ask_antigravity.py`は標準ライブラリのみ。引数は `--prompt-file Q.md --out A.md [--cd DIR] [--model MODEL] [--timeout SEC]`。`agy` をPATHから探し、`agy -p ... --output-format json --disable-slash-commands --sandbox --print-timeout` で1ターン実行して（`--sandbox` は端末コマンドの隔離。v1.4.7 で動作確認）、JSONの `status` が `SUCCESS` の `response` を保存する。モデル指定はユーザーが希望した場合だけ行う（`agy models` で一覧）。
 
-- 0: 回答を保存済み。`--out`を読む。stderrに「作業コピーのファイルを変更した」と出たら、回答の前提が作業コピーの改変後でないか確かめる。
+モデルの自動切り替え: `--model` を付けなければ、Gemini 4 Neon (High) → Gemini 4 Argon (High) → Claude Opus 5.5 (High) の順に試す。Antigravity の利用枠は、Gemini の群と、Claude と GPT の群にそれぞれ週と5時間の上限があり（[公式](https://antigravity.google/docs/cli/commands/usage/)）、**Gemini 4 Argon だけは Gemini の群とは別に独自の週の上限を持つ**（公式の説明には無い。ユーザーの使用量の画面で 2026-11-21 に確認）。だから Neon が上限でも Argon は使える見込みがあり、Argon も上限なら別の群の Claude へ進む。上限に達したときのエラーの文言は公式に書かれていないので、未ログインとタイムアウト以外の失敗はすべて次のモデルへ切り替える。順番は環境変数 `AGY_MODEL_CHAIN`（カンマ区切りのモデル ID）で替えられ、`--model` を付けたらそのモデルだけを使う。使ったモデルは標準出力の「モデル:」の行に、切り替えの経緯は標準エラーに出る。**「モデル:」が Claude・GPT のときは Gemini の回答ではないので、手順6・7でどのモデル由来かを書くときにそのモデル名で書く**（Claude から相談したのに Claude が答えた場合は、独立性が落ちていることも添える）。
+
+- 0: 回答を保存済み。`--out`を読む。標準出力の「モデル:」の行で、どのモデルが答えたかを確かめる。stderrに「作業コピーのファイルを変更した」と出たら、回答の前提が作業コピーの改変後でないか確かめる。
 - 1: 実行失敗・タイムアウト・空回答・未ログイン（`authentication required`）。未ログインなら対話モードの `agy` でのサインインを案内し、再試行しない。**タイムアウト（stderr が「タイムアウト:」で始まる）も再試行しない。** 2026-10-24 に数百行の差分のレビューで600秒のタイムアウトが2回続き、同じ問いの再試行は20分を失うだけだった（Codex は同じ問いに答えた）。Antigravity の回答なしで手順6へ進むか、`--cd` をレビュー対象のファイルだけに絞った質問で1回だけ送り直すかをユーザーに確認する。それ以外の失敗の再試行は1回まで。
 - 2: `agy`・入力・保存先・`--cd` の不備。`--cd` が2万ファイルか200MBを超えたら、読ませるサブディレクトリに絞って再実行する。
 
