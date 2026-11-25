@@ -1,0 +1,58 @@
+{
+  "skill_name": "footage-edit",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "撮影した解説動画 talk.mp4 の無音と「えー」「えーと」を切って、YouTube 用に編集して。文字起こしは transcript.json にある。字幕は別ファイルでいい。B ロールと BGM は無し。計画表の確認は不要なのでそのまま書き出しまで進めて。",
+      "expected_output": "無音とフィラーを詰めた MP4 と SRT ができ、check.py が合格する",
+      "files": [
+        "evals/files/talk.mp4",
+        "evals/files/transcript.json"
+      ],
+      "expectations": [
+        "このスキルが使われる",
+        "edit/analysis.json と edit/edl.json が作られ、EDL のクリップの合計の長さが元の 38 秒より短い",
+        "EDL のどのクリップも、3.4〜3.8 秒（えーと）と 12.3〜12.6 秒（えー）の区間と重ならない（フィラーの前後 0.1 秒の余白は許す）",
+        "out/ に MP4 と同じ名前の .srt があり、字幕に「えー」「えーと」が無い",
+        "最後に実行した check.py の終了コードが 0（ERROR 0 件）",
+        "edit/review.md があり、音の聞こえ方など画像で判断できない項目が「不明」として試聴の依頼に回されている",
+        "素材の talk.mp4 が変更されていない"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "スマホで撮った社内勉強会の講話の動画があるんだけど、間延びしてるところを詰めて字幕を焼き込んでほしい",
+      "expected_output": "このスキルが使われる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "talk.mp4 の無音を詰めて社内向けに編集して。文字起こしのツールは入れられない環境なので、字幕は無しでいい。計画表の確認は不要なのでそのまま書き出しまで進めて。",
+      "expected_output": "文字起こし無しで無音だけを詰めた MP4 ができ、check.py が合格する",
+      "files": [
+        "evals/files/talk.mp4"
+      ],
+      "expectations": [
+        "このスキルが使われる",
+        "faster-whisper を入れようとしない（pip install を実行しない）",
+        "draft_edl.py を --transcript なしで実行している",
+        "EDL の target が internal",
+        "最後に実行した check.py の終了コードが 0",
+        "素材の talk.mp4 が変更されていない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "この台本からナレーション付きの解説動画を作って。台本: 「組込みソフトの単体テストを3分で紹介します」",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（narrated-video の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}
