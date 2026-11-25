@@ -446,6 +446,100 @@ class HistoryMiningTests(TemporaryCase):
             self.assertEqual(history.main(['--antigravity-dir', str(self.folder)]), 2)
 
 
+class CodexHistoryTests(TemporaryCase):
+    """Codex の 2026 年の履歴（item_completed の UserMessage、.jsonl.zst 圧縮）を読む。"""
+
+    def session(self, name, source, rows, cwd='D:/proj'):
+        lines = [{'timestamp': '2026-01-01T00:00:00Z', 'type': 'session_meta',
+                  'payload': {'id': name, 'cwd': cwd, 'source': source}}] + rows
+        p = self.folder/'sessions'/'2026'/(name + '.jsonl')
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(''.join(json.dumps(r, ensure_ascii=False) + '\n' for r in lines) + '{壊れた行\n', encoding='utf-8')
+        return p
+
+    def user(self, when, *content):
+        return {'timestamp': when, 'type': 'event_msg',
+                'payload': {'type': 'item_completed', 'item': {'type': 'UserMessage', 'content': list(content)}}}
+
+    def text(self, t):
+        return {'type': 'text', 'text': t, 'text_elements': []}
+
+    def read(self):
+        import datetime as dt
+        since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)
+        with contextlib.redirect_stdout(io.StringIO()):
+            return history.read_codex(str(self.folder/'sessions'), since)
+
+    def now(self):
+        import datetime as dt
+        return dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.123Z')
+
+    def test_reads_new_format_and_skips_copies_and_automation(self):
+        now = self.now()
+        self.session('human', 'vscode', [
+            self.user(now, {'type': 'local_image', 'path': 'a.png'}, self.text('図がずれている')),
+            # response_item の role=user は前置きつきの写し。数えると二重になる
+            {'timestamp': now, 'type': 'response_item',
+             'payload': {'type': 'message', 'role': 'user', 'content': [{'type': 'input_text', 'text': '図がずれている'}]}},
+            {'timestamp': now, 'type': 'compacted',
+             'payload': {'message': '', 'replacement_history': [{'role': 'user', 'content': '再掲'}]}},
+            self.user(now, self.text('# Context from my IDE setup:\n\n## Active file: a.py\n\n## Open tabs:\n- a.py\n\n## My request:\nテストを足して')),
+            self.user(now, self.text('<task-notification>取り込まれた Claude の制御出力</task-notification>')),
+            self.user(now, self.text('This session is being continued from a previous conversation')),
+            self.user('2000-01-01T00:00:00Z', self.text('古い発話')),
+            {'timestamp': now, 'type': 'event_msg', 'payload': {'type': 'user_message', 'message': '旧形式の発話'}},
+        ])
+        self.session('exec', 'exec', [self.user(now, self.text('second-opinion の相談'))])
+        self.session('guardian', {'subagent': {'other': 'guardian'}}, [self.user(now, self.text('The following is the Codex agent'))])
+        got = sorted((p['session'], p['text'], p['image']) for p in self.read())
+        self.assertEqual(got, [('human', 'テストを足して', False), ('human', '図がずれている', True),
+                               ('human', '旧形式の発話', False)])
+
+    def test_reads_zst_with_available_decompressor(self):
+        p = self.session('zipped', 'cli', [self.user(self.now(), self.text('圧縮された発話'))])
+        z = p.with_name(p.name + '.zst')
+        z.write_bytes(b'ZST' + p.read_bytes())
+        p.unlink()
+        original = history.zstd_reader
+        history.zstd_reader = lambda: (lambda path: Path(path).read_bytes()[3:])
+        try:
+            got = self.read()
+        finally:
+            history.zstd_reader = original
+        self.assertEqual([(x['session'], x['text']) for x in got], [('zipped', '圧縮された発話')])
+
+    def test_zst_without_decompressor_is_usage_error_not_silent_zero(self):
+        p = self.session('zipped', 'cli', [self.user(self.now(), self.text('圧縮された発話'))])
+        p.rename(p.with_name(p.name + '.zst'))
+        original = history.zstd_reader
+        history.zstd_reader = lambda: None
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                code = history.main(['--codex-sessions', str(self.folder/'sessions'), '-o', str(self.folder/'s.json')])
+        finally:
+            history.zstd_reader = original
+        self.assertEqual(code, 2)
+        self.assertIn('zstandard', out.getvalue())
+
+    def test_broken_zst_is_reported_and_skipped(self):
+        self.session('plain', 'cli', [self.user(self.now(), self.text('読める発話'))])
+        (self.folder/'sessions'/'2026'/'broken.jsonl.zst').write_bytes(b'not zstd')
+        original = history.zstd_reader
+        def boom(path):
+            raise ValueError('bad frame')
+        history.zstd_reader = lambda: boom
+        out = io.StringIO()
+        try:
+            import datetime as dt
+            with contextlib.redirect_stdout(out):
+                got = history.read_codex(str(self.folder/'sessions'), dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30))
+        finally:
+            history.zstd_reader = original
+        self.assertEqual([x['text'] for x in got], ['読める発話'])
+        self.assertIn('broken.jsonl.zst', out.getvalue())
+
+
 class ExcelTests(TemporaryCase):
     WORKBOOK = ('<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
                 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'

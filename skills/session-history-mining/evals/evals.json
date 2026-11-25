@@ -32,6 +32,18 @@
       "expectations": [
         "新しいセッションで、このスキルが使われない"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "Codex の履歴から、よく頼んでいる作業をスキル候補として洗い出して",
+      "expected_output": "このスキルが使われ、.jsonl.zst も含めて Codex の履歴を読む。展開できなければ Codex を0件扱いせず、導入方法を示して止まる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる",
+        "H1 の extract_history.py に --codex-sessions を付けて実行する",
+        "終了コード 2 で .jsonl.zst を展開できないと出たら、zstandard か zstd コマンドの導入を案内し、Codex を反復なしとして報告しない",
+        "codex exec とサブエージェントのセッションを人の発話として数えていない"
+      ]
     }
   ]
 }

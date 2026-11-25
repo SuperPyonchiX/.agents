@@ -35,7 +35,7 @@ graph TD
    | ツール | 既定の場所 |
    |---|---|
    | Claude Code | `~/.claude/history.jsonl` |
-   | Codex | `~/.codex/sessions/`（配下の `**/*.jsonl`） |
+   | Codex | `~/.codex/sessions/`（配下の `**/*.jsonl` と `**/*.jsonl.zst`） |
    | Antigravity CLI（`agy`） | `~/.gemini/antigravity-cli/`（配下の `brain/*/.system_generated/logs/transcript.jsonl`） |
 
    Antigravity の IDE 版（`~/.gemini/antigravity/conversations/*.pb`）は暗号化されていて読めない。あれば「読めなかった履歴」として H3 で報告する。
@@ -112,7 +112,7 @@ else:
 
 ## スクリプト
 
-`scripts/extract_history.py` — H1 で使う。依存は標準ライブラリのみ。
+`scripts/extract_history.py` — H1 で使う。依存は標準ライブラリのみ。ただし Codex の `.jsonl.zst` を読むには、Python 3.14 以降・`zstandard` パッケージ・`zstd` コマンドのどれか1つが要る（この順に探す。Windows では msys2 などの `zstd.exe` が PATH にあれば足りる）。
 
 ```
 python scripts/extract_history.py [--claude-history <history.jsonl>] [--codex-sessions <dir>] [--antigravity-dir <dir>] [--days 30] [-o work/history-summary.json] [--dump work/prompts.jsonl]
@@ -121,13 +121,13 @@ python scripts/extract_history.py [--claude-history <history.jsonl>] [--codex-se
 | 引数 | 意味 |
 |---|---|
 | `--claude-history` | Claude Code の `history.jsonl`。1行1発話 |
-| `--codex-sessions` | Codex の `sessions` ディレクトリ。サブエージェントのセッションは除外する |
+| `--codex-sessions` | Codex の `sessions` ディレクトリ。`.jsonl` と `.jsonl.zst` を読む。サブエージェントと `codex exec`（second-opinion の相談・評価の被験者などの自動起動）のセッションは除外する |
 | `--antigravity-dir` | Antigravity CLI の `antigravity-cli` ディレクトリ。会話ごとの `transcript.jsonl` から `<USER_REQUEST>` の中身を取り、作業ディレクトリは `conversation_summaries.db` から引く。`second-opinion` が自動で投げた相談は除外する |
 | `--days` | 遡る日数。既定 30 |
 | `-o` | 集計結果の JSON。既定 `work/history-summary.json` |
 | `--dump` | 期間内の全発話を JSONL で書き出す先。H2 で語から周辺を検索するときに使う |
 
-スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。Antigravity の形式は 2026-10-24 時点の `agy` の `-p` 実行で確かめた。対話モードの会話も同じ場所に残る想定だが未確認なので、対話で使ったのに 0 件なら読み取りの問題として H0 に戻る。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス）。
+スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。Antigravity の形式は 2026-10-24 時点の `agy` の `-p` 実行で確かめた。対話モードの会話も同じ場所に残る想定だが未確認なので、対話で使ったのに 0 件なら読み取りの問題として H0 に戻る。Codex は 2026 年の形式（`event_msg` の `item_completed` のうち `item.type=UserMessage`）と旧形式（`user_message`）の両方を読む。`response_item` の role=user と `compacted` は発話の写し・再掲なので読まない。IDE 拡張が付ける「# Context from my IDE setup:」の前置きは外し、「## My request:」以降だけを数える。Codex Desktop に取り込まれた Claude Code の制御出力（`<task-notification>` 等）も除外する。この形式は 2026-11-25 に実機の履歴で確かめた。壊れた `.zst` は WARN を出して飛ばす。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス、または `.jsonl.zst` を展開する手段が無い）。**展開できないときに Codex を0件として扱わない**（2 で止まる）。
 
 ## テンプレート
 

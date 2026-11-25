@@ -13,8 +13,9 @@ H1（機械集計）で実行する。全発話をエージェントに読ませ
 
 読める形式:
     Claude Code  ~/.claude/history.jsonl（1行1発話。display / timestamp[ms] / project / sessionId）
-    Codex        ~/.codex/sessions/**/*.jsonl（event_msg の user_message。
-                 source が subagent のセッションは除外する）
+    Codex        ~/.codex/sessions/**/*.jsonl と *.jsonl.zst（event_msg の item_completed のうち
+                 item.type=UserMessage。旧形式の user_message も読む。source が subagent と exec の
+                 セッションは除外する。「# Context from my IDE setup:」の前置きは外す）
     Antigravity  ~/.gemini/antigravity-cli/（brain/<会話ID>/.system_generated/logs/transcript.jsonl の
                  USER_INPUT。<USER_REQUEST> の中身だけを取る。作業ディレクトリは
                  conversation_summaries.db の workspace_uris から引く。second-opinion スキルが
@@ -33,9 +34,10 @@ H1（機械集計）で実行する。全発話をエージェントに読ませ
 終了コード:
     0  集計した
     1  期間内の発話が0件
-    2  引数の指定ミス（履歴が1つも指定されていない・パスが無い）
+    2  引数の指定ミス（履歴が1つも指定されていない・パスが無い）、または .jsonl.zst を展開できない
 
-依存は標準ライブラリのみ。履歴には貼り付けた秘密情報が含まれうるので、
+依存は標準ライブラリのみ。ただし Codex の .jsonl.zst を読むには、Python 3.14 以降・zstandard
+パッケージ・zstd コマンドのどれか1つが要る（この順に探す）。履歴には貼り付けた秘密情報が含まれうるので、
 出力はローカルにだけ置き、外部サービスへ送らないこと。
 """
 
@@ -46,7 +48,9 @@ import glob
 import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -58,7 +62,12 @@ TOP_TERMS = 60
 MAX_CORRECTIONS = 150
 
 SKIP_PREFIX = ("/", "!", "<command-name>", "<local-command", "<command-message>",
-               "<system-reminder>", "<task-notification>", "# AGENTS.md instructions", "Caveat:")
+               "<system-reminder>", "<task-notification>", "# AGENTS.md instructions", "Caveat:",
+               "This session is being continued", "[Request interrupted by user")
+# codex exec は second-opinion の相談や評価の被験者として自動で起動されるので、人の発話として数えない
+CODEX_SKIP_SOURCES = ("exec",)
+IDE_CONTEXT_HEAD = "# Context from my IDE setup:"
+IDE_REQUEST_RE = re.compile(r"^## My request[^\n]*:\s*(.*)\Z", re.M | re.S)
 IMAGE_RE = re.compile(r"\[(?:external unsupported block: image|Image #?\d*[^\]]*)\]\s*")
 
 CORRECTION_RE = re.compile(
@@ -131,25 +140,109 @@ def read_claude(path, since):
     return out
 
 
-def read_codex(root, since):
-    out = []
-    for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
-        meta, rows = {}, []
-        with open(path, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                try:
-                    d = json.loads(line)
-                except ValueError:
-                    continue
-                p = d.get("payload") or {}
-                if d.get("type") == "session_meta":
-                    meta = p
-                elif d.get("type") == "event_msg" and p.get("type") == "user_message":
-                    rows.append((d.get("timestamp"), p.get("message", "")))
-        if isinstance(meta.get("source"), dict) and "subagent" in meta["source"]:
+class ZstdUnavailable(Exception):
+    """.jsonl.zst を展開する手段が無い。"""
+
+
+def zstd_reader():
+    """.zst を展開する関数を返す。Python 3.14 の標準 → zstandard → zstd コマンドの順に探す。"""
+    try:
+        from compression import zstd as std_zstd  # Python 3.14 以降の標準ライブラリ
+        return lambda path: std_zstd.decompress(Path(path).read_bytes())
+    except ImportError:
+        pass
+    try:
+        import zstandard
+        def read(path):
+            with open(path, "rb") as f, zstandard.ZstdDecompressor().stream_reader(f) as r:
+                return r.read()
+        return read
+    except ImportError:
+        pass
+    exe = shutil.which("zstd")
+    if exe:
+        return lambda path: subprocess.run([exe, "-dc", str(path)], check=True,
+                                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout
+    return None
+
+
+def codex_lines(path, unzstd):
+    if path.endswith(".zst"):
+        if unzstd is None:
+            raise ZstdUnavailable(path)
+        data = unzstd(path)
+        return data.decode("utf-8", errors="replace").splitlines()
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read().splitlines()
+
+
+def codex_user_text(p):
+    """event_msg の payload からユーザー発話を取り出し、(本文, 画像付きか) を返す。発話でなければ None。
+
+    旧形式は payload.type=user_message の message。2026 年の形式は payload.type=item_completed で
+    item.type=UserMessage の content[]（type=text の text、画像は local_image / image）。
+    response_item の role=user は AGENTS.md の前置きつきの写しなので読まない（二重になる）。
+    compacted の replacement_history も過去発話の再掲なので読まない。
+    """
+    if p.get("type") == "user_message":
+        return strip_image(p.get("message", ""))
+    item = p.get("item") or {}
+    if p.get("type") != "item_completed" or item.get("type") != "UserMessage":
+        return None
+    texts, image = [], False
+    for c in item.get("content") or []:
+        if not isinstance(c, dict):
             continue
-        for ts, raw in rows:
-            text, image = strip_image(raw)
+        if c.get("type") == "text":
+            texts.append(c.get("text") or "")
+        elif c.get("type") in ("local_image", "image"):
+            image = True
+    text, marker = strip_image("\n".join(texts))
+    return text, image or marker
+
+
+def strip_ide_context(text):
+    """VS Code 拡張・Codex Desktop が前置きする「# Context from my IDE setup:」を外し、本題だけ残す。"""
+    if not text.startswith(IDE_CONTEXT_HEAD):
+        return text
+    m = IDE_REQUEST_RE.search(text)
+    return m.group(1).strip() if m else ""
+
+
+def read_codex(root, since):
+    """Codex の sessions を読む。サブエージェントと codex exec（非対話の自動実行）のセッションは除外する。"""
+    out = []
+    paths = (glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)
+             + glob.glob(os.path.join(root, "**", "*.jsonl.zst"), recursive=True))
+    unzstd = zstd_reader() if any(x.endswith(".zst") for x in paths) else None
+    for path in sorted(paths):
+        meta, rows = {}, []
+        try:
+            lines = codex_lines(path, unzstd)
+        except ZstdUnavailable:
+            raise
+        except Exception as e:  # 壊れた .zst など。1本の失敗で全体を止めず、黙っても捨てない
+            print("WARN  %s: 読めなかった（%s）" % (path, e.__class__.__name__))
+            continue
+        for line in lines:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(d, dict):
+                continue
+            p = d.get("payload") or {}
+            if d.get("type") == "session_meta":
+                meta = p
+            elif d.get("type") == "event_msg":
+                got = codex_user_text(p)
+                if got is not None:
+                    rows.append((d.get("timestamp"), got))
+        source = meta.get("source")
+        if (isinstance(source, dict) and "subagent" in source) or source in CODEX_SKIP_SOURCES:
+            continue
+        for ts, (raw, image) in rows:
+            text = strip_ide_context(raw)
             try:
                 when = dt.datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
             except ValueError:
@@ -363,7 +456,12 @@ def main(argv):
     if args.claude_history:
         prompts += read_claude(args.claude_history, since)
     if args.codex_sessions:
-        prompts += read_codex(args.codex_sessions, since)
+        try:
+            prompts += read_codex(args.codex_sessions, since)
+        except ZstdUnavailable as e:
+            print("ERROR  %s: .jsonl.zst を展開できない。`pip install zstandard` か zstd コマンドを入れて"
+                  "再実行する（Python 3.14 以降なら不要）。Codex を外すなら --codex-sessions を付けない" % e)
+            return 2
     if args.antigravity_dir:
         prompts += read_antigravity(args.antigravity_dir, since)
     prompts = dedupe(prompts)
