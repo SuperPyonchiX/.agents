@@ -15,7 +15,7 @@ H1（機械集計）で実行する。全発話をエージェントに読ませ
     Claude Code  ~/.claude/history.jsonl（1行1発話。display / timestamp[ms] / project / sessionId）
     Codex        ~/.codex/sessions/**/*.jsonl と *.jsonl.zst（event_msg の item_completed のうち
                  item.type=UserMessage。旧形式の user_message も読む。source が subagent と exec の
-                 セッションは除外する。「# Context from my IDE setup:」の前置きは外す）
+                 セッションは除外する。「# Context from my IDE setup:」「# Files mentioned by the user」の前置きは外す）
     Antigravity  ~/.gemini/antigravity-cli/（brain/<会話ID>/.system_generated/logs/transcript.jsonl の
                  USER_INPUT。<USER_REQUEST> の中身だけを取る。作業ディレクトリは
                  conversation_summaries.db の workspace_uris から引く。second-opinion スキルが
@@ -66,7 +66,9 @@ SKIP_PREFIX = ("/", "!", "<command-name>", "<local-command", "<command-message>"
                "This session is being continued", "[Request interrupted by user")
 # codex exec は second-opinion の相談や評価の被験者として自動で起動されるので、人の発話として数えない
 CODEX_SKIP_SOURCES = ("exec",)
-IDE_CONTEXT_HEAD = "# Context from my IDE setup:"
+# IDE 拡張の文脈と、@ で添えた画像・ファイルの一覧。本題は「## My request:」の後ろにある
+CODEX_PREAMBLE_HEADS = ("# Context from my IDE setup:", "# Files mentioned by the user")
+PREAMBLE_IMAGE_RE = re.compile(r"^## [^\n]*\.(?:png|jpe?g|gif|webp|bmp)\b", re.M | re.I)
 IDE_REQUEST_RE = re.compile(r"^## My request[^\n]*:\s*(.*)\Z", re.M | re.S)
 IMAGE_RE = re.compile(r"\[(?:external unsupported block: image|Image #?\d*[^\]]*)\]\s*")
 
@@ -201,12 +203,16 @@ def codex_user_text(p):
     return text, image or marker
 
 
-def strip_ide_context(text):
-    """VS Code 拡張・Codex Desktop が前置きする「# Context from my IDE setup:」を外し、本題だけ残す。"""
-    if not text.startswith(IDE_CONTEXT_HEAD):
-        return text
+def strip_codex_preamble(text):
+    """Codex が発話の前に付ける前置き（IDE の文脈、@ で添えたファイルの一覧）を外す。
+
+    (本題, 前置きに画像があったか) を返す。前置きがあるのに「## My request:」が無ければ本題は空。
+    """
+    if not text.startswith(CODEX_PREAMBLE_HEADS):
+        return text, False
     m = IDE_REQUEST_RE.search(text)
-    return m.group(1).strip() if m else ""
+    head = text[:m.start()] if m else text
+    return (m.group(1).strip() if m else ""), bool(PREAMBLE_IMAGE_RE.search(head))
 
 
 def read_codex(root, since):
@@ -242,7 +248,8 @@ def read_codex(root, since):
         if (isinstance(source, dict) and "subagent" in source) or source in CODEX_SKIP_SOURCES:
             continue
         for ts, (raw, image) in rows:
-            text = strip_ide_context(raw)
+            text, attached = strip_codex_preamble(raw)
+            image = image or attached
             try:
                 when = dt.datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
             except ValueError:

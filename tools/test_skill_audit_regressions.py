@@ -484,6 +484,7 @@ class CodexHistoryTests(TemporaryCase):
             {'timestamp': now, 'type': 'compacted',
              'payload': {'message': '', 'replacement_history': [{'role': 'user', 'content': '再掲'}]}},
             self.user(now, self.text('# Context from my IDE setup:\n\n## Active file: a.py\n\n## Open tabs:\n- a.py\n\n## My request:\nテストを足して')),
+            self.user(now, self.text('# Files mentioned by the user:\n\n## 画像1.jpg: C:\\Users\\me\\画像1.jpg\n\n## My request for Codex:\n線が重なっている')),
             self.user(now, self.text('<task-notification>取り込まれた Claude の制御出力</task-notification>')),
             self.user(now, self.text('This session is being continued from a previous conversation')),
             self.user('2000-01-01T00:00:00Z', self.text('古い発話')),
@@ -493,7 +494,7 @@ class CodexHistoryTests(TemporaryCase):
         self.session('guardian', {'subagent': {'other': 'guardian'}}, [self.user(now, self.text('The following is the Codex agent'))])
         got = sorted((p['session'], p['text'], p['image']) for p in self.read())
         self.assertEqual(got, [('human', 'テストを足して', False), ('human', '図がずれている', True),
-                               ('human', '旧形式の発話', False)])
+                               ('human', '旧形式の発話', False), ('human', '線が重なっている', True)])
 
     def test_reads_zst_with_available_decompressor(self):
         p = self.session('zipped', 'cli', [self.user(self.now(), self.text('圧縮された発話'))])

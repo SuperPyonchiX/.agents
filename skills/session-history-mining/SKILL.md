@@ -127,7 +127,7 @@ python scripts/extract_history.py [--claude-history <history.jsonl>] [--codex-se
 | `-o` | 集計結果の JSON。既定 `work/history-summary.json` |
 | `--dump` | 期間内の全発話を JSONL で書き出す先。H2 で語から周辺を検索するときに使う |
 
-スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。Antigravity の形式は 2026-10-24 時点の `agy` の `-p` 実行で確かめた。対話モードの会話も同じ場所に残る想定だが未確認なので、対話で使ったのに 0 件なら読み取りの問題として H0 に戻る。Codex は 2026 年の形式（`event_msg` の `item_completed` のうち `item.type=UserMessage`）と旧形式（`user_message`）の両方を読む。`response_item` の role=user と `compacted` は発話の写し・再掲なので読まない。IDE 拡張が付ける「# Context from my IDE setup:」の前置きは外し、「## My request:」以降だけを数える。Codex Desktop に取り込まれた Claude Code の制御出力（`<task-notification>` 等）も除外する。この形式は 2026-11-25 に実機の履歴で確かめた。壊れた `.zst` は WARN を出して飛ばす。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス、または `.jsonl.zst` を展開する手段が無い）。**展開できないときに Codex を0件として扱わない**（2 で止まる）。
+スラッシュコマンド・`!` のシェル実行・制御出力は除外し、同じ本文・同じ日の発話は1件に畳む。数字・パス・URL を伏せた発話の先頭24文字が一致し、2セッション以上に出たものを反復候補とする。Antigravity の形式は 2026-10-24 時点の `agy` の `-p` 実行で確かめた。対話モードの会話も同じ場所に残る想定だが未確認なので、対話で使ったのに 0 件なら読み取りの問題として H0 に戻る。Codex は 2026 年の形式（`event_msg` の `item_completed` のうち `item.type=UserMessage`）と旧形式（`user_message`）の両方を読む。`response_item` の role=user と `compacted` は発話の写し・再掲なので読まない。IDE 拡張が付ける「# Context from my IDE setup:」と、@ でファイルを添えたときの「# Files mentioned by the user」の前置きは外し、「## My request:」以降だけを数える（前置きに画像があれば画像付きとする）。Codex Desktop に取り込まれた Claude Code の制御出力（`<task-notification>` 等）も除外する。この形式は 2026-11-25 に実機の履歴で確かめた。壊れた `.zst` は WARN を出して飛ばす。終了コードは 0（集計した）/ 1（期間内の発話が0件）/ 2（引数の指定ミス、または `.jsonl.zst` を展開する手段が無い）。**展開できないときに Codex を0件として扱わない**（2 で止まる）。
 
 ## テンプレート
 
