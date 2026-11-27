@@ -87,6 +87,29 @@
 
 **更新するとき**: 上流を clone し、`skills/rea-video/` をコピーし直してから上の改変を当て直す。`grep -ri chatcut skills/rea-video` が0件、`grep -n "本リポジトリでの追記" skills/rea-video -r` が3件になることを確かめる。
 
+### last30days
+
+| 項目 | 内容 |
+|---|---|
+| 出典 | https://github.com/mvanhorn/last30days-skill （`skills/last30days/`） |
+| ライセンス | MIT（Copyright (c) 2026 Matt Van Horn）。全文は `skills/last30days/LICENSE`（SHA-256 `31803213a789825dc419de43542381e1d570b4408cf2bcf2e8a9947a6d3fd2ab`）。同梱の `scripts/lib/vendor/bird-search/` は MIT（Copyright (c) 2025 Peter Steinberger）で、上流どおり自身の LICENSE を残している |
+| 取得時のコミット | `3fd946546afddc2096ab955f3abb223ed59f52ce`（2026-11-26） |
+| 取得日 | 2026-11-27 |
+| 改変 | **あり**（下記） |
+
+取り込んだのは上流の `skills/last30days/` のうち `SKILL.md`・`references/`・`scripts/`。本文の記述言語は英語で保持し、追記した節は日本語で書いている。
+
+- **API キーを既定で使わないようにした**（`scripts/lib/env.py`）。`LAST30DAYS_ALLOW_API_KEYS=1` がプロセスの環境変数か last30days の設定ファイル（`~/.config/last30days/.env` など）に無ければ、API キーとトークン（`GATED_CREDENTIAL_KEYS` の21個）を設定から外し、Keychain と pass も読まない。他のツール用の `GEMINI_API_KEY`・`OPENAI_API_KEY` などを黙って使わせないため。X のクッキー（`AUTH_TOKEN`・`CT0`）とブラウザのクッキー読み取りは、上流の同意フローのままにした
+- **リランキングの既定を `local` にした**（`env.py`・`providers.py`・`pipeline.py`）。上流は `auto` で、キーがあればトピックと抜粋を Gemini などへ送っていた
+- **ネイティブ実行ファイルの自動ダウンロードを止めた**（`scripts/lib/rust_accel.py`）。上流は実行時に GitHub Releases から `last30days-core` を自動で入れる。`LAST30DAYS_ENGINE` の既定を `python` にした（上流は `auto`）
+- frontmatter を `name`・`description`（日本語）・`license` だけにした。上流の `version`・`argument-hint`・`allowed-tools`・`homepage`・`repository`・`author`・`user-invocable`・`metadata.openclaw` は規約外のため削除。このためエンジンが表示するバージョンは `?` になる
+- SKILL.md の先頭に「本リポジトリでの追記」の節を足した（上の既定、許可を自分から設定しないこと、フックを入れないこと、補助スクリプトの使い方）
+- リンクの雛形 `[name](url)` などを `[name](<url>)` の形にした（`SKILL.md`・`references/` の5ファイル）。検証スクリプトが実在しないパスと見なすため。意味は変わらない
+- 除外: `assets/`（デモ用の画像と音声 14MB）、`agents/openai.yaml`（Codex の表示用メタデータ）、`.skillignore`、上流が開発用として `.skillignore` に挙げている `scripts/` の10ファイル（`build-skill.sh` `compare.sh` `evaluate_search_quality.py` `reddit_canary.py` `setup-keychain.sh` `setup-pass.sh` `test_device_auth.py` `test-v1-vs-v2.sh` `verify_v3.py` `x_lane_parity.py`）
+- 追加: `evals/evals.json`（4件。上流には無い）
+
+**更新するとき**: 上流を clone し、上の範囲をコピーし直してから改変を当て直す。`grep -rn "agents-repo" skills/last30days/scripts` で印を付けた改変箇所（`env.py` 3か所、`providers.py`・`pipeline.py`・`rust_accel.py` 各1か所）が揃っていることを確かめる。
+
 ## コミットしていないもの
 
 ライセンスが無い、または再配布の許諾が確認できないもの。**`.gitignore` で除外し、手元にだけ置く。**
