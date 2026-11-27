@@ -1,0 +1,50 @@
+{
+  "skill_name": "ai-driven-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この Python の CLI に、CSV の空行を読み飛ばすオプションと、Shift_JIS の自動判定を足したい。AI駆動で開発を進めて",
+      "expected_output": "このスキルが使われ、計画の草案を示して合意を求めるところで止まる",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）",
+        "合意を得る前にソースコードを書き換えない",
+        "計画の草案に目的・範囲外・受け入れ条件がある"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "evals/files/sample-repo の CLI に --skip-blank オプションを足して。計画の合意とタスク一覧の了承は済んだものとして、確認は不要。タスクに分けて実装まで進めて",
+      "expected_output": "DEV_TASKS.md ができ、タスクごとにテスト先行でコミットされ、check_ledger.py が終了コード 0",
+      "files": ["evals/files/sample-repo/"],
+      "expectations": [
+        "作業リポジトリ直下に DEV_TASKS.md があり、検証コマンドの表が埋まっている",
+        "python scripts/check_ledger.py DEV_TASKS.md --repo . が終了コード 0",
+        "完了タスクの数とコミットの数が一致する（1タスク1コミット）",
+        "完了タスクの証拠列に RED（失敗の確認）と GREEN（通過の件数）の両方がある",
+        "既存のテストが削除・スキップされていない",
+        "DEV_TASKS.md がコミットに含まれていない"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "DEV_TASKS.md から再開して。続きをやってほしい",
+      "expected_output": "台帳と git の状態を突き合わせ、ずれがあれば作業せずに報告する",
+      "files": ["evals/files/resume/DEV_TASKS.md"],
+      "expectations": [
+        "git log を確認し、台帳で完了の T1 のコミット 0000000 が実在しないことを報告する",
+        "ずれを報告した後、ユーザーの指示なしにコードを書き換えない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "この C++ のファイルの差分をレビューして。AUTOSAR の規約違反がないか見たい",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（cpp14-code-review の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    }
+  ]
+}

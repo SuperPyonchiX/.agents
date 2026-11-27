@@ -1443,6 +1443,69 @@ class DrawioTests(TemporaryCase):
         self.assertNotIn('線「ok」', r.stdout)
 
 
+class DevLedgerTests(TemporaryCase):
+    SCRIPT = ROOT/'skills/ai-driven-dev/scripts/check_ledger.py'
+    HEAD = ('## 検証コマンド\n| 種類 | コマンド |\n|---|---|\n| テスト | `pytest -q` |\n\n'
+            '## タスク\n| ID | タスク | 完了条件 | 状態 | 証拠 | コミット |\n|---|---|---|---|---|---|\n')
+
+    def check(self, rows, *extra):
+        p = self.file('DEV_TASKS.md', self.HEAD + rows)
+        return subprocess.run([sys.executable, str(self.SCRIPT), str(p), *extra],
+                              capture_output=True, text=True, encoding='utf-8',
+                              env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+
+    def test_closed_ledger_passes(self):
+        r = self.check('| T1 | a | b | 完了 | GREEN 3 passed | 3f2a9c1 |\n| T2 | a | b | 中止 | 了承済み |  |\n')
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_open_and_missing_evidence_fail(self):
+        for row, msg in [('| T1 | a | b | 進行中 |  |  |\n', '進行中 のまま'),
+                         ('| T1 | a | b | 完了 |  | 3f2a9c1 |\n', '証拠が空'),
+                         ('| T1 | a | b | 完了 | ok | なし |\n', 'コミットが無い'),
+                         ('| T1 | a | b | 保留 |  |  |\n', '理由が空'),
+                         ('| T1 | a | b | 済 | ok | 3f2a9c1 |\n', '状態が不正'),
+                         ('| T1 | a | b | 完了 | ok |\n', '列数')]:
+            with self.subTest(row=row):
+                r = self.check(row)
+                self.assertEqual(r.returncode, 1, r.stdout)
+                self.assertIn(msg, r.stdout)
+
+    def test_repo_checks_commit_exists(self):
+        head = subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--short', 'HEAD'],
+                              capture_output=True, text=True).stdout.strip()
+        self.assertEqual(self.check('| T1 | a | b | 完了 | ok | %s |\n' % head, '--repo', str(ROOT)).returncode, 0)
+        r = self.check('| T1 | a | b | 完了 | ok | 0000000 |\n', '--repo', str(ROOT))
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('リポジトリに無い', r.stdout)
+
+    def test_review_findings_parsing(self):
+        ok = ['| T1 | a | b | 完了 | 応答 < 2秒 | 3f2a9c1 |\n',
+              '| T1 | a | b | 完了 | `grep x \\| wc -l` が 0 | 3f2a9c1 |\n',
+              '| T1 | a | b | 完了 | ok | 3f2a9c1, 4b5c6d7 |\n']
+        for row in ok:
+            with self.subTest(row=row):
+                self.assertEqual(self.check(row).returncode, 0, self.check(row).stdout)
+        r = self.check('| T1 | a | b | 完了 | ok | なし（deadbeef1 予定） |\n')
+        self.assertEqual(r.returncode, 1)
+        fenced = '```\n| ID | 状態 | 証拠 | コミット |\n|---|---|---|---|\n| X | 済 | | |\n```\n\n'
+        p = self.file('DEV_TASKS.md', fenced + self.HEAD + '| T1 | a | b | 完了 | ok | 3f2a9c1 |\n')
+        r = subprocess.run([sys.executable, str(self.SCRIPT), str(p)], capture_output=True, text=True,
+                           encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_resume_and_bad_repo(self):
+        rows = '| T1 | a | b | 完了 | ok | 3f2a9c1 |\n| T2 | a | b | 未着手 |  |  |\n'
+        self.assertEqual(self.check(rows).returncode, 1)
+        self.assertEqual(self.check(rows, '--resume').returncode, 0)
+        self.assertEqual(self.check(rows, '--repo', str(self.folder)).returncode, 2)
+
+    def test_no_task_table_is_usage_error(self):
+        p = self.file('x.md', '# 台帳\n')
+        r = subprocess.run([sys.executable, str(self.SCRIPT), str(p)], capture_output=True, text=True,
+                           encoding='utf-8', env=dict(os.environ, PYTHONIOENCODING='utf-8'))
+        self.assertEqual(r.returncode, 2, r.stdout)
+
+
 class ManualTestSheetTests(TemporaryCase):
     SHEET = ROOT/'skills/manual-test-sheet/scripts/sheet.py'
 
