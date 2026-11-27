@@ -91,6 +91,7 @@ graph LR
 | `drawio-diagram` | 図の種類を問わず、人が後から直せる draw.io 形式（.drawio）で図を作る。UML の型に収まらない構成図・概念図も自由な配置で描ける。箱の位置・見た目はモデルが spec.json に書き（こだわらなければ自動配置）、箱を避ける線の経路はスクリプトが決めて生成し、要件照合と SVG からの配置検査を通してから PNG・SVG・PDF に書き出す | 136行 |
 | `narrated-video` | 台本からナレーションを作り、音声の長さを正本にして Remotion の動画へ尺を合わせ、字幕つきの MP4 にする。解説動画と、ビートに合わせて動く告知・CM 動画の両方を作る。音声は Gemini TTS（感情を指示できる）か VOICEVOX（無料・ローカル）、3D 素材は Blender（2回で通らなければ Three.js）。Remotion の書き方は取り込んだ `remotion-best-practices` に従う | 219行 |
 | `footage-edit` | 撮影済みの映像（話し手の撮影・画面録画・講話）を、プロの編集手法（Murch の6原則、無音とフィラーの詰め、パンチインと B ロールによるジャンプカットの処理、J/L カット）で切ってつなぐ。EDL を正本にして FFmpeg で書き出し、ラウドネス（配信先の目標値）と字幕（Netflix の規則）を機械判定し、境目の画像で自己検査してから試聴に回す | 218行 |
+| `rea-video` | 他人の動画をショット単位に分解し、実写・AI生成・3D・コード描画などの判定、字幕・BGM・効果音の作り方、作り直し計画を出す。CLI（`rea-video`、pip）と ffmpeg が要る。外部 VLM（Gemini など）へは、ユーザーが送ってよいと言ったときだけ送る（外部取り込み・Apache-2.0） | 156行 |
 | `threejs-game` | Three.js のブラウザゲームを作る・直す。短い設計メモ→遊べるループ→ビルド・キャンバス撮影・実入力での確認の順に進める。ジャンル・画風・規模は依頼に従い、雛形は任意（外部取り込み・MIT） | 126行 |
 | `operate-pdf` | PDF のテキスト・表・画像の抽出、結合・分割・回転・透かし・暗号化、フォーム記入を行う。Word・Excel・PowerPoint の PDF 化とページの画像化（LibreOffice か MS Office で変換）も持ち、他のファイル系スキルの見た目確認に使われる | 129行 |
 | `operate-excel` | Excel ブックを openpyxl で読む・作る・直す。構造の把握、数式の再計算とエラーセルの検出、編集前後の差分確認、PDF にしての見た目確認まで行う | 113行 |
@@ -361,6 +362,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | `skills/ui-ux-pro-max/` | `skills/ui-ux-pro-max/LICENSE`（MIT / Copyright (c) 2024 Next Level Builder）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/japanese-prose-polish/` | `skills/japanese-prose-polish/LICENSE`（MIT / Copyright (c) 2025 Siqi Chen、Copyright (c) 2026 SuguruKun_ai）。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/rea-video/` | `skills/rea-video/LICENSE`（Apache-2.0 / Copyright 2026 JuneYaooo）と同梱の `NOTICE`。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。

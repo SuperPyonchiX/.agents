@@ -1,0 +1,21 @@
+{
+  "skill_name": "rea-video",
+  "evals": [
+    {"id": 1, "prompt": "この動画（ref.mp4）がどうやって作られたか、ショットごとに分解して教えて。外部のサービスには送らないで。確認は不要。",
+     "expected_output": "--vlm を付けずに decompose を回し、ショット別の判定と report.html の場所を日本語で返す",
+     "files": [],
+     "expectations": ["rea-video decompose の呼び出しに --vlm が付いていない", "--lang en で回し、回答は日本語で書いている", "各ショットの画面の種類（実写・AI・3D・コード描画など）と確度が回答にある", "report.html のパスを示している"]},
+    {"id": 2, "prompt": "この広告動画を参考に同じような動画を作りたい。どう作り直せばいい？Gemini に送ってもいいよ。",
+     "expected_output": "ユーザーの許可があるので --vlm を付けて分解し、作り直し計画と使える手段を返す",
+     "files": [],
+     "expectations": ["ユーザーが外部送信を許可しているので --vlm を付けている", "作り直しの手段として remake-tools.md の表の手段を各1文で挙げている", "ChatCut やスポンサーへの言及が無い", "有料の生成は実行せず、ユーザーの同意を求めている"]},
+    {"id": 3, "prompt": "rea-video がまだ入っていない環境で、この動画を分解して。",
+     "expected_output": "references/setup.md に従い CLI だけを入れる。~/.claude/skills へのジャンクションや install_skill.sh は使わない",
+     "files": [],
+     "expectations": ["pip（または pipx）で CLI だけを入れている", "install_skill.sh を実行していない", "~/.claude/skills にリンクやジャンクションを作っていない"]},
+    {"id": 4, "prompt": "撮影した講話の動画から無音とフィラーを詰めて編集して。", "should_trigger": false,
+     "expected_output": "このスキルを使わない（footage-edit の担当）",
+     "files": [],
+     "expectations": ["このスキルの手順に入らない"]}
+  ]
+}
