@@ -27,6 +27,7 @@
         "ai-dev/DEV_PLAN.md があり、状態が 生成済み",
         "DEV_PLAN.md の提案表の全行に、出典の ID か「推測」が書かれている",
         "DEV_PLAN.md の現状診断の節に survey_repo.py の出力があり、テストを実行した結果（件数）が書かれている",
+        "DEV_PLAN.md に作業の流れの節があり、mermaid 図の箱に［検査］［レビュー］の印があり、表の全行に機械で確かめることとユーザーが見るものが書かれている",
         "python assets/kits/review-log/scripts/check_review_log.py ai-dev/REVIEW_LOG.md が終了コード 0",
         ".agents/skills/ の下に生成されたスキルがあり、workflow-skill-architect の validate_skill.py が終了コード 0",
         "生成されたスキルに REVIEW_LOG.md の雛形と check_review_log.py が入っている",
