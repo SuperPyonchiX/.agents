@@ -2,9 +2,12 @@
 # -*- coding: utf-8 -*-
 """ai-driven-dev の開発台帳（DEV_TASKS.md）に未クローズのタスクや証拠の欠けが無いかを検査する。
 
-手順0（再開判定）と手順5（仕上げ）で実行する。
+手順0（再開判定）と手順3（仕上げ）で実行する。
 
-    python check_ledger.py DEV_TASKS.md [--repo リポジトリのパス] [--resume]
+    python check_ledger.py DEV_TASKS.md [--repo リポジトリのパス] [--resume] [--no-commit]
+
+--no-commit を付けると、完了タスクのコミット列が空か「なし」でも ERROR にしない。
+変更ファイル列がある台帳では、完了タスクの変更ファイルが空なら ERROR にする。
 
 --resume を付けると未着手・進行中を ERROR にしない（再開時・途中で終えるとき用）。
 
@@ -26,6 +29,7 @@ COL_ID = {"id", "no", "no."}
 COL_STATUS = {"状態", "ステータス", "status"}
 COL_EVIDENCE = {"証拠", "evidence"}
 COL_COMMIT = {"コミット", "commit"}
+COL_FILES = {"変更ファイル", "files"}
 COL_KIND = {"種類", "kind"}
 COL_COMMAND = {"コマンド", "command"}
 
@@ -115,7 +119,7 @@ def commit_exists(repo, sha):
     return git(repo, "cat-file", "-e", sha + "^{commit}").returncode == 0
 
 
-def check(path, repo, resume=False):
+def check(path, repo, resume=False, no_commit=False):
     errors, warns = [], []
     try:
         with open(path, "r", encoding="utf-8-sig") as f:
@@ -139,6 +143,7 @@ def check(path, repo, resume=False):
     hn, header, rows = task_table
     c_id, c_st = find_col(header, COL_ID), find_col(header, COL_STATUS)
     c_ev, c_cm = find_col(header, COL_EVIDENCE), find_col(header, COL_COMMIT)
+    c_fl = find_col(header, COL_FILES)
     if c_ev is None:
         errors.append("%s:%d: 証拠列がない" % (path, hn))
     if c_cm is None:
@@ -173,8 +178,12 @@ def check(path, repo, resume=False):
         elif status == "完了":
             if evidence in EMPTY or is_placeholder(evidence):
                 errors.append("%s: %s は完了だが証拠が空。実行した検証の結果を書くこと" % (where, tid))
+            if c_fl is not None and (cells[c_fl] in EMPTY or is_placeholder(cells[c_fl])):
+                errors.append("%s: %s は完了だが変更ファイルが空。実際に変えたファイルを書くこと" % (where, tid))
             hashes = parse_hashes(commit)
-            if not hashes:
+            if not hashes and no_commit and commit in EMPTY:
+                pass
+            elif not hashes:
                 errors.append("%s: %s は完了だがコミットが無い（短いハッシュを書くこと）: '%s'"
                               % (where, tid, commit))
             elif repo:
@@ -207,13 +216,14 @@ def main(argv):
     ap.add_argument("ledger", help="DEV_TASKS.md のパス")
     ap.add_argument("--repo", help="完了タスクのコミットが実在するかを確かめるリポジトリ")
     ap.add_argument("--resume", action="store_true", help="未着手・進行中を ERROR にしない")
+    ap.add_argument("--no-commit", action="store_true", help="完了タスクにコミットを求めない（コミットしない方式）")
     args = ap.parse_args(argv)
 
     try:
         if args.repo and git(args.repo, "rev-parse", "--git-dir").returncode != 0:
             print("ERROR  --repo が git リポジトリではない: %s" % args.repo)
             return 2
-        ok, errors, warns, counts = check(args.ledger, args.repo, args.resume)
+        ok, errors, warns, counts = check(args.ledger, args.repo, args.resume, args.no_commit)
     except RuntimeError as e:
         print("ERROR  %s" % e)
         return 2
