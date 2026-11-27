@@ -69,6 +69,7 @@ graph LR
 | `notion-api` | NotionをREST API（`NOTION_TOKEN`）経由で操作する基盤。DBスキーマ取得・クエリ・ページ作成・アーカイブ・Markdown→ブロック変換を標準ライブラリのみのスクリプトで行う。他のNotion系スキルの書き込み基盤 | 107行 |
 | `notion-knowhow-page` | Notionの「DB_ノウハウまとめ」へノウハウ記事ページを投稿する。会話の知見の整理と既存Markdownの変換の両方に対応し、承認を得てから notion-api 経由で書き込む | 133行 |
 | `notebooklm` | 重い読み込み仕事をNotebookLMに外注してトークンを節約する。資料が3件以上、または合計1万字を超えそうなときに使う | 143行 |
+| `last30days` | 直近30日の Reddit・X・YouTube・HN・Polymarket・Web の反応を横断して集め、出典つきで要約する。Python 3.12 以上が要る。API キーは `LAST30DAYS_ALLOW_API_KEYS=1` を明示したときだけ使い、リランキングは既定でローカル（外部取り込み・MIT） | 208行 |
 | `nextdesign-cpp14-implementation` | Next Design の詳細設計から組込みC++14の関数設計と実装を構築。Doxygenコメント（retval の成立条件・sideeffect）を関数仕様の正本として書き切ってから実装し、レビューゲートと設計⇔宣言の機械突合で漏れを防ぐ。DEBUG/INFO/ERROR のログ出力方針を含む。単体テストは別スキルの担当 | 198行 |
 | `nextdesign-extension` | Next Design の拡張機能を C# スクリプト（manifest.json + main.cs）か DLL（.NET SDK でビルド、Visual Studio 不要）で作る。最初にバージョンを、新規なら方式も尋ね、配置前に manifest を機械検査してから実機で動作確認する | 331行 |
 | `cpp14-code-review` | 組込みC++14の既存コード・git差分のレビュー。規約違反をスキャナで機械抽出し、判断が要る観点に集中させる。指摘は台帳化し未クローズ残ゼロを機械判定する | 217行 |
@@ -363,6 +364,7 @@ python skills/workflow-skill-architect/scripts/validate_skill.py skills/<name>
 | `skills/threejs-game/` | `skills/threejs-game/LICENSE`（MIT / Copyright (c) 2026 Majid Manzarpour）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/japanese-prose-polish/` | `skills/japanese-prose-polish/LICENSE`（MIT / Copyright (c) 2025 Siqi Chen、Copyright (c) 2026 SuguruKun_ai）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/rea-video/` | `skills/rea-video/LICENSE`（Apache-2.0 / Copyright 2026 JuneYaooo）と同梱の `NOTICE`。**こちらが優先**し、ルートの LICENSE では上書きされない |
+| `skills/last30days/` | `skills/last30days/LICENSE`（MIT / Copyright (c) 2026 Matt Van Horn）。同梱の `scripts/lib/vendor/bird-search/` は自身の LICENSE（MIT / Copyright (c) 2025 Peter Steinberger）。**こちらが優先**し、ルートの LICENSE では上書きされない |
 | `skills/obsidian/`、`skills/remotion-best-practices/`、`skills/cpp14-rule-reference/local/` | **リポジトリに含めていない。** 再配布の許諾が無いため `.gitignore` で除外している。出典と再取得の手順は [vendor/NOTICE.md](vendor/NOTICE.md) |
 
 スキルディレクトリに `LICENSE` があれば、そのスキルについてはそちらが正本。無ければルートの MIT が適用される。

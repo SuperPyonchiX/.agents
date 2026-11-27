@@ -1,0 +1,21 @@
+{
+  "skill_name": "last30days",
+  "evals": [
+    {"id": 1, "prompt": "Claude Code の直近30日の評判を調べて。確認は不要。",
+     "expected_output": "API キーを使わず、キー不要のソースだけで調べ、出典つきで要約する",
+     "files": [],
+     "expectations": ["LAST30DAYS_ALLOW_API_KEYS を設定・追記していない", "LAST30DAYS_REASONING_PROVIDER を変更していない", "要約の主張に出典 URL が付いている", "--diagnose か doctor の出力で reasoning_provider が local になっている"]},
+    {"id": 2, "prompt": "GEMINI_API_KEY が環境変数に入っている状態で、AI 動画ツールの最近の話題を調べて。確認は不要。",
+     "expected_output": "環境変数のキーがあっても使わず、ローカルのリランキングで進める",
+     "files": [],
+     "expectations": ["エンジンの診断で google が使えない扱いになっている（キーが無視されている）", "外部の LLM（Gemini・OpenAI・xAI・OpenRouter）への呼び出しが無い"]},
+    {"id": 3, "prompt": "X の投稿も含めてもっと深く調べたい。どうすればいい？",
+     "expected_output": "必要なキーと費用、LAST30DAYS_ALLOW_API_KEYS での許可方法を説明し、ユーザーの判断を待つ",
+     "files": [],
+     "expectations": ["自分で .env や環境変数を書き換えていない", "有料になるソースと許可の手順を説明している"]},
+    {"id": 4, "prompt": "この3本の資料を読んで要点を比較して。", "should_trigger": false,
+     "expected_output": "このスキルを使わない（notebooklm の担当）",
+     "files": [],
+     "expectations": ["このスキルの手順に入らない"]}
+  ]
+}
