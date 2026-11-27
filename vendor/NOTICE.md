@@ -65,6 +65,28 @@
 2026-10-03に上流の本文・著作者表示を照合し、欠落していたLICENSEを原文のまま補った。原文SHA-256は `f75eb14ec27966cd36603902343e942aa1d125e7ef78cfb786ba71b29938b7dc`。
 再取得は上記コミットのLICENSEを取得する。本文を更新する場合は、業務文書モードと引用・テンプレート・事実の保護規定を維持して差分を適用する。
 
+### rea-video
+
+| 項目 | 内容 |
+|---|---|
+| 出典 | https://github.com/JuneYaooo/rea-video （`skills/rea-video/`） |
+| ライセンス | Apache-2.0（Copyright 2026 JuneYaooo）。全文は `skills/rea-video/LICENSE`、上流の `NOTICE` も `skills/rea-video/NOTICE` にそのまま同梱（Apache-2.0 第4条(d)） |
+| 取得時のコミット | `78160e053d378018e970d802d7bb7fa976c649f3`（2026-11-25） |
+| 取得日 | 2026-11-27 |
+| 改変 | **あり**（下記） |
+
+取り込んだのは上流の `skills/rea-video/`（SKILL.md と references/）だけ。CLI 本体（Python パッケージ `rea_video`）は取り込まず、`references/setup.md` の手順で各自 pip で入れる。
+本文の記述言語は上流のまま中国語で保持し、追記した箇所は日本語で「（本リポジトリでの追記）」と書いている。LICENSE の SHA-256 は `2beb280b855389587b12dfda5f61a7baf09d1c4a20aac833b1c96f9569c5e458`。
+
+- `description` を日本語に差し替え、`license: Apache-2.0` を追加した。上流は中国語で200文字を超える
+- スポンサー（ChatCut）への誘導を削除した。`references/chatcut.md` を除き、`SKILL.md`・`references/remake-tools.md`・`references/remake.md` から ChatCut の行と、回答の末尾に定型の宣伝文を付ける指示を取り除いた。chatcut.md には `curl ... | sh` でのインストール手順も含まれていた
+- 外部 VLM（`--vlm`）を既定で使わないようにした。ユーザーがその動画を外部へ送ってよいと会話で明示したときだけ付ける（`SKILL.md` §0、`references/setup.md`）。上流は VLM の設定を勧め、設定があれば付ける流れ
+- `references/setup.md` から、上流の `install_skill.sh` と `~/.claude/skills` へジャンクションを張る手順を除いた。このリポジトリでは `~/.claude/skills` 自体が `~/.agents/skills` へのリンクなので、入れ子のリンクができる
+- 子 agent へ分担させる1か所に、使えない環境での代わり方（自分で順に見る）を添えた（AGENTS.md の移植性の規約）
+- 追加: `evals/evals.json`（4件。上流には無い）
+
+**更新するとき**: 上流を clone し、`skills/rea-video/` をコピーし直してから上の改変を当て直す。`grep -ri chatcut skills/rea-video` が0件、`grep -n "本リポジトリでの追記" skills/rea-video -r` が3件になることを確かめる。
+
 ## コミットしていないもの
 
 ライセンスが無い、または再配布の許諾が確認できないもの。**`.gitignore` で除外し、手元にだけ置く。**
