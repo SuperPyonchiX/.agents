@@ -1,0 +1,63 @@
+{
+  "skill_name": "ai-driven-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "この CSV の行数を数える CLI を、AI駆動で育てていきたい。空行の除外や文字コードの自動判定をこれから足していく予定。進め方を相談しながら、この開発用のスキルを作って",
+      "expected_output": "このスキルが使われ、目的の聞き取りの質問（推奨の答えつき、3件まで）をしたところで止まる",
+      "files": [
+        "evals/files/sample-repo/"
+      ],
+      "expectations": [
+        "新しいセッションで、このスキルが使われる（Claude Code は Skill 呼び出し、Codex は SKILL.md の読み込み）",
+        "質問が3件以下で、各質問に推奨の答えがある",
+        "README など読めば分かること（テストの実行方法）を質問していない",
+        "スキル（.agents/skills/ 配下の SKILL.md）をまだ生成していない",
+        "git log のコミット数が実行前と同じ"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "この CSV の行数を数える CLI を AI駆動で育てたい。進め方を決めて、この開発用のスキルを作って。答え: 成功の判定は『空行の除外と Shift_JIS の自動判定が入り、テストが全部通る』。同じ種類の機能追加を今後も月に数回やる。使うのは Claude Code と Codex。人が判断したいのは CLI のオプション名。失敗しても自分の手戻りだけ。社外に出せない情報は無い。提案は推奨どおりで合意、スキルの仕様も推奨どおりでよい。確認は不要",
+      "expected_output": "ai-dev/ に DEV_PLAN.md と REVIEW_LOG.md ができ、.agents/skills/ に検査を通る開発スキルが生成され、コミットはされない",
+      "files": [
+        "evals/files/sample-repo/"
+      ],
+      "expectations": [
+        "ai-dev/DEV_PLAN.md があり、状態が 生成済み",
+        "DEV_PLAN.md の提案表の全行に、出典の ID か「推測」が書かれている",
+        "DEV_PLAN.md の現状診断の節に survey_repo.py の出力があり、テストを実行した結果（件数）が書かれている",
+        "DEV_PLAN.md に作業の流れの節があり、mermaid 図の箱に［検査］［レビュー］の印があり、表の全行に機械で確かめることとユーザーが見るものが書かれている",
+        "python assets/kits/review-log/scripts/check_review_log.py ai-dev/REVIEW_LOG.md が終了コード 0",
+        ".agents/skills/ の下に生成されたスキルがあり、workflow-skill-architect の validate_skill.py が終了コード 0",
+        "生成されたスキルに REVIEW_LOG.md の雛形と check_review_log.py が入っている",
+        "git log のコミット数が実行前と同じで、ai-dev/ が .git/info/exclude に入っている（書けなかった場合は、追記をユーザーに頼んでいる）"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "markdown-doc スキルの description が長いので200字以内に直したい",
+      "should_trigger": false,
+      "expected_output": "このスキルを使わない（workflow-skill-architect の担当）",
+      "files": [],
+      "expectations": [
+        "新しいセッションで、このスキルが使われない"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "前回の続きをお願い",
+      "expected_output": "ai-dev/DEV_PLAN.md の状態と REVIEW_LOG.md の未対応を読み、手順4の未対応の指摘の対応から再開すると宣言する",
+      "files": [
+        "evals/files/sample-repo/"
+      ],
+      "expectations": [
+        "check_review_log.py を実行して残りの指摘を出している",
+        "状態が 提案中 で未対応があることを根拠に、未対応の指摘への対応から再開すると宣言している",
+        "回答済みの聞き取りの項目をもう一度質問していない",
+        "スキル（.agents/skills/ 配下の SKILL.md）を生成していない"
+      ]
+    }
+  ],
+  "notes": "回す前に evals/files/sample-repo/ を一時ディレクトリへ写して git init し、1件コミットしておく（コミット数の比較の基準）。.git/info/exclude への書き込みは実行環境の権限で拒否されることがあり、そのときはユーザーに追記を頼んでいれば合格とする。ケース4は、ケース2の実行後の ai-dev/ を状態だけ 提案中 に戻し、REVIEW_LOG.md に未対応の行を1件足してから回す"
+}
